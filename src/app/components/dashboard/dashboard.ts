@@ -21,9 +21,13 @@ export class Dashboard implements OnInit {
 
   searchTerm = signal('');
   statusFilter = signal<'Pendente' | 'Todos'>('Pendente');
+  nucleusFilter = signal('Todos');
+  onlyAssignedToMe = signal(false);
   currentPage = signal(1);
   pageSize = 20;
   
+  nucleos = this.store.nucleos;
+
   // Processes visible to the current user based on their role
   visibleProcesses = computed(() => {
     const user = this.currentUser();
@@ -66,6 +70,13 @@ export class Dashboard implements OnInit {
     ];
   });
 
+  private getPriorityLevel(priority: string): number {
+    if (!priority) return 2;
+    const p = priority.toUpperCase();
+    if (p.includes('SUPER')) return 1;
+    return 2;
+  }
+
   filteredProcesses = computed(() => {
     const term = this.searchTerm().toLowerCase();
     const status = this.statusFilter();
@@ -94,8 +105,20 @@ export class Dashboard implements OnInit {
              p.nucleus.toLowerCase().includes(term);
     });
 
-    // Sort by entryDate ascending
-    return filtered.sort((a, b) => new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime());
+    // Robust sorting:
+    // 1. Priority Level (Super first)
+    // 2. Position (within nucleus)
+    // 3. Entry Date
+    return filtered.sort((a, b) => {
+      const levelA = this.getPriorityLevel(a.priority);
+      const levelB = this.getPriorityLevel(b.priority);
+      
+      if (levelA !== levelB) return levelA - levelB;
+      
+      if (a.position !== b.position) return a.position - b.position;
+      
+      return new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime();
+    });
   });
 
   // This effect will trigger whenever filters or page change
@@ -131,7 +154,9 @@ export class Dashboard implements OnInit {
         statusFilter: this.statusFilter(),
         startDate: startDate || '',
         endDate: endDate || '',
-        user: user
+        user: user,
+        nucleusFilter: this.nucleusFilter(),
+        onlyAssignedToMe: this.onlyAssignedToMe()
       });
 
       this.serverProcesses.set(result.processes);
@@ -197,6 +222,18 @@ export class Dashboard implements OnInit {
     this.loadServerData();
   }
 
+  setNucleusFilter(nucleus: string) {
+    this.nucleusFilter.set(nucleus);
+    this.currentPage.set(1);
+    this.loadServerData();
+  }
+
+  toggleOnlyAssignedToMe() {
+    this.onlyAssignedToMe.update(v => !v);
+    this.currentPage.set(1);
+    this.loadServerData();
+  }
+
   nextPage() {
     if (this.currentPage() < this.totalPages()) {
       this.currentPage.update(p => p + 1);
@@ -235,9 +272,34 @@ export class Dashboard implements OnInit {
     return this.users().find(u => u.id === userId)?.name || 'Desconhecido';
   }
 
+  stripPriorityPrefix(priority: string): string {
+    if (!priority) return '';
+    return priority.replace(/^\d+-/, '');
+  }
+
   getAssignableUsers(nucleus: string) {
-    // Can assign to anyone in the nucleus EXCEPT Administrador
+    const user = this.currentUser();
+    if (!user) return [];
+
+    // Supervisor, Coordenador, Chefe, Gerente and Admin can assign to anyone (except Admins)
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
+    if (privilegedRoles.includes(user.role)) {
+      return this.users().filter(u => u.role !== 'Administrador');
+    }
+
+    // Default fallback (though they shouldn't see the select if they can't assign)
     return this.users().filter(u => u.nucleus === nucleus && u.role !== 'Administrador');
+  }
+
+  canAssign(): boolean {
+    const user = this.currentUser();
+    if (!user) return false;
+
+    // Supervisor, Coordenador, Chefe, Gerente and Admin can assign any process
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
+    if (privilegedRoles.includes(user.role)) return true;
+
+    return false;
   }
 
   canChangeStatus(process: Process): boolean {

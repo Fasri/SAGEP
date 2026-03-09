@@ -11,9 +11,11 @@
         }
       </p>
     </div>
-    <div class="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
-      <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Núcleo Atual</span>
-      <p class="text-primary font-bold">{{ currentUser()?.nucleus }}</p>
+    <div class="flex items-end gap-3">
+      <div class="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Núcleo Atual</span>
+        <p class="text-primary font-bold">{{ currentUser()?.nucleus }}</p>
+      </div>
     </div>
   </div>
 
@@ -55,7 +57,7 @@
       <span class="material-symbols-outlined text-primary">filter_list</span>
       <h3 class="font-bold text-lg">Filtrar por Período</h3>
     </div>
-    <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+    <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
       <div class="flex flex-col gap-2">
         <label for="startDate" class="text-sm font-semibold text-slate-700">Data Início</label>
         <div class="relative">
@@ -70,6 +72,26 @@
           <input id="endDate" formControlName="endDate" class="w-full bg-white border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-primary" type="date" />
         </div>
       </div>
+      
+      @if (['Administrador', 'Coordenador', 'Supervisor'].includes(currentUser()?.role || '')) {
+        <div class="flex flex-col gap-2">
+          <label for="nucleusFilter" class="text-sm font-semibold text-slate-700">Filtrar por Núcleo</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">account_balance</span>
+            <select id="nucleusFilter" 
+                    (change)="setNucleusFilter($any($event.target).value)"
+                    class="w-full bg-white border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-primary outline-none appearance-none cursor-pointer">
+              <option value="Todos">Todos os Núcleos</option>
+              @for (n of nucleos(); track n.id) {
+                <option [value]="n.nome">{{ n.nome }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      } @else {
+        <div></div> <!-- Spacer -->
+      }
+
       <button type="button" (click)="applyFilters()" class="bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-md shadow-primary/20 cursor-pointer">
         <span class="material-symbols-outlined">search</span>
         Aplicar Filtros
@@ -96,6 +118,18 @@
             Todos
           </button>
         </div>
+
+        @if (['Coordenador', 'Supervisor', 'Chefe', 'Gerente'].includes(currentUser()?.role || '')) {
+          <button (click)="toggleOnlyAssignedToMe()" 
+                  [class.bg-primary]="onlyAssignedToMe()"
+                  [class.text-white]="onlyAssignedToMe()"
+                  [class.bg-slate-100]="!onlyAssignedToMe()"
+                  [class.text-slate-600]="!onlyAssignedToMe()"
+                  class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-sm">
+            <span class="material-symbols-outlined text-sm">{{ onlyAssignedToMe() ? 'person_check' : 'person' }}</span>
+            Atribuídos a mim
+          </button>
+        }
       </div>
       <div class="flex items-center gap-3">
         @if (isLoading()) {
@@ -111,7 +145,8 @@
       <table class="w-full text-left border-collapse">
         <thead>
           <tr class="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-wider">
-            <th class="px-6 py-4 text-center">Posição</th>
+            <th class="px-6 py-4 text-center">Posição Geral</th>
+            <th class="px-6 py-4 text-center">Posição Prioridade</th>
             <th class="px-6 py-4">Número do Processo</th>
             <th class="px-6 py-4">Entrada</th>
             <th class="px-6 py-4">Vara</th>
@@ -132,6 +167,9 @@
           @for (process of paginatedProcesses(); track process.id) {
             <tr class="hover:bg-slate-50 transition-colors">
               <td class="px-6 py-4 text-center font-semibold text-slate-700">{{ process.position }}º</td>
+              <td class="px-6 py-4 text-center font-semibold text-amber-600">
+                {{ process.priorityPosition ? process.priorityPosition + 'º' : '-' }}
+              </td>
               <td class="px-6 py-4 font-mono font-medium text-slate-900">{{ process.number }}</td>
               <td class="px-6 py-4 text-sm">{{ process.entryDate | date:'dd/MM/yyyy' }}</td>
               <td class="px-6 py-4 text-sm">{{ process.court }}</td>
@@ -139,11 +177,11 @@
               <td class="px-6 py-4">
                 <span class="px-2.5 py-1 rounded-full text-xs font-bold"
                       [ngClass]="{
-                        'bg-red-100 text-red-700': process.priority === 'Super prioridade',
-                        'bg-orange-100 text-orange-700': process.priority === 'Prioridade legal',
-                        'bg-slate-100 text-slate-500': process.priority === 'Sem prioridade'
+                        'bg-red-100 text-red-700': process.priority.includes('Super prioridade'),
+                        'bg-orange-100 text-orange-700': process.priority.includes('Prioridade legal'),
+                        'bg-slate-100 text-slate-500': process.priority.includes('Sem prioridade')
                       }">
-                  {{ process.priority }}
+                  {{ stripPriorityPrefix(process.priority) }}
                 </span>
               </td>
               <td class="px-6 py-4">
@@ -196,11 +234,11 @@
               @if (currentUser()?.role !== 'Contador Judicial') {
                 <td class="px-6 py-4">
                   <div class="flex items-center justify-center gap-2">
-                    @if (process.nucleus === currentUser()?.nucleus) {
+                    @if (canAssign()) {
                       <select (change)="assignProcess(process, $any($event.target).value)" class="text-xs border-slate-200 rounded bg-white py-1 px-2 focus:ring-primary">
                         <option value="">Atribuir a...</option>
                         @for (user of getAssignableUsers(process.nucleus); track user.id) {
-                          <option [value]="user.id" [selected]="process.assignedToId === user.id">{{ user.name }} ({{ user.role }})</option>
+                          <option [value]="user.id" [selected]="process.assignedToId === user.id">{{ user.name }} ({{ user.role }}) - {{ user.nucleus }}</option>
                         }
                       </select>
                     } @else {

@@ -56,18 +56,9 @@ import {read, utils} from 'xlsx';
                 <label for="nucleus" class="text-sm font-bold text-slate-700">Núcleo</label>
                 <select id="nucleus" formControlName="nucleus" 
                         class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all cursor-pointer">
-                  <option value="1ª CC">1ª CC</option>
-                  <option value="2ª CC">2ª CC</option>
-                  <option value="3ª CC">3ª CC</option>
-                  <option value="4ª CC">4ª CC</option>
-                  <option value="5ª CC">5ª CC</option>
-                  <option value="6ª CC">6ª CC</option>
-                  <option value="7ª CC">7ª CC</option>
-                  <option value="8ª CC">8ª CC</option>
+                  <option value="">Selecione um núcleo...</option>
                   @for (n of nucleos(); track n.id) {
-                    @if (!['1ª CC', '2ª CC', '3ª CC', '4ª CC', '5ª CC', '6ª CC', '7ª CC', '8ª CC'].includes(n.nome)) {
-                      <option [value]="n.nome">{{ n.nome }}</option>
-                    }
+                    <option [value]="n.nome">{{ n.nome }}</option>
                   }
                 </select>
               </div>
@@ -76,12 +67,12 @@ import {read, utils} from 'xlsx';
                 <label for="priority" class="text-sm font-bold text-slate-700">Prioridade</label>
                 <select id="priority" formControlName="priority" 
                         class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all cursor-pointer">
-                  <option value="Sem prioridade">Sem prioridade</option>
-                  <option value="Prioridade legal">Prioridade legal</option>
-                  <option value="Super prioridade">Super prioridade</option>
+                  <option value="2-Sem prioridade">Sem prioridade</option>
+                  <option value="2-Prioridade legal">Prioridade legal</option>
+                  <option value="1-Super prioridade">Super prioridade</option>
                   @for (p of prioridades(); track p.id) {
-                    @if (!['Sem prioridade', 'Prioridade legal', 'Super prioridade'].includes(p.nome)) {
-                      <option [value]="p.nome">{{ p.nome }}</option>
+                    @if (!['2-Sem prioridade', '2-Prioridade legal', '1-Super prioridade'].includes(p.nome)) {
+                      <option [value]="p.nome">{{ stripPriorityPrefix(p.nome) }}</option>
                     }
                   }
                 </select>
@@ -201,12 +192,17 @@ export class Processos {
     entryDate: new FormControl(new Date().toISOString().split('T')[0], Validators.required),
     court: new FormControl('', Validators.required),
     nucleus: new FormControl('1ª CC', Validators.required),
-    priority: new FormControl('Sem prioridade', Validators.required),
+    priority: new FormControl('2-Sem prioridade', Validators.required),
     status: new FormControl('Pendente', Validators.required),
     assignedToId: new FormControl<string | null>(null),
     valorCustas: new FormControl(0),
     observacao: new FormControl('')
   });
+
+  stripPriorityPrefix(priority: string): string {
+    if (!priority) return '';
+    return priority.replace(/^\d+-/, '');
+  }
 
   async onSubmit() {
     if (this.processForm.valid) {
@@ -232,7 +228,7 @@ export class Processos {
         this.processForm.reset({
           entryDate: new Date().toISOString().split('T')[0],
           nucleus: '1ª CC',
-          priority: 'Sem prioridade',
+          priority: '2-Sem prioridade',
           assignedToId: null,
           valorCustas: 0,
           observacao: ''

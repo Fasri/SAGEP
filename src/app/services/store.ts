@@ -120,6 +120,7 @@ export class StoreService {
   // Auth State
   currentUser = signal<User | null>(null);
   isSupabaseConnected = signal<boolean>(false);
+  recalculationProgress = signal<number>(0);
 
   // Dynamic Tables
   nucleos = signal<Nucleo[]>([]);
@@ -250,7 +251,38 @@ export class StoreService {
     }
 
     try {
-      // Fetch counts for stats first (global, but respecting role)
+      // Fetch dynamic tables first to ensure normalization works
+      const { data: nucleos } = await client.from('nucleos').select('*');
+      if (nucleos && nucleos.length > 0) {
+        this.nucleos.set(nucleos);
+      } else {
+        await this.seedDatabase(client);
+        // Re-fetch after seed
+        const { data: n } = await client.from('nucleos').select('*');
+        if (n) this.nucleos.set(n);
+      }
+
+      const { data: prioridades } = await client.from('prioridades').select('*');
+      if (prioridades && prioridades.length > 0) {
+        this.prioridades.set(prioridades);
+      } else {
+        // If nucleos existed but prioridades didn't, we might need to seed just prioridades
+        // But seedDatabase handles all. Let's just ensure we have them.
+        await this.seedDatabase(client);
+        const { data: p } = await client.from('prioridades').select('*');
+        if (p) this.prioridades.set(p);
+      }
+
+      const { data: statusTipos } = await client.from('status_tipos').select('*');
+      if (statusTipos && statusTipos.length > 0) {
+        this.statusTipos.set(statusTipos);
+      } else {
+        await this.seedDatabase(client);
+        const { data: s } = await client.from('status_tipos').select('*');
+        if (s) this.statusTipos.set(s);
+      }
+
+      // Fetch counts for stats
       this.updateGlobalStats();
       
       console.log('StoreService: Fetching users from Supabase...');
@@ -276,8 +308,13 @@ export class StoreService {
         })));
       }
 
-      console.log('StoreService: Fetching processes from Supabase...');
-      const { data: processes, error: processesError } = await client.from('processes').select('*');
+      console.log('StoreService: Fetching processes from Supabase (limited to 100)...');
+      const { data: processes, error: processesError } = await client.from('vw_processes')
+        .select('*')
+        .order('priority', { ascending: true })
+        .order('position', { ascending: true })
+        .limit(100);
+      
       if (processesError) {
         console.error('StoreService: Error fetching processes:', processesError);
       } else if (processes && processes.length > 0) {
@@ -290,7 +327,7 @@ export class StoreService {
           entryDate: String(p['entry_date'] || new Date().toISOString().split('T')[0]),
           court: String(p['court'] || ''),
           nucleus: String(p['nucleus'] || 'GERAL'),
-          priority: this.normalizePriority(String(p['priority'] || 'Sem prioridade')),
+          priority: this.normalizePriority(String(p['priority'] || '2-Sem prioridade')),
           status: this.normalizeStatus(String(p['status'] || 'Pendente')),
           assignedToId: p['assigned_to_id'] ? String(p['assigned_to_id']) : null,
           assignmentDate: p['assignment_date'] ? String(p['assignment_date']) : null,
@@ -303,20 +340,6 @@ export class StoreService {
         await this.seedProcesses(client);
       }
 
-      // Fetch dynamic tables
-      const { data: nucleos } = await client.from('nucleos').select('*');
-      if (nucleos && nucleos.length > 0) {
-        this.nucleos.set(nucleos);
-      } else {
-        await this.seedDatabase(client);
-      }
-
-      const { data: prioridades } = await client.from('prioridades').select('*');
-      if (prioridades) this.prioridades.set(prioridades);
-
-      const { data: statusTipos } = await client.from('status_tipos').select('*');
-      if (statusTipos) this.statusTipos.set(statusTipos);
-
     } catch (e) {
       console.error('StoreService: Unexpected error in loadData:', e);
     }
@@ -324,40 +347,74 @@ export class StoreService {
 
   private normalizeNucleus(name: string): string {
     if (!name) return '1ª CC';
-    let n = name.toUpperCase().trim();
+    const n = name.toUpperCase().trim();
     
-    // Remove common special characters that might cause mismatch
-    n = n.replace(/ª/g, '').replace(/º/g, '').replace(/A/g, 'A').replace(/O/g, 'O');
-    n = n.replace(/\s+/g, ' ');
-
-    // Map common variations
-    if (n.includes('1') && (n.includes('CC') || n.includes('CAMARA'))) return '1ª CC';
-    if (n.includes('2') && (n.includes('CC') || n.includes('CAMARA'))) return '2ª CC';
-    if (n.includes('3') && (n.includes('CC') || n.includes('CAMARA'))) return '3ª CC';
-    if (n.includes('4') && (n.includes('CC') || n.includes('CAMARA'))) return '4ª CC';
-    if (n.includes('5') && (n.includes('CC') || n.includes('CAMARA'))) return '5ª CC';
-    if (n.includes('6') && (n.includes('CC') || n.includes('CAMARA'))) return '6ª CC';
-    if (n.includes('7') && (n.includes('CC') || n.includes('CAMARA'))) return '7ª CC';
-    if (n.includes('8') && (n.includes('CC') || n.includes('CAMARA'))) return '8ª CC';
-    
-    // Check if it exists in the loaded nucleos
-    const originalUpper = name.toUpperCase().trim();
-    const found = this.nucleos().find(item => item.nome.toUpperCase() === originalUpper);
+    // Check if it exists in the loaded nucleos first (exact match)
+    const found = this.nucleos().find(item => item.nome.toUpperCase() === n);
     if (found) return found.nome;
+
+    // Preserve CCJ specifically as it's a common requirement
+    if (n.includes('CCJ')) return name.trim();
+
+    // Remove common special characters for fuzzy matching
+    const fuzzy = n.replace(/[ªº\s]/g, '');
     
-    return 'GERAL'; // Safe fallback to prevent FK violation
+    // Map common variations but be careful not to over-match
+    if (fuzzy === '1CC' || fuzzy === '1CAMARACIVEL') return '1ª CC';
+    if (fuzzy === '2CC' || fuzzy === '2CAMARACIVEL') return '2ª CC';
+    if (fuzzy === '3CC' || fuzzy === '3CAMARACIVEL') return '3ª CC';
+    if (fuzzy === '4CC' || fuzzy === '4CAMARACIVEL') return '4ª CC';
+    if (fuzzy === '5CC' || fuzzy === '5CAMARACIVEL') return '5ª CC';
+    if (fuzzy === '6CC' || fuzzy === '6CAMARACIVEL') return '6ª CC';
+    if (fuzzy === '7CC' || fuzzy === '7CAMARACIVEL') return '7ª CC';
+    if (fuzzy === '8CC' || fuzzy === '8CAMARACIVEL') return '8ª CC';
+    
+    return name.trim() || 'GERAL';
+  }
+
+  private getPriorityLevel(priority: string): number {
+    if (!priority) return 2;
+    const p = priority.toUpperCase();
+    if (p.includes('SUPER')) return 1;
+    // Both 'LEGAL' and 'SEM' are level 2 as requested
+    return 2;
+  }
+
+  private isPriority(priority: string): boolean {
+    if (!priority) return false;
+    const p = priority.toUpperCase();
+    // Both Super and Legal should have a priority position
+    // Check for prefixes as well (1- or 2- for legal)
+    return p.includes('SUPER') || p.includes('LEGAL') || p.startsWith('1-') || p.startsWith('2-PRIORIDADE');
   }
 
   private normalizePriority(name: string): string {
-    if (!name) return 'Sem prioridade';
+    if (!name) return '2-Sem prioridade';
     const n = name.toUpperCase().trim();
-    if (n.includes('SEM')) return 'Sem prioridade';
-    if (n.includes('LEGAL')) return 'Prioridade legal';
-    if (n.includes('SUPER')) return 'Super prioridade';
     
-    const found = this.prioridades().find(item => item.nome.toUpperCase() === n);
-    if (found) return found.nome;
-    return 'Sem prioridade'; // Safe fallback
+    // Check if it already has a prefix and matches exactly (case-insensitive)
+    const foundExact = this.prioridades().find(item => item.nome.toUpperCase() === n);
+    if (foundExact) return foundExact.nome;
+
+    // Fuzzy matching for common terms
+    if (n.includes('SUPER')) {
+      const found = this.prioridades().find(item => item.nome.toUpperCase().includes('SUPER'));
+      return found ? found.nome : '1-Super prioridade';
+    }
+    if (n.includes('LEGAL')) {
+      const found = this.prioridades().find(item => item.nome.toUpperCase().includes('LEGAL'));
+      return found ? found.nome : '2-Prioridade legal';
+    }
+    if (n.includes('SEM')) {
+      const found = this.prioridades().find(item => item.nome.toUpperCase().includes('SEM'));
+      return found ? found.nome : '2-Sem prioridade';
+    }
+    
+    // Try to find any match in the loaded prioridades
+    const foundAny = this.prioridades().find(item => n.includes(item.nome.toUpperCase()) || item.nome.toUpperCase().includes(n));
+    if (foundAny) return foundAny.nome;
+
+    return '2-Sem prioridade'; // Safe fallback
   }
 
   private normalizeStatus(name: string): string {
@@ -370,6 +427,37 @@ export class StoreService {
     const found = this.statusTipos().find(item => item.nome.toUpperCase() === n);
     if (found) return found.nome;
     return 'Pendente'; // Safe fallback
+  }
+
+  private parseDateSafely(dateStr: string): number {
+    if (!dateStr) return 0;
+    
+    // Try standard YYYY-MM-DD
+    if (dateStr.includes('-')) {
+      const parts = dateStr.split('-');
+      if (parts.length >= 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2].substring(0, 2), 10);
+        const d = new Date(year, month, day, 12, 0, 0); // Use noon to avoid timezone shifts
+        if (!isNaN(d.getTime())) return d.getTime();
+      }
+    }
+    
+    // Try DD/MM/YYYY
+    if (dateStr.includes('/')) {
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        const d = new Date(year, month, day, 12, 0, 0);
+        if (!isNaN(d.getTime())) return d.getTime();
+      }
+    }
+    
+    const fallback = new Date(dateStr);
+    return isNaN(fallback.getTime()) ? 0 : fallback.getTime();
   }
 
   private handleSupabaseError(error: unknown, context: string) {
@@ -402,7 +490,7 @@ export class StoreService {
         entry_date: '2023-10-12',
         court: '1ª Vara Cível - Recife',
         nucleus: '1ª CC',
-        priority: 'Super prioridade',
+        priority: '1-Super prioridade',
         status: 'Pendente'
       },
       {
@@ -411,7 +499,7 @@ export class StoreService {
         entry_date: '2023-10-14',
         court: '3ª Vara de Família',
         nucleus: '1ª CC',
-        priority: 'Prioridade legal',
+        priority: '2-Prioridade legal',
         status: 'Pendente'
       },
       {
@@ -420,7 +508,7 @@ export class StoreService {
         entry_date: '2023-10-15',
         court: '2ª Vara da Fazenda',
         nucleus: '6ª CC',
-        priority: 'Sem prioridade',
+        priority: '2-Sem prioridade',
         status: 'Pendente'
       }
     ];
@@ -469,9 +557,9 @@ export class StoreService {
     ];
 
     const defaultPrioridades = [
-      { nome: 'Sem prioridade', descricao: 'Processo comum' },
-      { nome: 'Prioridade legal', descricao: 'Idoso, doença grave, etc' },
-      { nome: 'Super prioridade', descricao: 'Acima de 80 anos' }
+      { nome: '2-Sem prioridade', descricao: 'Processo comum' },
+      { nome: '2-Prioridade legal', descricao: 'Idoso, doença grave, etc' },
+      { nome: '1-Super prioridade', descricao: 'Acima de 80 anos' }
     ];
 
     const defaultStatus = [
@@ -554,6 +642,8 @@ export class StoreService {
         console.error('StoreService: Error updating process status in Supabase:', error);
       } else {
         console.log('StoreService: Process status updated successfully in Supabase.');
+        // Recalculate positions for the nucleus if needed
+        const p = this.processes().find(proc => proc.id === processId);
         this.updateGlobalStats();
       }
     }
@@ -684,17 +774,29 @@ export class StoreService {
     statusFilter: string,
     startDate: string,
     endDate: string,
-    user: User
+    user: User,
+    nucleusFilter?: string,
+    onlyAssignedToMe?: boolean
   }) {
     const client = getSupabase();
     if (!client) return { processes: [], totalCount: 0 };
 
-    let query = client.from('processes').select('*', { count: 'exact' });
+    let query = client.from('vw_processes').select('*', { count: 'exact' });
 
-    // Role-based visibility
+    // Role-based visibility (Base restriction)
     if (options.user.role === 'Chefe' || options.user.role === 'Gerente') {
       query = query.ilike('nucleus', options.user.nucleus);
     } else if (options.user.role === 'Contador Judicial') {
+      query = query.eq('assigned_to_id', options.user.id);
+    }
+
+    // Nucleus Filter (for Coordenador/Supervisor/Admin who see all by default)
+    if (options.nucleusFilter && options.nucleusFilter !== 'Todos') {
+      query = query.ilike('nucleus', options.nucleusFilter);
+    }
+
+    // Only Assigned To Me Filter (for roles that can see more than just their own)
+    if (options.onlyAssignedToMe) {
       query = query.eq('assigned_to_id', options.user.id);
     }
 
@@ -720,7 +822,11 @@ export class StoreService {
     // Pagination
     const from = (options.page - 1) * options.pageSize;
     const to = from + options.pageSize - 1;
-    query = query.range(from, to).order('entry_date', { ascending: true });
+    
+    // CRITICAL: Sort by priority prefix (1- comes before 2-) then by position
+    query = query.range(from, to)
+      .order('priority', { ascending: true })
+      .order('position', { ascending: true, nullsFirst: false });
 
     const { data, count, error } = await query;
     
@@ -749,47 +855,55 @@ export class StoreService {
     return { processes: mapped, totalCount: count || 0 };
   }
 
+  private statsTimeout: ReturnType<typeof setTimeout> | null = null;
   async updateGlobalStats() {
-    const client = getSupabase();
-    const user = this.currentUser();
-    if (!client || !user) {
-      console.log('StoreService: Cannot update stats, client or user missing');
-      return;
-    }
+    if (this.statsTimeout) clearTimeout(this.statsTimeout);
+    
+    this.statsTimeout = setTimeout(async () => {
+      const client = getSupabase();
+      const user = this.currentUser();
+      if (!client || !user) {
+        console.log('StoreService: Cannot update stats, client or user missing');
+        return;
+      }
 
-    console.log(`StoreService: Updating stats for user ${user.name} (${user.role}) in nucleus ${user.nucleus}`);
+      console.log(`StoreService: Updating stats for user ${user.name} (${user.role}) in nucleus ${user.nucleus}`);
 
-    try {
-      const getCount = async (status: string | null) => {
-        let q = client.from('processes').select('*', { count: 'exact', head: true });
-        if (status) q = q.ilike('status', status);
-        
-        if (user.role === 'Chefe' || user.role === 'Gerente') {
-          q = q.ilike('nucleus', user.nucleus);
-        } else if (user.role === 'Contador Judicial') {
-          q = q.eq('assigned_to_id', user.id);
-        }
-        
-        const { count, error } = await q;
-        if (error) {
-          console.error(`StoreService: Error getting count for ${status}:`, error.message);
-          return 0;
-        }
-        console.log(`StoreService: Count for ${status}: ${count}`);
-        return count || 0;
-      };
+      try {
+        const getCount = async (status: string | null) => {
+          try {
+            let q = client.from('processes').select('*', { count: 'exact', head: true });
+            if (status) q = q.ilike('status', status);
+            
+            if (user.role === 'Chefe' || user.role === 'Gerente') {
+              q = q.ilike('nucleus', user.nucleus);
+            } else if (user.role === 'Contador Judicial') {
+              q = q.eq('assigned_to_id', user.id);
+            }
+            
+            const { count, error } = await q;
+            if (error) {
+              console.error(`StoreService: Error getting count for ${status}:`, error.message);
+              return 0;
+            }
+            return count || 0;
+          } catch (fetchErr) {
+            console.warn(`StoreService: Network error getting count for ${status}:`, fetchErr);
+            return 0;
+          }
+        };
 
-      const [pendentes, concluidos, devolvidos] = await Promise.all([
-        getCount('Pendente'),
-        getCount('Cálculo Realizado'),
-        getCount('Devolvido sem Cálculo')
-      ]);
+        // Run sequentially to avoid overwhelming the connection with 140k records
+        const pendentes = await getCount('Pendente');
+        const concluidos = await getCount('Cálculo Realizado');
+        const devolvidos = await getCount('Devolvido sem Cálculo');
 
-      console.log(`StoreService: Stats results - Pendentes: ${pendentes}, Concluídos: ${concluidos}, Devolvidos: ${devolvidos}`);
-      this.globalStats.set({ pendentes, concluidos, devolvidos });
-    } catch (e) {
-      console.error('StoreService: Error updating global stats:', e);
-    }
+        console.log(`StoreService: Stats results - Pendentes: ${pendentes}, Concluídos: ${concluidos}, Devolvidos: ${devolvidos}`);
+        this.globalStats.set({ pendentes, concluidos, devolvidos });
+      } catch (e) {
+        console.error('StoreService: Error updating global stats:', e);
+      }
+    }, 500); // 500ms debounce
   }
 
   // CRUD for Processes
@@ -848,33 +962,7 @@ export class StoreService {
         }
         throw new Error(`Erro no banco de dados: ${error.message}`);
       } else if (data && data[0]) {
-        const newProcess: Process = {
-          id: data[0].id,
-          number: data[0].number,
-          entryDate: data[0].entry_date,
-          court: data[0].court,
-          nucleus: data[0].nucleus,
-          priority: data[0].priority,
-          status: data[0].status,
-          assignedToId: data[0].assigned_to_id,
-          position: data[0].position,
-          priorityPosition: data[0].priority_position,
-          assignmentDate: data[0].assignment_date,
-          completionDate: data[0].completion_date,
-          valorCustas: data[0].valor_custas,
-          observacao: data[0].observacao,
-          createdAt: data[0].created_at
-        };
-        
-        this.processes.update(prev => {
-          const index = prev.findIndex(p => p.number === newProcess.number);
-          if (index !== -1) {
-            const updated = [...prev];
-            updated[index] = newProcess;
-            return updated;
-          }
-          return [...prev, newProcess];
-        });
+        console.log('StoreService: Process added/updated successfully in Supabase.');
         this.updateGlobalStats();
       }
     } catch (e: unknown) {
