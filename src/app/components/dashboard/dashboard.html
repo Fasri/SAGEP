@@ -145,36 +145,36 @@
       <table class="w-full text-left border-collapse">
         <thead>
           <tr class="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-wider">
-            <th class="px-6 py-4 text-center">Posição Geral</th>
-            <th class="px-6 py-4 text-center">Posição Prioridade</th>
-            <th class="px-6 py-4">Número do Processo</th>
-            <th class="px-6 py-4">Entrada</th>
-            <th class="px-6 py-4">Vara</th>
-            <th class="px-6 py-4">Núcleo</th>
-            <th class="px-6 py-4">Prioridade</th>
-            <th class="px-6 py-4">Status</th>
-            <th class="px-6 py-4">Valor Custas</th>
-            <th class="px-6 py-4">Observação</th>
-            <th class="px-6 py-4">Atribuição</th>
-            <th class="px-6 py-4">Cumprimento</th>
-            <th class="px-6 py-4">Atribuído a</th>
+            <th class="px-3 py-3 text-center">Posição Geral</th>
+            <th class="px-3 py-3 text-center">Posição Prioridade</th>
+            <th class="px-3 py-3">Número do Processo</th>
+            <th class="px-3 py-3">Entrada</th>
+            <th class="px-3 py-3">Vara</th>
+            <th class="px-3 py-3">Núcleo</th>
+            <th class="px-3 py-3">Prioridade</th>
+            <th class="px-3 py-3">Status</th>
+            <th class="px-3 py-3">Valor Custas</th>
+            <th class="px-3 py-3">Observação</th>
+            <th class="px-3 py-3">Atribuição</th>
+            <th class="px-3 py-3">Cumprimento</th>
+            <th class="px-3 py-3">Atribuído a</th>
             @if (currentUser()?.role !== 'Contador Judicial') {
-              <th class="px-6 py-4 text-center">Ações</th>
+              <th class="px-3 py-3 text-center">Ações</th>
             }
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100" [class.opacity-50]="isLoading()">
           @for (process of paginatedProcesses(); track process.id) {
             <tr class="hover:bg-slate-50 transition-colors">
-              <td class="px-6 py-4 text-center font-semibold text-slate-700">{{ process.position }}º</td>
-              <td class="px-6 py-4 text-center font-semibold text-amber-600">
+              <td class="px-3 py-3 text-center font-semibold text-slate-700">{{ process.position }}º</td>
+              <td class="px-3 py-3 text-center font-semibold text-amber-600">
                 {{ process.priorityPosition ? process.priorityPosition + 'º' : '-' }}
               </td>
-              <td class="px-6 py-4 font-mono font-medium text-slate-900">{{ process.number }}</td>
-              <td class="px-6 py-4 text-sm">{{ process.entryDate | date:'dd/MM/yyyy' }}</td>
-              <td class="px-6 py-4 text-sm">{{ process.court }}</td>
-              <td class="px-6 py-4 text-sm font-bold text-primary">{{ process.nucleus }}</td>
-              <td class="px-6 py-4">
+              <td class="px-3 py-3 font-mono font-medium text-slate-900">{{ process.number }}</td>
+              <td class="px-3 py-3 text-sm">{{ process.entryDate | date:'dd/MM/yyyy' }}</td>
+              <td class="px-3 py-3 text-sm">{{ process.court }}</td>
+              <td class="px-3 py-3 text-sm font-bold text-primary">{{ process.nucleus }}</td>
+              <td class="px-3 py-3">
                 <span class="px-2.5 py-1 rounded-full text-xs font-bold"
                       [ngClass]="{
                         'bg-red-100 text-red-700': process.priority.includes('Super prioridade'),
@@ -184,7 +184,7 @@
                   {{ stripPriorityPrefix(process.priority) }}
                 </span>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-3 py-3">
                 <select (change)="updateStatus(process, $any($event.target).value)" 
                         [disabled]="!canChangeStatus(process)"
                         class="text-xs font-semibold py-1 px-3 rounded-full border-none focus:ring-2 focus:ring-primary cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
@@ -203,7 +203,7 @@
                   }
                 </select>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-3 py-3">
                 <div class="flex items-center gap-1">
                   <span class="text-xs font-bold text-slate-400">R$</span>
                   <input type="number" 
@@ -212,27 +212,27 @@
                          class="w-24 text-xs border-slate-200 rounded bg-white py-1 px-2 focus:ring-primary" />
                 </div>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-3 py-3">
                 <input type="text" 
                        [value]="process.observacao" 
                        (change)="updateFields(process, 'observacao', $event)"
                        placeholder="Adicionar observação..."
                        class="w-full min-w-[150px] text-xs border-slate-200 rounded bg-white py-1 px-2 focus:ring-primary" />
               </td>
-              <td class="px-6 py-4 text-xs text-slate-500">
+              <td class="px-3 py-3 text-xs text-slate-500">
                 {{ process.assignmentDate ? (process.assignmentDate | date:'dd/MM/yyyy') : '-' }}
               </td>
-              <td class="px-6 py-4 text-xs text-slate-500">
+              <td class="px-3 py-3 text-xs text-slate-500">
                 {{ process.completionDate ? (process.completionDate | date:'dd/MM/yyyy') : '-' }}
               </td>
-              <td class="px-6 py-4 text-sm">
+              <td class="px-3 py-3 text-sm">
                 <div class="flex items-center gap-2">
                   <span class="material-symbols-outlined text-sm text-slate-400">person</span>
                   {{ getUserName(process.assignedToId) }}
                 </div>
               </td>
               @if (currentUser()?.role !== 'Contador Judicial') {
-                <td class="px-6 py-4">
+                <td class="px-3 py-3">
                   <div class="flex items-center justify-center gap-2">
                     @if (canAssign()) {
                       <select (change)="assignProcess(process, $any($event.target).value)" class="text-xs border-slate-200 rounded bg-white py-1 px-2 focus:ring-primary">
