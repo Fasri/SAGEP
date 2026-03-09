@@ -311,7 +311,7 @@ export class StoreService {
       console.log('StoreService: Fetching processes from Supabase (limited to 100)...');
       const { data: processes, error: processesError } = await client.from('vw_processes')
         .select('*')
-        .order('priority', { ascending: true })
+        .order('priority_level', { ascending: true })
         .order('position', { ascending: true })
         .limit(100);
       
@@ -823,9 +823,9 @@ export class StoreService {
     const from = (options.page - 1) * options.pageSize;
     const to = from + options.pageSize - 1;
     
-    // CRITICAL: Sort by priority prefix (1- comes before 2-) then by position
+    // CRITICAL: Sort by priority_level (1 for Super, 2 for others) then by position
     query = query.range(from, to)
-      .order('priority', { ascending: true })
+      .order('priority_level', { ascending: true })
       .order('position', { ascending: true, nullsFirst: false });
 
     const { data, count, error } = await query;
