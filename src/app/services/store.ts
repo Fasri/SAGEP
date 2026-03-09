@@ -784,10 +784,8 @@ export class StoreService {
     let query = client.from('vw_processes').select('*', { count: 'exact' });
 
     // Role-based visibility (Base restriction)
-    if (options.user.role === 'Chefe' || options.user.role === 'Gerente') {
-      query = query.ilike('nucleus', options.user.nucleus);
-    } else if (options.user.role === 'Contador Judicial') {
-      query = query.eq('assigned_to_id', options.user.id);
+    if (options.user.role === 'Chefe' || options.user.role === 'Gerente' || options.user.role === 'Contador Judicial') {
+      query = query.or(`nucleus.ilike."${options.user.nucleus}",assigned_to_id.eq."${options.user.id}"`);
     }
 
     // Nucleus Filter (for Coordenador/Supervisor/Admin who see all by default)
@@ -808,7 +806,7 @@ export class StoreService {
     // Search Term
     if (options.searchTerm) {
       const term = `%${options.searchTerm}%`;
-      query = query.or(`number.ilike.${term},court.ilike.${term},nucleus.ilike.${term}`);
+      query = query.or(`number.ilike."${term}",court.ilike."${term}",nucleus.ilike."${term}"`);
     }
 
     // Date Filters

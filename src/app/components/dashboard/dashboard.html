@@ -4,10 +4,10 @@
     <div>
       <h2 class="text-3xl font-extrabold tracking-tight text-slate-900">Acompanhamento de Processos</h2>
       <p class="mt-2 text-slate-600">
-        @if (currentUser()?.role === 'Contador Judicial') {
-          Visualizando processos atribuídos a você.
+        @if (currentUser()?.role === 'Administrador' || currentUser()?.role === 'Coordenador' || currentUser()?.role === 'Supervisor') {
+          Gestão de todos os processos.
         } @else {
-          Gestão de processos do núcleo {{ currentUser()?.nucleus }}.
+          Gestão de processos do núcleo {{ currentUser()?.nucleus }} e processos atribuídos a você.
         }
       </p>
     </div>
@@ -119,17 +119,15 @@
           </button>
         </div>
 
-        @if (['Coordenador', 'Supervisor', 'Chefe', 'Gerente'].includes(currentUser()?.role || '')) {
-          <button (click)="toggleOnlyAssignedToMe()" 
-                  [class.bg-primary]="onlyAssignedToMe()"
-                  [class.text-white]="onlyAssignedToMe()"
-                  [class.bg-slate-100]="!onlyAssignedToMe()"
-                  [class.text-slate-600]="!onlyAssignedToMe()"
-                  class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-sm">
-            <span class="material-symbols-outlined text-sm">{{ onlyAssignedToMe() ? 'person_check' : 'person' }}</span>
-            Atribuídos a mim
-          </button>
-        }
+        <button (click)="toggleOnlyAssignedToMe()" 
+                [class.bg-primary]="onlyAssignedToMe()"
+                [class.text-white]="onlyAssignedToMe()"
+                [class.bg-slate-100]="!onlyAssignedToMe()"
+                [class.text-slate-600]="!onlyAssignedToMe()"
+                class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-sm">
+          <span class="material-symbols-outlined text-sm">{{ onlyAssignedToMe() ? 'person_check' : 'person' }}</span>
+          Atribuídos a mim
+        </button>
       </div>
       <div class="flex items-center gap-3">
         @if (isLoading()) {

@@ -37,10 +37,8 @@ export class Dashboard implements OnInit {
     return all.filter(p => {
       if (user.role === 'Administrador' || user.role === 'Coordenador' || user.role === 'Supervisor') {
         return true;
-      } else if (user.role === 'Chefe' || user.role === 'Gerente') {
-        return p.nucleus === user.nucleus;
       } else {
-        return p.assignedToId === user.id;
+        return p.nucleus === user.nucleus || p.assignedToId === user.id;
       }
     });
   });
@@ -80,11 +78,20 @@ export class Dashboard implements OnInit {
   filteredProcesses = computed(() => {
     const term = this.searchTerm().toLowerCase();
     const status = this.statusFilter();
+    const nucleusFilter = this.nucleusFilter();
+    const onlyAssignedToMe = this.onlyAssignedToMe();
+    const user = this.currentUser();
     const { startDate, endDate } = this.filterForm.value;
     
     const filtered = this.visibleProcesses().filter(p => {
       // Status Filter
       if (status === 'Pendente' && p.status !== 'Pendente') return false;
+
+      // Nucleus Filter
+      if (nucleusFilter !== 'Todos' && p.nucleus !== nucleusFilter) return false;
+
+      // Assigned To Me Filter
+      if (onlyAssignedToMe && user && p.assignedToId !== user.id) return false;
 
       // Date Filter
       if (startDate) {
