@@ -95,15 +95,19 @@ import {read, utils} from 'xlsx';
 
               <div class="flex flex-col gap-2">
                 <label for="assignedToId" class="text-sm font-bold text-slate-700">Atribuir a</label>
-                <select id="assignedToId" formControlName="assignedToId" 
-                        class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all cursor-pointer">
-                  <option [value]="null">Não atribuído</option>
+                <input id="assignedToId" type="text" list="assign-list-new"
+                       placeholder="Não atribuído"
+                       [value]="getAssignedName()"
+                       (change)="handleAssignInput($event)"
+                       class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all cursor-pointer" />
+                <datalist id="assign-list-new">
+                  <option value=""></option>
                   @for (user of users(); track user.id) {
                     @if (user.role !== 'Administrador') {
-                      <option [value]="user.id">{{ user.name }} ({{ user.role }})</option>
+                      <option [value]="user.name">{{ user.role }}</option>
                     }
                   }
-                </select>
+                </datalist>
               </div>
 
               <div class="flex flex-col gap-2">
@@ -202,6 +206,29 @@ export class Processos {
   stripPriorityPrefix(priority: string): string {
     if (!priority) return '';
     return priority.replace(/^\d+-/, '');
+  }
+
+  getAssignedName(): string {
+    const assignedToId = this.processForm.get('assignedToId')?.value;
+    if (!assignedToId) return '';
+    const user = this.users().find(u => u.id === assignedToId);
+    return user ? user.name : '';
+  }
+
+  handleAssignInput(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const value = input.value.trim();
+    if (!value) {
+      this.processForm.patchValue({ assignedToId: null });
+      return;
+    }
+    const user = this.users().find(u => u.name.toLowerCase() === value.toLowerCase() && u.role !== 'Administrador');
+    if (user) {
+      this.processForm.patchValue({ assignedToId: user.id });
+    } else {
+      // Revert to current if invalid
+      input.value = this.getAssignedName();
+    }
   }
 
   async onSubmit() {

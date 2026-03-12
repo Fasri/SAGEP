@@ -649,7 +649,7 @@ export class StoreService {
     }
   }
 
-  async assignProcess(processId: string, userId: string) {
+  async assignProcess(processId: string, userId: string | null) {
     console.log('StoreService: Assigning process...', { processId, userId });
     const assignmentDate = userId ? new Date().toISOString().split('T')[0] : null;
 
@@ -660,7 +660,7 @@ export class StoreService {
     const client = getSupabase();
     if (client) {
       const { error } = await client.from('processes').update({ 
-        assigned_to_id: userId,
+        assigned_to_id: userId || null,
         assignment_date: assignmentDate
       }).eq('id', processId);
       if (error) {

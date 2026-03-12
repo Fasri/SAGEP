@@ -347,6 +347,42 @@ export class Dashboard implements OnInit {
     return this.users().find(u => u.id === userId)?.name || 'Desconhecido';
   }
 
+  getAccountantName(id: string): string {
+    if (id === 'Todos') return '';
+    return this.users().find(u => u.id === id)?.name || '';
+  }
+
+  handleAccountantInput(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const value = input.value.trim();
+    if (!value || value === 'Todos os Contadores' || value === 'Todos') {
+      this.setAccountantFilter('Todos');
+      return;
+    }
+    const acc = this.availableAccountants().find(a => a.name.toLowerCase() === value.toLowerCase());
+    if (acc) {
+      this.setAccountantFilter(acc.id);
+    } else {
+      this.setAccountantFilter('Todos');
+      input.value = '';
+    }
+  }
+
+  handleAssignInput(process: Process, event: Event) {
+    const input = event.target as HTMLInputElement;
+    const value = input.value.trim();
+    if (!value) {
+      this.assignProcess(process, '');
+      return;
+    }
+    const user = this.getAssignableUsers(process.nucleus).find(u => u.name.toLowerCase() === value.toLowerCase());
+    if (user) {
+      this.assignProcess(process, user.id);
+    } else {
+      input.value = this.getUserName(process.assignedToId) === 'Não atribuído' ? '' : this.getUserName(process.assignedToId);
+    }
+  }
+
   stripPriorityPrefix(priority: string): string {
     if (!priority) return '';
     return priority.replace(/^\d+-/, '');

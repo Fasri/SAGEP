@@ -140,13 +140,17 @@
           <div class="flex items-center gap-2">
             <div class="relative min-w-[200px]">
               <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">person_search</span>
-              <select (change)="setAccountantFilter($any($event.target).value)"
-                      class="w-full bg-slate-100 border-none rounded-lg pl-9 py-1.5 text-sm font-bold text-slate-700 focus:ring-primary outline-none appearance-none cursor-pointer">
-                <option value="Todos">Todos os Contadores</option>
+              <input type="text" list="accountant-list"
+                     placeholder="Todos os Contadores"
+                     [value]="getAccountantName(accountantFilter())"
+                     (change)="handleAccountantInput($event)"
+                     class="w-full bg-slate-100 border-none rounded-lg pl-9 py-1.5 text-sm font-bold text-slate-700 focus:ring-primary outline-none cursor-pointer">
+              <datalist id="accountant-list">
+                <option value="Todos os Contadores"></option>
                 @for (acc of availableAccountants(); track acc.id) {
-                  <option [value]="acc.id" [selected]="accountantFilter() === acc.id">{{ acc.name }}</option>
+                  <option [value]="acc.name"></option>
                 }
-              </select>
+              </datalist>
             </div>
             
             <button (click)="toggleExternalAccountants()" 
@@ -274,12 +278,17 @@
                 <td class="px-3 py-3">
                   <div class="flex items-center justify-center gap-2">
                     @if (canAssign()) {
-                      <select (change)="assignProcess(process, $any($event.target).value)" class="text-xs border-slate-200 rounded bg-white py-1 px-2 focus:ring-primary">
-                        <option value="">Atribuir a...</option>
+                      <input type="text" [attr.list]="'assign-list-' + process.id"
+                             placeholder="Atribuir a..."
+                             [value]="getUserName(process.assignedToId) === 'Não atribuído' ? '' : getUserName(process.assignedToId)"
+                             (change)="handleAssignInput(process, $event)"
+                             class="w-full min-w-[150px] text-xs border-slate-200 rounded bg-white py-1 px-2 focus:ring-primary" />
+                      <datalist id="assign-list-{{process.id}}">
+                        <option value=""></option>
                         @for (user of getAssignableUsers(process.nucleus); track user.id) {
-                          <option [value]="user.id" [selected]="process.assignedToId === user.id">{{ user.name }} ({{ user.role }}) - {{ user.nucleus }}</option>
+                          <option [value]="user.name">{{ user.role }} - {{ user.nucleus }}</option>
                         }
-                      </select>
+                      </datalist>
                     } @else {
                       <span class="text-[10px] text-slate-400 uppercase font-bold">Acesso Externo</span>
                     }
