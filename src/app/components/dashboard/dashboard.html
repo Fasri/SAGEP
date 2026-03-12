@@ -55,66 +55,63 @@
   <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8">
     <div class="flex items-center gap-2 mb-4">
       <span class="material-symbols-outlined text-primary">filter_list</span>
-      <h3 class="font-bold text-lg">Filtrar por Período</h3>
+      <h3 class="font-bold text-lg">Filtros</h3>
     </div>
-    <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-      <div class="flex flex-col gap-2">
-        <label for="startDate" class="text-sm font-semibold text-slate-700">Data Início</label>
-        <div class="relative">
-          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">calendar_today</span>
-          <input id="startDate" formControlName="startDate" class="w-full bg-white border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-primary" type="date" />
-        </div>
-      </div>
-      <div class="flex flex-col gap-2">
-        <label for="endDate" class="text-sm font-semibold text-slate-700">Data Fim</label>
-        <div class="relative">
-          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">task_alt</span>
-          <input id="endDate" formControlName="endDate" class="w-full bg-white border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-primary" type="date" />
-        </div>
-      </div>
-      
-      @if (['Administrador', 'Coordenador', 'Supervisor'].includes(currentUser()?.role || '')) {
+    
+    <div class="flex flex-col gap-6">
+      <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
         <div class="flex flex-col gap-2">
-          <label for="nucleusFilter" class="text-sm font-semibold text-slate-700">Filtrar por Núcleo</label>
+          <label for="startDate" class="text-sm font-semibold text-slate-700">Data Início</label>
           <div class="relative">
-            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">account_balance</span>
-            <select id="nucleusFilter" 
-                    (change)="setNucleusFilter($any($event.target).value)"
-                    class="w-full bg-white border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-primary outline-none appearance-none cursor-pointer">
-              <option value="Todos">Todos os Núcleos</option>
-              @for (n of nucleos(); track n.id) {
-                <option [value]="n.nome">{{ n.nome }}</option>
-              }
-            </select>
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">calendar_today</span>
+            <input id="startDate" formControlName="startDate" class="w-full bg-white border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-primary" type="date" />
           </div>
         </div>
-      } @else {
-        <div></div> <!-- Spacer -->
-      }
+        <div class="flex flex-col gap-2">
+          <label for="endDate" class="text-sm font-semibold text-slate-700">Data Fim</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">task_alt</span>
+            <input id="endDate" formControlName="endDate" class="w-full bg-white border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-primary" type="date" />
+          </div>
+        </div>
+        
+        @if (['Administrador', 'Coordenador', 'Supervisor'].includes(currentUser()?.role || '')) {
+          <div class="flex flex-col gap-2">
+            <label for="nucleusFilter" class="text-sm font-semibold text-slate-700">Filtrar por Núcleo</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">account_balance</span>
+              <select id="nucleusFilter" 
+                      (change)="setNucleusFilter($any($event.target).value)"
+                      class="w-full bg-white border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-primary outline-none appearance-none cursor-pointer">
+                <option value="Todos">Todos os Núcleos</option>
+                @for (n of nucleos(); track n.id) {
+                  <option [value]="n.nome">{{ n.nome }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        } @else {
+          <div></div> <!-- Spacer -->
+        }
 
-      <button type="button" (click)="applyFilters()" class="bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-md shadow-primary/20 cursor-pointer">
-        <span class="material-symbols-outlined">search</span>
-        Aplicar Filtros
-      </button>
-    </form>
-  </div>
+        <button type="button" (click)="applyFilters()" class="bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-md shadow-primary/20 cursor-pointer">
+          <span class="material-symbols-outlined">search</span>
+          Aplicar Filtros
+        </button>
+      </form>
 
-  <!-- Data Table Section -->
-  <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-    <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
-      <div class="flex items-center gap-4">
-        <h3 class="font-bold text-lg">Processos sob Responsabilidade</h3>
-        <div class="flex bg-slate-200 p-1 rounded-lg">
+      <div class="flex flex-wrap items-center gap-4 pt-4 border-t border-slate-100">
+        <div class="flex bg-slate-100 p-1 rounded-lg">
           <button (click)="setStatusFilter('Pendente')" 
                   [class.bg-white]="statusFilter() === 'Pendente'"
                   [class.shadow-sm]="statusFilter() === 'Pendente'"
-                  class="px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer">
+                  class="px-4 py-1.5 text-sm font-bold rounded-md transition-all cursor-pointer">
             Pendentes
           </button>
           <button (click)="setStatusFilter('Todos')" 
                   [class.bg-white]="statusFilter() === 'Todos'"
                   [class.shadow-sm]="statusFilter() === 'Todos'"
-                  class="px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer">
+                  class="px-4 py-1.5 text-sm font-bold rounded-md transition-all cursor-pointer">
             Todos
           </button>
         </div>
@@ -124,10 +121,54 @@
                 [class.text-white]="onlyAssignedToMe()"
                 [class.bg-slate-100]="!onlyAssignedToMe()"
                 [class.text-slate-600]="!onlyAssignedToMe()"
-                class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-sm">
+                class="px-4 py-1.5 text-sm font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-sm">
           <span class="material-symbols-outlined text-sm">{{ onlyAssignedToMe() ? 'person_check' : 'person' }}</span>
           Atribuídos a mim
         </button>
+
+        <button (click)="toggleUnassignedOnly()" 
+                [class.bg-rose-500]="unassignedOnly()"
+                [class.text-white]="unassignedOnly()"
+                [class.bg-slate-100]="!unassignedOnly()"
+                [class.text-slate-600]="!unassignedOnly()"
+                class="px-4 py-1.5 text-sm font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-sm">
+          <span class="material-symbols-outlined text-sm">person_off</span>
+          Não Atribuídos
+        </button>
+
+        @if (currentUser()?.role !== 'Contador Judicial') {
+          <div class="flex items-center gap-2">
+            <div class="relative min-w-[200px]">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">person_search</span>
+              <select (change)="setAccountantFilter($any($event.target).value)"
+                      class="w-full bg-slate-100 border-none rounded-lg pl-9 py-1.5 text-sm font-bold text-slate-700 focus:ring-primary outline-none appearance-none cursor-pointer">
+                <option value="Todos">Todos os Contadores</option>
+                @for (acc of availableAccountants(); track acc.id) {
+                  <option [value]="acc.id" [selected]="accountantFilter() === acc.id">{{ acc.name }}</option>
+                }
+              </select>
+            </div>
+            
+            <button (click)="toggleExternalAccountants()" 
+                    [class.bg-amber-500]="externalAccountantsOnly()"
+                    [class.text-white]="externalAccountantsOnly()"
+                    [class.bg-slate-100]="!externalAccountantsOnly()"
+                    [class.text-slate-600]="!externalAccountantsOnly()"
+                    class="px-4 py-1.5 text-sm font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-sm">
+              <span class="material-symbols-outlined text-sm">group_off</span>
+              Contadores Externos
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Table Section -->
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+      <div class="flex items-center gap-4">
+        <h3 class="font-bold text-lg">Processos sob Responsabilidade</h3>
       </div>
       <div class="flex items-center gap-3">
         @if (isLoading()) {

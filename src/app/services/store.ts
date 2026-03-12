@@ -776,7 +776,10 @@ export class StoreService {
     endDate: string,
     user: User,
     nucleusFilter?: string,
-    onlyAssignedToMe?: boolean
+    onlyAssignedToMe?: boolean,
+    unassignedOnly?: boolean,
+    accountantFilter?: string,
+    externalAccountantIds?: string[]
   }) {
     const client = getSupabase();
     if (!client) return { processes: [], totalCount: 0 };
@@ -796,6 +799,25 @@ export class StoreService {
     // Only Assigned To Me Filter (for roles that can see more than just their own)
     if (options.onlyAssignedToMe) {
       query = query.eq('assigned_to_id', options.user.id);
+    }
+
+    // Unassigned Only Filter
+    if (options.unassignedOnly) {
+      query = query.is('assigned_to_id', null);
+    }
+
+    // Accountant Filter
+    if (options.accountantFilter && options.accountantFilter !== 'Todos') {
+      query = query.eq('assigned_to_id', options.accountantFilter);
+    }
+
+    // External Accountants Filter
+    if (options.externalAccountantIds && options.externalAccountantIds.length > 0) {
+      query = query.in('assigned_to_id', options.externalAccountantIds);
+    } else if (options.externalAccountantIds && options.externalAccountantIds.length === 0) {
+      // If the array is empty but the filter is active, it means there are no external accountants.
+      // We should return no results.
+      query = query.eq('assigned_to_id', '00000000-0000-0000-0000-000000000000');
     }
 
     // Status Filter

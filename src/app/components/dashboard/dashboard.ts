@@ -23,6 +23,9 @@ export class Dashboard implements OnInit {
   statusFilter = signal<'Pendente' | 'Todos'>('Pendente');
   nucleusFilter = signal('Todos');
   onlyAssignedToMe = signal(false);
+  unassignedOnly = signal(false);
+  accountantFilter = signal('Todos');
+  externalAccountantsOnly = signal(false);
   currentPage = signal(1);
   pageSize = 20;
   
@@ -75,12 +78,38 @@ export class Dashboard implements OnInit {
     return 2;
   }
 
+  availableAccountants = computed(() => {
+    const user = this.currentUser();
+    const allUsers = this.users();
+    if (!user) return [];
+    
+    const validRoles = ['Contador Judicial', 'Chefe', 'Gerente'];
+
+    if (user.role === 'Chefe' || user.role === 'Gerente') {
+      return allUsers.filter(u => u.nucleus === user.nucleus && validRoles.includes(u.role));
+    }
+    
+    if (user.role === 'Coordenador' || user.role === 'Supervisor' || user.role === 'Administrador') {
+      const selectedNucleus = this.nucleusFilter();
+      if (selectedNucleus && selectedNucleus !== 'Todos') {
+        return allUsers.filter(u => u.nucleus === selectedNucleus && validRoles.includes(u.role));
+      }
+      return allUsers.filter(u => validRoles.includes(u.role));
+    }
+    
+    return [];
+  });
+
   filteredProcesses = computed(() => {
     const term = this.searchTerm().toLowerCase();
     const status = this.statusFilter();
     const nucleusFilter = this.nucleusFilter();
     const onlyAssignedToMe = this.onlyAssignedToMe();
+    const unassignedOnly = this.unassignedOnly();
+    const accountantFilter = this.accountantFilter();
+    const externalAccountantsOnly = this.externalAccountantsOnly();
     const user = this.currentUser();
+    const allUsers = this.users();
     const { startDate, endDate } = this.filterForm.value;
     
     const filtered = this.visibleProcesses().filter(p => {
@@ -92,6 +121,18 @@ export class Dashboard implements OnInit {
 
       // Assigned To Me Filter
       if (onlyAssignedToMe && user && p.assignedToId !== user.id) return false;
+
+      // Unassigned Only Filter
+      if (unassignedOnly && p.assignedToId) return false;
+
+      // Accountant Filter
+      if (accountantFilter !== 'Todos' && p.assignedToId !== accountantFilter) return false;
+
+      // External Accountants Filter
+      if (externalAccountantsOnly && user) {
+        const assignedUser = allUsers.find(u => u.id === p.assignedToId);
+        if (!assignedUser || assignedUser.nucleus === user.nucleus) return false;
+      }
 
       // Date Filter
       if (startDate) {
@@ -154,6 +195,12 @@ export class Dashboard implements OnInit {
     this.isLoading.set(true);
     try {
       const { startDate, endDate } = this.filterForm.value;
+      
+      const validRoles = ['Contador Judicial', 'Chefe', 'Gerente'];
+      const externalIds = this.users()
+        .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
+        .map(u => u.id);
+
       const result = await this.store.fetchPaginatedProcesses({
         page: this.currentPage(),
         pageSize: this.pageSize,
@@ -163,7 +210,10 @@ export class Dashboard implements OnInit {
         endDate: endDate || '',
         user: user,
         nucleusFilter: this.nucleusFilter(),
-        onlyAssignedToMe: this.onlyAssignedToMe()
+        onlyAssignedToMe: this.onlyAssignedToMe(),
+        unassignedOnly: this.unassignedOnly(),
+        accountantFilter: this.accountantFilter(),
+        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined
       });
 
       this.serverProcesses.set(result.processes);
@@ -231,6 +281,24 @@ export class Dashboard implements OnInit {
 
   setNucleusFilter(nucleus: string) {
     this.nucleusFilter.set(nucleus);
+    this.currentPage.set(1);
+    this.loadServerData();
+  }
+
+  setAccountantFilter(accountantId: string) {
+    this.accountantFilter.set(accountantId);
+    this.currentPage.set(1);
+    this.loadServerData();
+  }
+
+  toggleExternalAccountants() {
+    this.externalAccountantsOnly.update(v => !v);
+    this.currentPage.set(1);
+    this.loadServerData();
+  }
+
+  toggleUnassignedOnly() {
+    this.unassignedOnly.update(v => !v);
     this.currentPage.set(1);
     this.loadServerData();
   }
