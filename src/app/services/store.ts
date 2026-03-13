@@ -2,6 +2,7 @@ import {Injectable, signal, effect} from '@angular/core';
 import {User, Process, Nucleo, Prioridade, StatusTipo} from '../types';
 import {getSupabase} from '../supabase';
 import {SupabaseClient} from '@supabase/supabase-js';
+import { read, utils } from 'xlsx';
 
 @Injectable({
   providedIn: 'root'
@@ -514,7 +515,29 @@ export class StoreService {
     ];
 
     try {
-      const { error } = await client.from('processes').upsert(initialProcesses, { onConflict: 'number' });
+      const { count } = await client.from('processes').select('*', { count: 'exact', head: true });
+      if (count && count > 0) {
+        const { data } = await client.from('processes').select('*');
+        if (data) {
+          this.processes.set(data.map((p: Record<string, unknown>) => ({
+            id: String(p['id']),
+            position: Number(p['position']),
+            priorityPosition: p['priority_position'] ? Number(p['priority_position']) : null,
+            number: String(p['number']),
+            entryDate: String(p['entry_date']),
+            court: String(p['court']),
+            nucleus: String(p['nucleus']),
+            priority: this.normalizePriority(String(p['priority'])),
+            status: this.normalizeStatus(String(p['status'])),
+            assignedToId: p['assigned_to_id'] ? String(p['assigned_to_id']) : null,
+            valorCustas: p['valor_custas'] ? Number(p['valor_custas']) : 0,
+            observacao: p['observacao'] ? String(p['observacao']) : ''
+          })));
+        }
+        return;
+      }
+
+      const { error } = await client.from('processes').insert(initialProcesses);
       if (error) console.error('StoreService: Error seeding processes:', error);
       else {
         // Reload to get the seeded data with their real IDs
@@ -569,9 +592,21 @@ export class StoreService {
     ];
 
     try {
-      await client.from('nucleos').upsert(defaultNucleos, { onConflict: 'nome' });
-      await client.from('prioridades').upsert(defaultPrioridades, { onConflict: 'nome' });
-      await client.from('status_tipos').upsert(defaultStatus, { onConflict: 'nome' });
+      // Check if already seeded to avoid ON CONFLICT errors without constraints
+      const { count: nC } = await client.from('nucleos').select('*', { count: 'exact', head: true });
+      if (!nC || nC === 0) {
+        await client.from('nucleos').insert(defaultNucleos);
+      }
+      
+      const { count: pC } = await client.from('prioridades').select('*', { count: 'exact', head: true });
+      if (!pC || pC === 0) {
+        await client.from('prioridades').insert(defaultPrioridades);
+      }
+      
+      const { count: sC } = await client.from('status_tipos').select('*', { count: 'exact', head: true });
+      if (!sC || sC === 0) {
+        await client.from('status_tipos').insert(defaultStatus);
+      }
       
       // Reload data after seeding
       const { data: n } = await client.from('nucleos').select('*');
@@ -643,7 +678,6 @@ export class StoreService {
       } else {
         console.log('StoreService: Process status updated successfully in Supabase.');
         // Recalculate positions for the nucleus if needed
-        const p = this.processes().find(proc => proc.id === processId);
         this.updateGlobalStats();
       }
     }
@@ -956,7 +990,24 @@ export class StoreService {
     const createdAt = process.createdAt || new Date().toISOString().split('T')[0];
     
     try {
-      const { data, error } = await client.from('processes').upsert([{
+      // Manual check for (number, entry_date) to respect the rule:
+      // "se o numero do processo for igual mas data diferente copiar, se tiver data igual não copiar"
+      const { data: existing, error: checkError } = await client
+        .from('processes')
+        .select('id')
+        .eq('number', process.number)
+        .eq('entry_date', process.entryDate)
+        .maybeSingle();
+
+      if (checkError) {
+        console.warn('StoreService: Error checking for existing process:', checkError.message);
+      }
+
+      if (existing) {
+        throw new Error(`Já existe um processo cadastrado com o número ${process.number} e data ${process.entryDate}.`);
+      }
+
+      const { data, error } = await client.from('processes').insert([{
         number: process.number,
         entry_date: process.entryDate,
         court: process.court,
@@ -970,24 +1021,163 @@ export class StoreService {
         valor_custas: process.valorCustas || 0,
         observacao: process.observacao || '',
         created_at: createdAt
-      }], { onConflict: 'number' }).select();
+      }]).select();
 
       if (error) {
-        console.error('StoreService: Error adding/updating process in Supabase:', error.message);
+        console.error('StoreService: Error adding process in Supabase:', error.message);
         if (error.code === '23505') {
-          throw new Error('Este número de processo já está cadastrado no sistema.');
+          // If it still fails with 23505, it means there's a unique constraint on 'number' only
+          throw new Error(`Erro de duplicidade: O banco de dados não permite dois processos com o mesmo número (${process.number}), mesmo com datas diferentes. Remova a restrição unique da coluna 'number' no Supabase.`);
         }
         if (error.code === '23503') {
           throw new Error('Erro de integridade: O núcleo, prioridade ou status informado não é válido.');
         }
         throw new Error(`Erro no banco de dados: ${error.message}`);
       } else if (data && data[0]) {
-        console.log('StoreService: Process added/updated successfully in Supabase.');
+        console.log('StoreService: Process added successfully in Supabase.');
         this.updateGlobalStats();
       }
     } catch (e: unknown) {
-      this.handleSupabaseError(e, 'addProcess');
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes('Já existe um processo cadastrado')) {
+        this.handleSupabaseError(e, 'addProcess');
+      }
       throw e;
     }
+  }
+
+  async importFromStorage() {
+    console.log('StoreService: Importing from storage...');
+    const client = getSupabase();
+    if (!client) throw new Error('Supabase não configurado.');
+
+    const bucket = SUPABASE_STORAGE_BUCKET;
+    const filePath = SUPABASE_STORAGE_FILE_PATH;
+
+    if (!bucket || bucket === 'YOUR_SUPABASE_STORAGE_BUCKET') {
+      throw new Error('A variável SUPABASE_STORAGE_BUCKET não foi configurada nas Settings do AI Studio.');
+    }
+    if (!filePath || filePath === 'YOUR_SUPABASE_STORAGE_FILE_PATH') {
+      throw new Error('A variável SUPABASE_STORAGE_FILE_PATH não foi configurada nas Settings do AI Studio.');
+    }
+
+    // 1. Download file
+    console.log(`StoreService: Attempting to download ${filePath} from bucket ${bucket}...`);
+    const { data: fileData, error: downloadError } = await client.storage.from(bucket).download(filePath);
+    
+    if (downloadError) {
+      console.error('StoreService: Full download error object:', downloadError);
+      
+      // Better error message construction
+      let errorMsg = 'Erro desconhecido ao baixar arquivo.';
+      if (typeof downloadError === 'string') {
+        errorMsg = downloadError;
+      } else if (downloadError && typeof downloadError === 'object') {
+        // Supabase storage errors usually have 'message', 'error', or 'statusCode'
+        const errObj = downloadError as unknown as Record<string, unknown>;
+        errorMsg = (errObj['message'] as string) || (errObj['error'] as string) || JSON.stringify(downloadError);
+      }
+      
+      throw new Error(`Erro ao baixar arquivo do Storage: ${errorMsg}. Verifique se o bucket "${bucket}" é público ou se as políticas de RLS permitem acesso anônimo.`);
+    }
+
+    if (!fileData) {
+      throw new Error('Arquivo baixado com sucesso, mas o conteúdo está vazio.');
+    }
+
+    // 2. Parse XLSX
+    const buffer = await fileData.arrayBuffer();
+    const workbook = read(buffer, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const json = utils.sheet_to_json(worksheet) as Record<string, unknown>[];
+
+    if (json.length === 0) {
+      throw new Error('O arquivo no Storage está vazio ou não contém dados válidos.');
+    }
+
+    // 3. Get current processes
+    const currentProcesses = this.processes();
+    const pendingInDb = currentProcesses.filter(p => p.status === 'Pendente');
+
+    const importedCount = { success: 0, skipped: 0 };
+    const inconsistencies: string[] = [];
+    const fileProcessIdentifiers = new Set<string>();
+
+    // Helper to parse date
+    const parseDate = (val: unknown) => {
+      if (!val) return null;
+      if (typeof val === 'number') {
+        const date = new Date((val - 25569) * 86400 * 1000);
+        return date.toISOString().split('T')[0];
+      }
+      if (typeof val === 'string') {
+        if (val.match(/^\d{4}-\d{2}-\d{2}/)) return val.split('T')[0];
+        if (val.match(/^\d{2}\/\d{2}\/\d{4}/)) {
+          const [d, m, y] = val.split('/');
+          return `${y}-${m}-${d}`;
+        }
+      }
+      return String(val).split('T')[0];
+    };
+
+    // 4. Process file rows
+    for (const row of json) {
+      const number = String(row['processo'] || row['numero'] || row['Número'] || row['numero_processo'] || '').trim();
+      const entryDate = parseDate(row['data'] || row['data_entrada'] || row['data_remessa'] || row['remessa'] || row['data_entrada'] || '');
+      const nucleus = String(row['nucleo'] || '1ª CC').trim();
+      const court = String(row['vara'] || '').trim();
+      const priority = String(row['prioridade'] || 'Sem prioridade').trim();
+
+      if (!number || !entryDate) continue;
+
+      const identifier = `${number}|${entryDate}`;
+      fileProcessIdentifiers.add(identifier);
+
+      // Rule: If exists with same number and date, skip
+      const exists = currentProcesses.find(p => p.number === number && p.entryDate === entryDate);
+      if (exists) {
+        importedCount.skipped++;
+        continue;
+      }
+
+      // Add new process
+      try {
+        await this.addProcess({
+          number,
+          entryDate,
+          court,
+          nucleus,
+          priority,
+          status: 'Pendente',
+          assignedToId: null,
+          valorCustas: 0,
+          observacao: 'Importado via Tempo Real'
+        });
+        importedCount.success++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('Já existe um processo cadastrado')) {
+          importedCount.skipped++;
+        } else {
+          console.error(`StoreService: Error adding process ${number} from storage:`, msg);
+        }
+      }
+    }
+
+    // 5. Check inconsistencies
+    // "Se o processo estiver pendente no banco de dados, mas ele não estiver no arquivo do storage"
+    for (const p of pendingInDb) {
+      const identifier = `${p.number}|${p.entryDate}`;
+      if (!fileProcessIdentifiers.has(identifier)) {
+        inconsistencies.push(`${p.number} (${p.entryDate}) - Pendente no sistema, mas ausente no arquivo.`);
+      }
+    }
+
+    return {
+      success: importedCount.success,
+      skipped: importedCount.skipped,
+      inconsistencies
+    };
   }
 }

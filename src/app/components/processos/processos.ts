@@ -3,7 +3,7 @@ import {CommonModule} from '@angular/common';
 import {ReactiveFormsModule, FormGroup, FormControl, Validators} from '@angular/forms';
 import {MatIconModule} from '@angular/material/icon';
 import {StoreService} from '../../services/store';
-import {read, utils} from 'xlsx';
+import {read, utils, writeFile} from 'xlsx';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -19,11 +19,19 @@ import {read, utils} from 'xlsx';
         
         @if (currentUser()?.role === 'Coordenador' || currentUser()?.role === 'Supervisor' || currentUser()?.role === 'Administrador') {
           <div class="flex flex-col items-end gap-2">
-            <label class="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-bold transition-all shadow-md cursor-pointer">
-              <span class="material-symbols-outlined">upload_file</span>
-              Importar CSV / XLSX
-              <input type="file" (change)="onFileSelected($event)" accept=".csv, .xlsx, .xls" class="hidden" />
-            </label>
+            <div class="flex gap-2">
+              <button (click)="onImportRealTime()" 
+                      [disabled]="isImporting()"
+                      class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-bold transition-all shadow-md disabled:opacity-50">
+                <span class="material-symbols-outlined">{{ isImporting() ? 'sync' : 'cloud_download' }}</span>
+                Importar Tempo Real
+              </button>
+              <label class="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-bold transition-all shadow-md cursor-pointer">
+                <span class="material-symbols-outlined">upload_file</span>
+                Importar CSV / XLSX
+                <input type="file" (change)="onFileSelected($event)" accept=".csv, .xlsx, .xls" class="hidden" />
+              </label>
+            </div>
             <span class="text-[10px] text-slate-400 uppercase font-bold">Colunas: numero, data_entrada, vara, nucleo, prioridade, status, valor_custas, data_atribuicao, data_cumprimento, observacao</span>
           </div>
         }
@@ -163,7 +171,15 @@ import {read, utils} from 'xlsx';
             <span class="font-bold">{{ errorMessage() }}</span>
           </div>
           @if (importErrors().length > 0) {
-            <div class="mt-2 text-xs bg-white/50 p-3 rounded-lg max-h-40 overflow-y-auto">
+            <div class="mt-4 flex justify-between items-center">
+              <span class="text-xs font-bold text-red-800 uppercase tracking-wider">Lista de Inconsistências</span>
+              <button (click)="downloadInconsistencies()" 
+                      class="flex items-center gap-1 text-xs bg-white text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-all font-bold shadow-sm">
+                <span class="material-symbols-outlined text-sm">download</span>
+                Baixar XLSX
+              </button>
+            </div>
+            <div class="mt-2 text-xs bg-white/50 p-3 rounded-lg max-h-40 overflow-y-auto border border-red-200">
               <ul class="list-disc list-inside space-y-1">
                 @for (error of importErrors(); track $index) {
                   <li>{{ error }}</li>
@@ -270,6 +286,40 @@ export class Processos {
     }
   }
 
+  async onImportRealTime() {
+    this.isImporting.set(true);
+    this.errorMessage.set('');
+    this.successMessage.set('');
+    this.importErrors.set([]);
+    this.importProgress.set(10);
+
+    try {
+      const result = await this.store.importFromStorage();
+      this.importProgress.set(100);
+      
+      if (result.success > 0) {
+        this.successMessage.set(`${result.success} novos processos importados. ${result.skipped} ignorados (já existentes).`);
+      } else {
+        this.successMessage.set(`Processamento concluído. Nenhum novo processo para importar. ${result.skipped} ignorados.`);
+      }
+
+      if (result.inconsistencies.length > 0) {
+        this.errorMessage.set(`${result.inconsistencies.length} inconsistências encontradas (pendentes no sistema mas ausentes no arquivo).`);
+        this.importErrors.set(result.inconsistencies);
+      }
+    } catch (err: unknown) {
+      console.error('Processos: Error in real-time import:', err);
+      const message = err instanceof Error ? err.message : 'Erro ao realizar importação em tempo real.';
+      this.errorMessage.set(message);
+    } finally {
+      this.isImporting.set(false);
+      setTimeout(() => {
+        this.successMessage.set('');
+        this.importProgress.set(0);
+      }, 10000);
+    }
+  }
+
   async onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
@@ -299,6 +349,7 @@ export class Processos {
         this.importErrors.set([]);
         
         let count = 0;
+        let skipped = 0;
         const errors: string[] = [];
         const total = json.length;
 
@@ -326,8 +377,8 @@ export class Processos {
 
             // Basic mapping for common column names
             const processData = {
-              number: String(row['numero'] || row['number'] || row['Número'] || row['numero_processo'] || '').trim(),
-              entryDate: parseDate(row['data_entrada'] || row['entryDate'] || row['Data Entrada'] || row['entrada']) || new Date().toISOString().split('T')[0],
+              number: String(row['processo'] || row['numero'] || row['Número'] || row['numero_processo'] || '').trim(),
+              entryDate: parseDate(row['data_entrada'] || row['entryDate'] || row['Data Entrada'] || row['entrada'] || row['data_remessa'] || row['remessa']) || new Date().toISOString().split('T')[0],
               court: String(row['vara'] || row['court'] || row['Vara'] || row['juizo'] || '').trim(),
               nucleus: String(row['nucleo'] || row['nucleus'] || row['Núcleo'] || row['nucleo'] || '1ª CC').trim(),
               priority: String(row['prioridade'] || row['priority'] || row['Prioridade'] || row['prioridade'] || 'Sem prioridade').trim(),
@@ -341,15 +392,25 @@ export class Processos {
             };
 
             if (processData.number) {
-              await this.store.addProcess(processData);
-              count++;
+              // Check for duplicates locally first to avoid unnecessary API calls
+              const existing = this.store.processes().find(p => p.number === processData.number && p.entryDate === processData.entryDate);
+              if (existing) {
+                skipped++;
+              } else {
+                await this.store.addProcess(processData);
+                count++;
+              }
             } else {
               errors.push(`Linha ${i + 1}: Número do processo ausente.`);
             }
           } catch (err: unknown) {
-            console.error('Erro ao importar linha:', row, err);
             const msg = err instanceof Error ? err.message : 'Erro desconhecido';
-            errors.push(`Linha ${i + 1} (${row['numero'] || 'N/A'}): ${msg}`);
+            if (msg.includes('Já existe um processo cadastrado')) {
+              skipped++;
+            } else {
+              console.error('Erro ao importar linha:', row, err);
+              errors.push(`Linha ${i + 1} (${row['numero'] || 'N/A'}): ${msg}`);
+            }
           }
           
           // Update progress
@@ -358,7 +419,9 @@ export class Processos {
 
         this.isImporting.set(false);
         if (count > 0) {
-          this.successMessage.set(`${count} processos importados com sucesso!`);
+          this.successMessage.set(`${count} processos importados com sucesso! ${skipped} ignorados (já existentes).`);
+        } else if (skipped > 0) {
+          this.successMessage.set(`Processamento concluído. ${skipped} processos ignorados por já existirem.`);
         }
         
         if (errors.length > 0) {
@@ -379,5 +442,19 @@ export class Processos {
     };
 
     reader.readAsArrayBuffer(file);
+  }
+
+  downloadInconsistencies() {
+    const errors = this.importErrors();
+    if (errors.length === 0) return;
+
+    const data = errors.map(err => ({ Inconsistencia: err }));
+    const worksheet = utils.json_to_sheet(data);
+    const workbook = utils.book_new();
+    utils.book_append_sheet(workbook, worksheet, 'Inconsistencias');
+
+    const fileName = `inconsistencias_${new Date().toISOString().split('T')[0]}.xlsx`;
+    
+    writeFile(workbook, fileName);
   }
 }

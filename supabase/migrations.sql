@@ -22,7 +22,7 @@ CREATE TABLE processes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   position INTEGER NOT NULL,
   priority_position INTEGER,
-  number TEXT UNIQUE NOT NULL,
+  number TEXT NOT NULL,
   entry_date DATE NOT NULL,
   court TEXT NOT NULL,
   nucleus TEXT NOT NULL,
@@ -33,7 +33,8 @@ CREATE TABLE processes (
   completion_date DATE,
   valor_custas DECIMAL(12,2) DEFAULT 0,
   observacao TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  UNIQUE (number, entry_date)
 );
 
 -- Enable Row Level Security (RLS)
