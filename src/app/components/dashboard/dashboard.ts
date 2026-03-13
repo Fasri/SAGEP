@@ -20,12 +20,13 @@ export class Dashboard implements OnInit {
   statusTipos = this.store.statusTipos;
 
   searchTerm = signal('');
-  statusFilter = signal<'Pendente' | 'Todos'>('Pendente');
+  statusFilter = signal<'Pendente' | 'Todos'>('Todos');
   nucleusFilter = signal('Todos');
   onlyAssignedToMe = signal(false);
   unassignedOnly = signal(false);
   accountantFilter = signal('Todos');
   externalAccountantsOnly = signal(false);
+  isFilterVisible = signal(true);
   currentPage = signal(1);
   pageSize = 20;
   
