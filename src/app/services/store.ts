@@ -346,21 +346,45 @@ export class StoreService {
     }
   }
 
+  private fixEncoding(text: string): string {
+    if (!text) return '';
+    
+    // Common UTF-8 mangled characters in Latin-1 environments
+    return text
+      .replace(/Ã¡/g, 'á')
+      .replace(/Ã /g, 'à')
+      .replace(/Ã¢/g, 'â')
+      .replace(/Ã£/g, 'ã')
+      .replace(/Ã©/g, 'é')
+      .replace(/Ãª/g, 'ê')
+      .replace(/Ã­/g, 'í')
+      .replace(/Ã³/g, 'ó')
+      .replace(/Ã´/g, 'ô')
+      .replace(/Ãµ/g, 'õ')
+      .replace(/Ãº/g, 'ú')
+      .replace(/Ã§/g, 'ç')
+      .replace(/Ã /g, 'À')
+      .replace(/Ã‰/g, 'É')
+      .replace(/Ã“/g, 'Ó')
+      .replace(/Ã‡/g, 'Ç')
+      .replace(/Âº/g, 'º')
+      .replace(/Âª/g, 'ª')
+      .replace(/Ã /g, 'à')
+      .replace(/Ã s/g, 'às')
+      .replace(/[\uFFFD]/g, 'ª'); // Replacement character
+  }
+
   private normalizeNucleus(name: string): string {
     if (!name) return '1ª CC';
-    const n = name.toUpperCase().trim();
+    const n = this.fixEncoding(name).toUpperCase().trim();
     
     // Check if it exists in the loaded nucleos first (exact match)
     const found = this.nucleos().find(item => item.nome.toUpperCase() === n);
     if (found) return found.nome;
 
-    // Preserve CCJ specifically as it's a common requirement
-    if (n.includes('CCJ')) return name.trim();
-
-    // Remove common special characters for fuzzy matching
-    const fuzzy = n.replace(/[ªº\s]/g, '');
+    // Fuzzy matching: remove ALL non-alphanumeric characters to be safe
+    const fuzzy = n.replace(/[^A-Z0-9]/g, '');
     
-    // Map common variations but be careful not to over-match
     if (fuzzy === '1CC' || fuzzy === '1CAMARACIVEL') return '1ª CC';
     if (fuzzy === '2CC' || fuzzy === '2CAMARACIVEL') return '2ª CC';
     if (fuzzy === '3CC' || fuzzy === '3CAMARACIVEL') return '3ª CC';
@@ -370,7 +394,19 @@ export class StoreService {
     if (fuzzy === '7CC' || fuzzy === '7CAMARACIVEL') return '7ª CC';
     if (fuzzy === '8CC' || fuzzy === '8CAMARACIVEL') return '8ª CC';
     
-    return name.trim() || 'GERAL';
+    // Specific check for CCJ variations
+    if (fuzzy.includes('1CCJ')) return '1ª CCJ';
+    if (fuzzy.includes('2CCJ')) return '2ª CCJ';
+    if (fuzzy === 'CCJ') return 'CCJ';
+
+    // Check if any nucleus name (normalized) is contained within the input string (normalized)
+    const partialMatch = this.nucleos().find(item => {
+      const itemFuzzy = item.nome.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      return fuzzy.includes(itemFuzzy) || itemFuzzy.includes(fuzzy);
+    });
+    if (partialMatch) return partialMatch.nome;
+
+    return 'GERAL'; // Safe fallback to a known nucleus
   }
 
   private getPriorityLevel(priority: string): number {
@@ -576,6 +612,9 @@ export class StoreService {
       { nome: '6ª CC', descricao: '6ª Câmara Cível' },
       { nome: '7ª CC', descricao: '7ª Câmara Cível' },
       { nome: '8ª CC', descricao: '8ª Câmara Cível' },
+      { nome: '1ª CCJ', descricao: '1ª Câmara Regional' },
+      { nome: '2ª CCJ', descricao: '2ª Câmara Regional' },
+      { nome: 'CCJ', descricao: 'Câmara Regional' },
       { nome: 'GERAL', descricao: 'Núcleo Geral' }
     ];
 
@@ -636,7 +675,7 @@ export class StoreService {
     this.currentUser.set(null);
   }
 
-  async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao'>>) {
+  async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate'>>) {
     console.log('StoreService: Updating process fields...', { processId, fields });
     
     this.processes.update(prev => prev.map(p => 
@@ -645,9 +684,11 @@ export class StoreService {
 
     const client = getSupabase();
     if (client) {
-      const updateData: Record<string, number | string> = {};
+      const updateData: Record<string, string | number | null> = {};
       if (fields.valorCustas !== undefined) updateData['valor_custas'] = fields.valorCustas;
       if (fields.observacao !== undefined) updateData['observacao'] = fields.observacao;
+      if (fields.assignmentDate !== undefined) updateData['assignment_date'] = fields.assignmentDate;
+      if (fields.completionDate !== undefined) updateData['completion_date'] = fields.completionDate;
 
       const { error } = await client.from('processes').update(updateData).eq('id', processId);
       if (error) {
@@ -1010,7 +1051,7 @@ export class StoreService {
       const { data, error } = await client.from('processes').insert([{
         number: process.number,
         entry_date: process.entryDate,
-        court: process.court,
+        court: this.fixEncoding(process.court),
         nucleus: normalizedNucleus,
         priority: normalizedPriority,
         status: normalizedStatus,
@@ -1019,7 +1060,7 @@ export class StoreService {
         assignment_date: assignmentDate,
         completion_date: completionDate,
         valor_custas: process.valorCustas || 0,
-        observacao: process.observacao || '',
+        observacao: this.fixEncoding(process.observacao || ''),
         created_at: createdAt
       }]).select();
 
@@ -1123,13 +1164,45 @@ export class StoreService {
 
     // 4. Process file rows
     for (const row of json) {
-      const number = String(row['processo'] || row['numero'] || row['Número'] || row['numero_processo'] || '').trim();
-      const entryDate = parseDate(row['data'] || row['data_entrada'] || row['data_remessa'] || row['remessa'] || row['data_entrada'] || '');
-      const nucleus = String(row['nucleo'] || '1ª CC').trim();
-      const court = String(row['vara'] || '').trim();
-      const priority = String(row['prioridade'] || 'Sem prioridade').trim();
+      const getVal = (keys: string[]) => {
+        for (const k of keys) {
+          if (row[k] !== undefined) return row[k];
+          // Try variations
+          const lower = k.toLowerCase();
+          if (row[lower] !== undefined) return row[lower];
+          const upper = k.toUpperCase();
+          if (row[upper] !== undefined) return row[upper];
+          const snake = k.replace(/([A-Z])/g, "_$1").toLowerCase();
+          if (row[snake] !== undefined) return row[snake];
+          // Try common header names
+          const normalized = k.replace(/\s/g, '').toLowerCase();
+          for (const rowKey of Object.keys(row)) {
+            if (rowKey.replace(/\s/g, '').toLowerCase() === normalized) return row[rowKey];
+          }
+        }
+        return undefined;
+      };
+
+      const number = String(getVal(['Número do Processo', 'Processo', 'Número', 'numero_processo', 'number']) || '').trim();
+      const entryDate = parseDate(getVal(['Entrada', 'Data de Entrada', 'Data Entrada', 'entrada', 'data_remessa', 'remessa', 'entryDate', 'entry_date']));
+      const court = String(getVal(['Vara', 'Juízo', 'Vara / Juízo', 'court', 'juizo', 'court_name']) || '').trim();
+      const nucleus = String(getVal(['Núcleo', 'Nucleo', 'nucleus', 'nucleo']) || '1ª CC').trim();
+      const priority = String(getVal(['Prioridade', 'priority', 'prioridade']) || 'Sem prioridade').trim();
+      const status = String(getVal(['Status', 'status', 'situacao']) || 'Pendente').trim();
+      const valorCustas = Number(getVal(['Valor Custas', 'Valor das Custas', 'custas', 'valor_custas', 'valorCustas']) || 0);
+      const assignmentDate = parseDate(getVal(['Atribuição', 'Data de Atribuição', 'Data Atribuição', 'atribuicao', 'data_atribuicao', 'assignmentDate', 'assignment_date']));
+      const completionDate = parseDate(getVal(['Cumprimento', 'Data de Cumprimento', 'Data Cumprimento', 'cumprimento', 'data_cumprimento', 'completionDate', 'completion_date']));
+      const observacao = String(getVal(['Observação', 'Observacao', 'observacao', 'obs', 'Nota']) || '').trim();
+      const accountantName = String(getVal(['Atribuído a', 'Atribuido a', 'Contador', 'Calculista', 'Responsável', 'Responsavel', 'Técnico', 'Tecnico', 'assignedTo', 'assigned_to_id']) || '').trim();
 
       if (!number || !entryDate) continue;
+
+      let assignedToId = null;
+      if (accountantName) {
+        const user = this.users().find(u => u.name.toLowerCase() === accountantName.toLowerCase()) ||
+                     this.users().find(u => u.name.toLowerCase().includes(accountantName.toLowerCase()));
+        if (user) assignedToId = user.id;
+      }
 
       const identifier = `${number}|${entryDate}`;
       fileProcessIdentifiers.add(identifier);
@@ -1149,10 +1222,12 @@ export class StoreService {
           court,
           nucleus,
           priority,
-          status: 'Pendente',
-          assignedToId: null,
-          valorCustas: 0,
-          observacao: 'Importado via Tempo Real'
+          status,
+          assignedToId,
+          valorCustas,
+          assignmentDate,
+          completionDate,
+          observacao
         });
         importedCount.success++;
       } catch (err) {

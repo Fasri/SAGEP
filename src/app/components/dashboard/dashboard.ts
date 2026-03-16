@@ -337,7 +337,7 @@ export class Dashboard implements OnInit {
     this.store.assignProcess(process.id, userId);
   }
 
-  updateFields(process: Process, field: 'valorCustas' | 'observacao', event: Event) {
+  updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate', event: Event) {
     const input = event.target as HTMLInputElement;
     const value = field === 'valorCustas' ? parseFloat(input.value) : input.value;
     this.store.updateProcessFields(process.id, { [field]: value });

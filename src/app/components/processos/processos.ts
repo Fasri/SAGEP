@@ -125,6 +125,18 @@ import {read, utils, writeFile} from 'xlsx';
                        class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all" />
               </div>
 
+              <div class="flex flex-col gap-2">
+                <label for="assignmentDate" class="text-sm font-bold text-slate-700">Data de Atribuição</label>
+                <input id="assignmentDate" formControlName="assignmentDate" type="date"
+                       class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all" />
+              </div>
+
+              <div class="flex flex-col gap-2">
+                <label for="completionDate" class="text-sm font-bold text-slate-700">Data de Conclusão</label>
+                <input id="completionDate" formControlName="completionDate" type="date"
+                       class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all" />
+              </div>
+
               <div class="flex flex-col gap-2 md:col-span-2">
                 <label for="observacao" class="text-sm font-bold text-slate-700">Observação</label>
                 <textarea id="observacao" formControlName="observacao" rows="3"
@@ -216,6 +228,8 @@ export class Processos {
     status: new FormControl('Pendente', Validators.required),
     assignedToId: new FormControl<string | null>(null),
     valorCustas: new FormControl(0),
+    assignmentDate: new FormControl<string | null>(null),
+    completionDate: new FormControl<string | null>(null),
     observacao: new FormControl('')
   });
 
@@ -263,6 +277,8 @@ export class Processos {
           status: val.status!,
           assignedToId: val.assignedToId || null,
           valorCustas: val.valorCustas || 0,
+          assignmentDate: val.assignmentDate || null,
+          completionDate: val.completionDate || null,
           observacao: val.observacao || '',
           createdAt: new Date().toISOString().split('T')[0]
         });
@@ -274,6 +290,8 @@ export class Processos {
           priority: '2-Sem prioridade',
           assignedToId: null,
           valorCustas: 0,
+          assignmentDate: null,
+          completionDate: null,
           observacao: ''
         });
         setTimeout(() => this.successMessage.set(''), 3000);
@@ -375,20 +393,59 @@ export class Processos {
               return String(val).split('T')[0];
             };
 
-            // Basic mapping for common column names
+            // Robust mapping for Excel column names
+            const getVal = (keys: string[]) => {
+              for (const k of keys) {
+                if (row[k] !== undefined) return row[k];
+                // Try variations
+                const lower = k.toLowerCase();
+                if (row[lower] !== undefined) return row[lower];
+                const upper = k.toUpperCase();
+                if (row[upper] !== undefined) return row[upper];
+                const snake = k.replace(/([A-Z])/g, "_$1").toLowerCase();
+                if (row[snake] !== undefined) return row[snake];
+                // Try common header names
+                const normalized = k.replace(/\s/g, '').toLowerCase();
+                for (const rowKey of Object.keys(row)) {
+                  if (rowKey.replace(/\s/g, '').toLowerCase() === normalized) return row[rowKey];
+                }
+              }
+              return undefined;
+            };
+
+            const number = String(getVal(['Número do Processo', 'Processo', 'Número', 'numero_processo', 'number']) || '').trim();
+            const entryDate = parseDate(getVal(['Entrada', 'Data de Entrada', 'Data Entrada', 'entrada', 'data_remessa', 'remessa', 'entryDate', 'entry_date'])) || new Date().toISOString().split('T')[0];
+            const court = String(getVal(['Vara', 'Juízo', 'Vara / Juízo', 'court', 'juizo', 'court_name']) || '').trim();
+            const nucleus = String(getVal(['Núcleo', 'Nucleo', 'nucleus', 'nucleo']) || '1ª CC').trim();
+            const priority = String(getVal(['Prioridade', 'priority', 'prioridade']) || 'Sem prioridade').trim();
+            const status = String(getVal(['Status', 'status', 'situacao']) || 'Pendente').trim();
+            const valorCustas = Number(getVal(['Valor Custas', 'Valor das Custas', 'custas', 'valor_custas', 'valorCustas']) || 0);
+            const assignmentDate = parseDate(getVal(['Atribuição', 'Data de Atribuição', 'Data Atribuição', 'atribuicao', 'data_atribuicao', 'assignmentDate', 'assignment_date']));
+            const completionDate = parseDate(getVal(['Cumprimento', 'Data de Cumprimento', 'Data Cumprimento', 'cumprimento', 'data_cumprimento', 'completionDate', 'completion_date']));
+            const observacao = String(getVal(['Observação', 'Observacao', 'observacao', 'obs', 'Nota']) || '').trim();
+            const accountantName = String(getVal(['Atribuído a', 'Atribuido a', 'Contador', 'Calculista', 'Responsável', 'Responsavel', 'Técnico', 'Tecnico', 'assignedTo', 'assigned_to_id']) || '').trim();
+
+            let assignedToId = null;
+            if (accountantName) {
+              // Try exact match first, then partial
+              const user = this.users().find(u => u.name.toLowerCase() === accountantName.toLowerCase()) ||
+                           this.users().find(u => u.name.toLowerCase().includes(accountantName.toLowerCase()));
+              if (user) assignedToId = user.id;
+            }
+
             const processData = {
-              number: String(row['processo'] || row['numero'] || row['Número'] || row['numero_processo'] || '').trim(),
-              entryDate: parseDate(row['data_entrada'] || row['entryDate'] || row['Data Entrada'] || row['entrada'] || row['data_remessa'] || row['remessa']) || new Date().toISOString().split('T')[0],
-              court: String(row['vara'] || row['court'] || row['Vara'] || row['juizo'] || '').trim(),
-              nucleus: String(row['nucleo'] || row['nucleus'] || row['Núcleo'] || row['nucleo'] || '1ª CC').trim(),
-              priority: String(row['prioridade'] || row['priority'] || row['Prioridade'] || row['prioridade'] || 'Sem prioridade').trim(),
-              status: String(row['status'] || row['Status'] || row['status'] || 'Pendente').trim(),
-              assignedToId: null,
-              valorCustas: Number(row['valor_custas'] || row['valorCustas'] || row['Valor Custas'] || row['custas'] || 0),
-              assignmentDate: parseDate(row['data_atribuicao'] || row['assignmentDate'] || row['Data Atribuição'] || row['data_atribuição']),
-              completionDate: parseDate(row['data_cumprimento'] || row['completionDate'] || row['Data Cumprimento']),
-              observacao: String(row['observacao'] || row['observation'] || row['Observação'] || row['obs'] || '').trim(),
-              createdAt: new Date().toISOString().split('T')[0] // Data de upload (hoje)
+              number,
+              entryDate,
+              court,
+              nucleus,
+              priority,
+              status,
+              assignedToId,
+              valorCustas,
+              assignmentDate,
+              completionDate,
+              observacao,
+              createdAt: new Date().toISOString().split('T')[0]
             };
 
             if (processData.number) {

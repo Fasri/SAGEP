@@ -176,8 +176,9 @@
               <td class="px-2 py-5">
                 <span class="text-[9px] font-bold px-2 py-1 rounded-lg uppercase tracking-wider"
                       [ngClass]="{
-                        'bg-blue-50 text-blue-700': process.priority.includes('SUPER'),
-                        'bg-slate-100 text-slate-600': !process.priority.includes('SUPER')
+                        'bg-purple-100 text-purple-700': process.priority.toUpperCase().includes('SUPER'),
+                        'bg-red-100 text-red-700': process.priority.toUpperCase().includes('LEGAL'),
+                        'bg-green-100 text-green-700': !process.priority.toUpperCase().includes('SUPER') && !process.priority.toUpperCase().includes('LEGAL')
                       }">
                   {{ stripPriorityPrefix(process.priority) }}
                 </span>
@@ -212,11 +213,15 @@
                        placeholder="Nota..."
                        class="w-32 bg-slate-50 border-none rounded-lg px-2 py-1 text-xs text-slate-600 focus:ring-2 focus:ring-primary outline-none italic">
               </td>
-              <td class="px-2 py-5 text-[10px] text-slate-500">
-                {{ process.assignmentDate ? (process.assignmentDate | date:'dd/MM/yyyy') : '-' }}
+              <td class="px-2 py-5">
+                <input type="date" [value]="process.assignmentDate" 
+                       (change)="updateFields(process, 'assignmentDate', $event)"
+                       class="w-24 bg-slate-50 border-none rounded-lg px-1 py-1 text-[10px] text-slate-500 focus:ring-2 focus:ring-primary outline-none">
               </td>
-              <td class="px-2 py-5 text-[10px] text-slate-500">
-                {{ process.completionDate ? (process.completionDate | date:'dd/MM/yyyy') : '-' }}
+              <td class="px-2 py-5">
+                <input type="date" [value]="process.completionDate" 
+                       (change)="updateFields(process, 'completionDate', $event)"
+                       class="w-24 bg-slate-50 border-none rounded-lg px-1 py-1 text-[10px] text-slate-500 focus:ring-2 focus:ring-primary outline-none">
               </td>
               <td class="px-2 py-5">
                 @if (canAssign()) {
