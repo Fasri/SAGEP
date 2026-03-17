@@ -89,25 +89,27 @@
           </button>
         </div>
 
-        <button (click)="toggleOnlyAssignedToMe()" 
-                [class.bg-primary]="onlyAssignedToMe()"
-                [class.text-white]="onlyAssignedToMe()"
-                [class.bg-slate-100]="!onlyAssignedToMe()"
-                [class.text-slate-600]="!onlyAssignedToMe()"
-                class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm">
-          <span class="material-symbols-outlined text-sm">{{ onlyAssignedToMe() ? 'person_check' : 'person' }}</span>
-          Atribuídos a mim
-        </button>
+        @if (currentUser()?.role !== 'Contador Judicial') {
+          <button (click)="toggleOnlyAssignedToMe()" 
+                  [class.bg-primary]="onlyAssignedToMe()"
+                  [class.text-white]="onlyAssignedToMe()"
+                  [class.bg-slate-100]="!onlyAssignedToMe()"
+                  [class.text-slate-600]="!onlyAssignedToMe()"
+                  class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm">
+            <span class="material-symbols-outlined text-sm">{{ onlyAssignedToMe() ? 'person_check' : 'person' }}</span>
+            Atribuídos a mim
+          </button>
 
-        <button (click)="toggleUnassignedOnly()" 
-                [class.bg-rose-500]="unassignedOnly()"
-                [class.text-white]="unassignedOnly()"
-                [class.bg-slate-100]="!unassignedOnly()"
-                [class.text-slate-600]="!unassignedOnly()"
-                class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm">
-          <span class="material-symbols-outlined text-sm">person_off</span>
-          Não Atribuídos
-        </button>
+          <button (click)="toggleUnassignedOnly()" 
+                  [class.bg-rose-500]="unassignedOnly()"
+                  [class.text-white]="unassignedOnly()"
+                  [class.bg-slate-100]="!unassignedOnly()"
+                  [class.text-slate-600]="!unassignedOnly()"
+                  class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm">
+            <span class="material-symbols-outlined text-sm">person_off</span>
+            Não Atribuídos
+          </button>
+        }
 
         @if (currentUser()?.role !== 'Contador Judicial') {
           <div class="flex items-center gap-2">

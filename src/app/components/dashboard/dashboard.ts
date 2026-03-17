@@ -20,7 +20,7 @@ export class Dashboard implements OnInit {
   statusTipos = this.store.statusTipos;
 
   searchTerm = signal('');
-  statusFilter = signal<'Pendente' | 'Todos'>('Todos');
+  statusFilter = signal<'Pendente' | 'Todos'>('Pendente');
   nucleusFilter = signal('Todos');
   onlyAssignedToMe = signal(false);
   unassignedOnly = signal(false);
@@ -41,6 +41,8 @@ export class Dashboard implements OnInit {
     return all.filter(p => {
       if (user.role === 'Administrador' || user.role === 'Coordenador' || user.role === 'Supervisor') {
         return true;
+      } else if (user.role === 'Contador Judicial') {
+        return p.assignedToId === user.id;
       } else {
         return p.nucleus === user.nucleus || p.assignedToId === user.id;
       }
