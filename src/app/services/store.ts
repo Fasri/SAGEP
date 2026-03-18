@@ -274,12 +274,12 @@ export class StoreService {
         if (p) this.prioridades.set(p);
       }
 
-      const { data: statusTipos } = await client.from('status_tipos').select('*');
+      const { data: statusTipos } = await client.from('status').select('*');
       if (statusTipos && statusTipos.length > 0) {
         this.statusTipos.set(statusTipos);
       } else {
         await this.seedDatabase(client);
-        const { data: s } = await client.from('status_tipos').select('*');
+        const { data: s } = await client.from('status').select('*');
         if (s) this.statusTipos.set(s);
       }
 
@@ -349,43 +349,53 @@ export class StoreService {
   private fixEncoding(text: string): string {
     if (!text) return '';
     
-    // Common UTF-8 mangled characters in Latin-1 environments
+    // Common UTF-8 mangled characters in Latin-1 environments using Unicode escapes
     return text
-      .replace(/Ã¡/g, 'á')
-      .replace(/Ã /g, 'à')
-      .replace(/Ã¢/g, 'â')
-      .replace(/Ã£/g, 'ã')
-      .replace(/Ã©/g, 'é')
-      .replace(/Ãª/g, 'ê')
-      .replace(/Ã­/g, 'í')
-      .replace(/Ã³/g, 'ó')
-      .replace(/Ã´/g, 'ô')
-      .replace(/Ãµ/g, 'õ')
-      .replace(/Ãº/g, 'ú')
-      .replace(/Ã /g, 'Á')
-      .replace(/Ã‰/g, 'É')
-      .replace(/Ã /g, 'Í')
-      .replace(/Ã“/g, 'Ó')
-      .replace(/Ãš/g, 'Ú')
-      .replace(/Ã§/g, 'ç')
-      .replace(/Ã‡/g, 'Ç')
-      .replace(/Ã /g, 'À')
-      .replace(/Âº/g, 'º')
-      .replace(/Âª/g, 'ª')
-      .replace(/Ã /g, 'à')
-      .replace(/Ã s/g, 'às')
+      .replace(/\u00C3\u00A1/g, 'á')
+      .replace(/\u00C3\u00A0/g, 'à')
+      .replace(/\u00C3\u00A2/g, 'â')
+      .replace(/\u00C3\u00A3/g, 'ã')
+      .replace(/\u00C3\u00A9/g, 'é')
+      .replace(/\u00C3\u00AA/g, 'ê')
+      .replace(/\u00C3\u00AD/g, 'í')
+      .replace(/\u00C3\u00B3/g, 'ó')
+      .replace(/\u00C3\u00B4/g, 'ô')
+      .replace(/\u00C3\u00B5/g, 'õ')
+      .replace(/\u00C3\u00BA/g, 'ú')
+      .replace(/\u00C3\u0081/g, 'Á')
+      .replace(/\u00C3\u0089/g, 'É')
+      .replace(/\u00C3\u008D/g, 'Í')
+      .replace(/\u00C3\u0093/g, 'Ó')
+      .replace(/\u00C3\u009A/g, 'Ú')
+      .replace(/\u00C3\u00A7/g, 'ç')
+      .replace(/\u00C3\u0087/g, 'Ç')
+      .replace(/\u00C3\u0080/g, 'À')
+      .replace(/\u00C3\u0082/g, 'Â')
+      .replace(/\u00C3\u0083/g, 'Ã')
+      .replace(/\u00C3\u008A/g, 'Ê')
+      .replace(/\u00C3\u0094/g, 'Ô')
+      .replace(/\u00C3\u0095/g, 'Õ')
+      .replace(/\u00C2\u00BA/g, 'º')
+      .replace(/\u00C2\u00AA/g, 'ª')
       .replace(/[\uFFFD]/g, 'ª'); // Replacement character
   }
 
   private normalizeNucleus(name: string): string {
     if (!name) return '1ª CC';
-    const n = this.fixEncoding(name).toUpperCase().trim();
+    const fixed = this.fixEncoding(name).trim();
+    const n = fixed.toUpperCase();
     
-    // Check if it exists in the loaded nucleos first (exact match)
+    // 1. Try exact match (case-insensitive)
     const found = this.nucleos().find(item => item.nome.toUpperCase() === n);
     if (found) return found.nome;
 
-    // Fuzzy matching: remove ALL non-alphanumeric characters to be safe
+    // 2. Try match ignoring accents (fuzzy)
+    const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    const fixedNormalized = normalize(fixed);
+    const fuzzyFound = this.nucleos().find(item => normalize(item.nome) === fixedNormalized);
+    if (fuzzyFound) return fuzzyFound.nome;
+
+    // 3. Fuzzy matching: remove ALL non-alphanumeric characters to be safe
     const fuzzy = n.replace(/[^A-Z0-9]/g, '');
     
     if (fuzzy === '1CC' || fuzzy === '1CAMARACIVEL') return '1ª CC';
@@ -402,14 +412,7 @@ export class StoreService {
     if (fuzzy.includes('2CCJ')) return '2ª CCJ';
     if (fuzzy === 'CCJ') return 'CCJ';
 
-    // Check if any nucleus name (normalized) is contained within the input string (normalized)
-    const partialMatch = this.nucleos().find(item => {
-      const itemFuzzy = item.nome.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      return fuzzy.includes(itemFuzzy) || itemFuzzy.includes(fuzzy);
-    });
-    if (partialMatch) return partialMatch.nome;
-
-    return 'GERAL'; // Safe fallback to a known nucleus
+    return fixed; // Return fixed name if no match found
   }
 
   private getPriorityLevel(priority: string): number {
@@ -430,11 +433,18 @@ export class StoreService {
 
   private normalizePriority(name: string): string {
     if (!name) return '2-Sem prioridade';
-    const n = name.toUpperCase().trim();
+    const fixed = this.fixEncoding(name).trim();
+    const n = fixed.toUpperCase();
     
-    // Check if it already has a prefix and matches exactly (case-insensitive)
+    // 1. Try exact match (case-insensitive)
     const foundExact = this.prioridades().find(item => item.nome.toUpperCase() === n);
     if (foundExact) return foundExact.nome;
+
+    // 2. Try match ignoring accents (fuzzy)
+    const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    const fixedNormalized = normalize(fixed);
+    const fuzzyFound = this.prioridades().find(item => normalize(item.nome) === fixedNormalized);
+    if (fuzzyFound) return fuzzyFound.nome;
 
     // Fuzzy matching for common terms
     if (n.includes('SUPER')) {
@@ -450,23 +460,24 @@ export class StoreService {
       return found ? found.nome : '2-Sem prioridade';
     }
     
-    // Try to find any match in the loaded prioridades
-    const foundAny = this.prioridades().find(item => n.includes(item.nome.toUpperCase()) || item.nome.toUpperCase().includes(n));
-    if (foundAny) return foundAny.nome;
-
-    return '2-Sem prioridade'; // Safe fallback
+    return fixed; // Return fixed name if no match found
   }
 
   private normalizeStatus(name: string): string {
     if (!name) return 'Pendente';
-    const n = name.toUpperCase().trim();
-    if (n.includes('PENDENTE')) return 'Pendente';
-    if (n.includes('REALIZADO') || n.includes('SUCESSO')) return 'Cálculo Realizado';
-    if (n.includes('DEVOLVIDO') || n.includes('SEM CALCULO')) return 'Devolvido sem Cálculo';
+    const fixed = this.fixEncoding(name).trim();
     
-    const found = this.statusTipos().find(item => item.nome.toUpperCase() === n);
+    // 1. Try exact match (case-insensitive)
+    const found = this.statusTipos().find(s => s.nome.toLowerCase() === fixed.toLowerCase());
     if (found) return found.nome;
-    return 'Pendente'; // Safe fallback
+    
+    // 2. Try match ignoring accents (fuzzy)
+    const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const fixedNormalized = normalize(fixed);
+    const fuzzyFound = this.statusTipos().find(s => normalize(s.nome) === fixedNormalized);
+    if (fuzzyFound) return fuzzyFound.nome;
+    
+    return fixed;
   }
 
   private parseDateSafely(dateStr: string): number {
@@ -630,24 +641,52 @@ export class StoreService {
     const defaultStatus = [
       { nome: 'Pendente', descricao: 'Aguardando início' },
       { nome: 'Cálculo Realizado', descricao: 'Finalizado com sucesso' },
-      { nome: 'Devolvido sem Cálculo', descricao: 'Impossibilidade técnica' }
+      { nome: 'Devolvido sem Cálculo', descricao: 'Impossibilidade técnica' },
+      { nome: 'Devolvido: atualizar o valor da causa', descricao: '' },
+      { nome: 'Devolvido: Custas Satisfeitas', descricao: '' },
+      { nome: 'Devolvido: Beneficiário da Justiça Gratuita', descricao: '' },
+      { nome: 'Devolvido: ausência de certidão de trânsito em julgado', descricao: '' },
+      { nome: 'Devolvido: ausência de parâmetros', descricao: '' },
+      { nome: 'Cálculo realizado', descricao: '' },
+      { nome: 'Cálculo atualizado do calculista', descricao: '' },
+      { nome: 'Devolvido: ausência de documentos para os cálculos', descricao: '' },
+      { nome: 'Devolvido: perícia', descricao: '' },
+      { nome: 'Devolvido: incompetência', descricao: '' },
+      { nome: 'Devolvido: não há cálculos a serem realizados', descricao: '' },
+      { nome: 'Triagem do Gestor', descricao: '' },
+      { nome: 'Devolvido: remetido para contadoria de custas/liquidação', descricao: '' },
+      { nome: 'Cálculo atualizado', descricao: '' },
+      { nome: 'Devolvido: solicitação de esclarecimentos', descricao: '' },
+      { nome: 'Devolvido: ausência de determinação do magistrado', descricao: '' },
+      { nome: 'Devolvido: a pedido da vara/diretoria', descricao: '' },
+      { nome: 'Devolvido: erro de remessa', descricao: '' },
+      { nome: 'Partilha Realizada', descricao: '' },
+      { nome: 'Devolvido: esclarecimento realizado', descricao: '' }
     ];
 
     try {
-      // Check if already seeded to avoid ON CONFLICT errors without constraints
-      const { count: nC } = await client.from('nucleos').select('*', { count: 'exact', head: true });
-      if (!nC || nC === 0) {
-        await client.from('nucleos').insert(defaultNucleos);
+      // For each table, we check and insert missing items one by one to avoid unique constraint violations
+      // while ensuring all default values are present.
+      
+      for (const item of defaultNucleos) {
+        const { data } = await client.from('nucleos').select('id').eq('nome', item.nome).maybeSingle();
+        if (!data) {
+          await client.from('nucleos').insert([item]);
+        }
       }
       
-      const { count: pC } = await client.from('prioridades').select('*', { count: 'exact', head: true });
-      if (!pC || pC === 0) {
-        await client.from('prioridades').insert(defaultPrioridades);
+      for (const item of defaultPrioridades) {
+        const { data } = await client.from('prioridades').select('id').eq('nome', item.nome).maybeSingle();
+        if (!data) {
+          await client.from('prioridades').insert([item]);
+        }
       }
       
-      const { count: sC } = await client.from('status_tipos').select('*', { count: 'exact', head: true });
-      if (!sC || sC === 0) {
-        await client.from('status_tipos').insert(defaultStatus);
+      for (const item of defaultStatus) {
+        const { data } = await client.from('status').select('id').eq('nome', item.nome).maybeSingle();
+        if (!data) {
+          await client.from('status').insert([item]);
+        }
       }
       
       // Reload data after seeding
@@ -657,10 +696,10 @@ export class StoreService {
       const { data: p } = await client.from('prioridades').select('*');
       if (p) this.prioridades.set(p);
       
-      const { data: s } = await client.from('status_tipos').select('*');
+      const { data: s } = await client.from('status').select('*');
       if (s) this.statusTipos.set(s);
       
-      console.log('StoreService: Database seeded successfully.');
+      console.log('StoreService: Database seeded/verified successfully.');
     } catch (error) {
       console.error('StoreService: Error seeding database:', error);
     }
@@ -713,6 +752,7 @@ export class StoreService {
 
     const client = getSupabase();
     if (client) {
+      await this.ensureStatusExists(client, newStatus);
       const { error } = await client.from('processes').update({ 
         status: newStatus,
         completion_date: completionDate
@@ -1006,6 +1046,87 @@ export class StoreService {
     }, 500); // 500ms debounce
   }
 
+  private async ensureStatusExists(client: SupabaseClient, statusName: string) {
+    if (!statusName) return;
+    try {
+      const { data, error } = await client.from('status').select('id').eq('nome', statusName).maybeSingle();
+      if (error) {
+        if (error.message.includes('Could not find the table')) {
+          console.error(`StoreService: Table "status" is missing in Supabase. Please run the migrations in migrations.sql.`);
+        } else {
+          console.error(`StoreService: Error checking status "${statusName}":`, error.message);
+        }
+        return;
+      }
+      if (!data) {
+        console.log(`StoreService: Status "${statusName}" not found in DB. Adding it...`);
+        const { error: insertError } = await client.from('status').insert([{ nome: statusName, descricao: 'Adicionado automaticamente' }]);
+        if (insertError) {
+          console.error(`StoreService: Error adding status "${statusName}":`, insertError.message);
+        } else {
+          const { data: allStatus } = await client.from('status').select('*');
+          if (allStatus) this.statusTipos.set(allStatus);
+        }
+      }
+    } catch (e) {
+      console.error(`StoreService: Exception in ensureStatusExists for "${statusName}":`, e);
+    }
+  }
+
+  private async ensureNucleusExists(client: SupabaseClient, nucleusName: string) {
+    if (!nucleusName) return;
+    try {
+      const { data, error } = await client.from('nucleos').select('id').eq('nome', nucleusName).maybeSingle();
+      if (error) {
+        if (error.message.includes('Could not find the table')) {
+          console.error(`StoreService: Table "nucleos" is missing in Supabase. Please run the migrations in migrations.sql.`);
+        } else {
+          console.error(`StoreService: Error checking nucleus "${nucleusName}":`, error.message);
+        }
+        return;
+      }
+      if (!data) {
+        console.log(`StoreService: Nucleus "${nucleusName}" not found in DB. Adding it...`);
+        const { error: insertError } = await client.from('nucleos').insert([{ nome: nucleusName, descricao: 'Adicionado automaticamente' }]);
+        if (insertError) {
+          console.error(`StoreService: Error adding nucleus "${nucleusName}":`, insertError.message);
+        } else {
+          const { data: allNucleos } = await client.from('nucleos').select('*');
+          if (allNucleos) this.nucleos.set(allNucleos);
+        }
+      }
+    } catch (e) {
+      console.error(`StoreService: Exception in ensureNucleusExists for "${nucleusName}":`, e);
+    }
+  }
+
+  private async ensurePriorityExists(client: SupabaseClient, priorityName: string) {
+    if (!priorityName) return;
+    try {
+      const { data, error } = await client.from('prioridades').select('id').eq('nome', priorityName).maybeSingle();
+      if (error) {
+        if (error.message.includes('Could not find the table')) {
+          console.error(`StoreService: Table "prioridades" is missing in Supabase. Please run the migrations in migrations.sql.`);
+        } else {
+          console.error(`StoreService: Error checking priority "${priorityName}":`, error.message);
+        }
+        return;
+      }
+      if (!data) {
+        console.log(`StoreService: Priority "${priorityName}" not found in DB. Adding it...`);
+        const { error: insertError } = await client.from('prioridades').insert([{ nome: priorityName, descricao: 'Adicionado automaticamente' }]);
+        if (insertError) {
+          console.error(`StoreService: Error adding priority "${priorityName}":`, insertError.message);
+        } else {
+          const { data: allPriorities } = await client.from('prioridades').select('*');
+          if (allPriorities) this.prioridades.set(allPriorities);
+        }
+      }
+    } catch (e) {
+      console.error(`StoreService: Exception in ensurePriorityExists for "${priorityName}":`, e);
+    }
+  }
+
   // CRUD for Processes
   async addProcess(process: Omit<Process, 'id' | 'position' | 'priorityPosition'>) {
     console.log('StoreService: Adding process...', process);
@@ -1020,6 +1141,11 @@ export class StoreService {
     const normalizedNucleus = this.normalizeNucleus(process.nucleus);
     const normalizedPriority = this.normalizePriority(process.priority);
     const normalizedStatus = this.normalizeStatus(process.status);
+
+    // Ensure they exist in DB to avoid FK violations
+    await this.ensureNucleusExists(client, normalizedNucleus);
+    await this.ensurePriorityExists(client, normalizedPriority);
+    await this.ensureStatusExists(client, normalizedStatus);
     
     // Calculate position (simple increment for now)
     const nextPos = this.processes().length + 1;
@@ -1054,7 +1180,7 @@ export class StoreService {
       }
 
       const { data, error } = await client.from('processes').insert([{
-        number: process.number,
+        number: this.fixEncoding(process.number),
         entry_date: process.entryDate,
         court: this.fixEncoding(process.court),
         nucleus: normalizedNucleus,
@@ -1076,7 +1202,13 @@ export class StoreService {
           throw new Error(`Erro de duplicidade: O banco de dados não permite dois processos com o mesmo número (${process.number}), mesmo com datas diferentes. Remova a restrição unique da coluna 'number' no Supabase.`);
         }
         if (error.code === '23503') {
-          throw new Error('Erro de integridade: O núcleo, prioridade ou status informado não é válido.');
+          const detail = error.details || '';
+          let field = 'núcleo, prioridade ou status';
+          if (detail.includes('status')) field = 'status';
+          else if (detail.includes('nucleus')) field = 'núcleo';
+          else if (detail.includes('priority')) field = 'prioridade';
+          
+          throw new Error(`Erro de integridade: O ${field} informado ("${field === 'status' ? normalizedStatus : (field === 'núcleo' ? normalizedNucleus : normalizedPriority)}") não existe no banco de dados e não pôde ser adicionado automaticamente. Verifique as permissões (RLS) das tabelas auxiliares.`);
         }
         throw new Error(`Erro no banco de dados: ${error.message}`);
       } else if (data && data[0]) {
@@ -1188,17 +1320,17 @@ export class StoreService {
         return undefined;
       };
 
-      const number = String(getVal(['Número do Processo', 'Processo', 'Número', 'numero_processo', 'number']) || '').trim();
-      const entryDate = parseDate(getVal(['Entrada', 'Data de Entrada', 'Data Entrada', 'entrada', 'data_remessa', 'remessa', 'entryDate', 'entry_date']));
-      const court = String(getVal(['Vara', 'Juízo', 'Vara / Juízo', 'court', 'juizo', 'court_name']) || '').trim();
-      const nucleus = String(getVal(['Núcleo', 'Nucleo', 'nucleus', 'nucleo']) || '1ª CC').trim();
-      const priority = String(getVal(['Prioridade', 'priority', 'prioridade']) || 'Sem prioridade').trim();
-      const status = String(getVal(['Status', 'status', 'situacao']) || 'Pendente').trim();
+      const number = this.fixEncoding(String(getVal(['Número do Processo', 'Processo', 'Número', 'numero_processo', 'number']) || '').trim());
+      const entryDate = parseDate(getVal(['Entrada', 'Data de Entrada', 'Data Entrada', 'entrada', 'data_remessa', 'remessa', 'entryDate', 'entry_date', 'data']));
+      const court = String(getVal(['Vara', 'Juízo', 'Vara / Juízo', 'court', 'juizo', 'court_name', 'vara']) || '').trim();
+      const nucleus = String(getVal(['Núcleo', 'Nucleo', 'nucleus', 'nucleo', 'nucleo']) || '1ª CC').trim();
+      const priority = String(getVal(['Prioridade', 'priority', 'prioridade', 'prioridades']) || 'Sem prioridade').trim();
+      const status = String(getVal(['Status', 'status', 'situacao', 'situacao_processo', 'situação']) || 'Pendente').trim();
       const valorCustas = Number(getVal(['Valor Custas', 'Valor das Custas', 'custas', 'valor_custas', 'valorCustas']) || 0);
-      const assignmentDate = parseDate(getVal(['Atribuição', 'Data de Atribuição', 'Data Atribuição', 'atribuicao', 'data_atribuicao', 'assignmentDate', 'assignment_date']));
+      const assignmentDate = parseDate(getVal(['Atribuição', 'Data de Atribuição', 'Data Atribuição', 'atribuicao', 'data_atribuicao', 'assignmentDate', 'assignment_date', 'data_atrib', 'dt_atrib']));
       const completionDate = parseDate(getVal(['Cumprimento', 'Data de Cumprimento', 'Data Cumprimento', 'cumprimento', 'data_cumprimento', 'completionDate', 'completion_date']));
       const observacao = String(getVal(['Observação', 'Observacao', 'observacao', 'obs', 'Nota']) || '').trim();
-      const accountantName = String(getVal(['Atribuído a', 'Atribuido a', 'Contador', 'Calculista', 'Responsável', 'Responsavel', 'Técnico', 'Tecnico', 'assignedTo', 'assigned_to_id']) || '').trim();
+      const accountantName = this.fixEncoding(String(getVal(['Atribuído a', 'Atribuido a', 'Contador', 'Calculista', 'Responsável', 'Responsavel', 'Técnico', 'Tecnico', 'assignedTo', 'assigned_to_id']) || '').trim());
 
       if (!number || !entryDate) continue;
 

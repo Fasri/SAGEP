@@ -19,7 +19,10 @@ export const getSupabase = (): SupabaseClient | null => {
     supabaseUrl = getGlobal(typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : undefined);
     supabaseAnonKey = getGlobal(typeof SUPABASE_ANON_KEY !== 'undefined' ? SUPABASE_ANON_KEY : undefined);
     
-    // 2. Try process.env (Node-style)
+    // Check for placeholders or invalid URLs
+    const isInvalid = (url: string) => !url || url.includes('YOUR_SUPABASE_URL') || url.includes('ais-dev-') || url.includes('ais-pre-');
+    if (isInvalid(supabaseUrl)) supabaseUrl = '';
+    if (!supabaseAnonKey || supabaseAnonKey.includes('YOUR_SUPABASE_ANON_KEY')) supabaseAnonKey = '';
     const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
     if (!supabaseUrl) supabaseUrl = env['SUPABASE_URL'] || env['VITE_SUPABASE_URL'] || env['NG_SUPABASE_URL'] || '';
     if (!supabaseAnonKey) supabaseAnonKey = env['SUPABASE_ANON_KEY'] || env['VITE_SUPABASE_ANON_KEY'] || env['NG_SUPABASE_ANON_KEY'] || '';

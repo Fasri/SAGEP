@@ -1,6 +1,30 @@
 -- Create Roles Enum
 CREATE TYPE user_role AS ENUM ('Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Contador Judicial');
 
+-- Create Status Table
+CREATE TABLE status (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT UNIQUE NOT NULL,
+  descricao TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Create Nucleos Table
+CREATE TABLE nucleos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT UNIQUE NOT NULL,
+  descricao TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Create Prioridades Table
+CREATE TABLE prioridades (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT UNIQUE NOT NULL,
+  descricao TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- Create Users Table
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -25,9 +49,9 @@ CREATE TABLE processes (
   number TEXT NOT NULL,
   entry_date DATE NOT NULL,
   court TEXT NOT NULL,
-  nucleus TEXT NOT NULL,
-  priority TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'Pendente',
+  nucleus TEXT NOT NULL REFERENCES nucleos(nome) ON UPDATE CASCADE,
+  priority TEXT NOT NULL REFERENCES prioridades(nome) ON UPDATE CASCADE,
+  status TEXT NOT NULL DEFAULT 'Pendente' REFERENCES status(nome) ON UPDATE CASCADE,
   assigned_to_id UUID REFERENCES users(id),
   assignment_date DATE,
   completion_date DATE,
@@ -40,6 +64,9 @@ CREATE TABLE processes (
 -- Enable Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE processes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE status ENABLE ROW LEVEL SECURITY;
+ALTER TABLE nucleos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prioridades ENABLE ROW LEVEL SECURITY;
 
 -- Create Policies (Simplified for testing without Supabase Auth)
 CREATE POLICY "Public users are viewable by everyone" ON users FOR SELECT USING (true);
@@ -50,8 +77,50 @@ CREATE POLICY "Anyone can delete users" ON users FOR DELETE USING (true);
 CREATE POLICY "Processes are viewable by everyone" ON processes FOR SELECT USING (true);
 CREATE POLICY "Anyone can manage processes" ON processes FOR ALL USING (true);
 
--- Insert Initial Mock Data (Optional, but helpful for migration)
--- Note: You'll need to update these with real UUIDs if you want to use them as references
+CREATE POLICY "Status are viewable by everyone" ON status FOR SELECT USING (true);
+CREATE POLICY "Anyone can manage status" ON status FOR ALL USING (true);
+
+CREATE POLICY "Nucleos are viewable by everyone" ON nucleos FOR SELECT USING (true);
+CREATE POLICY "Anyone can manage nucleos" ON nucleos FOR ALL USING (true);
+
+CREATE POLICY "Prioridades are viewable by everyone" ON prioridades FOR SELECT USING (true);
+CREATE POLICY "Anyone can manage prioridades" ON prioridades FOR ALL USING (true);
+
+-- Grant permissions to ensure PostgREST can see the tables
+GRANT ALL ON TABLE status TO anon, authenticated, service_role;
+GRANT ALL ON TABLE nucleos TO anon, authenticated, service_role;
+GRANT ALL ON TABLE prioridades TO anon, authenticated, service_role;
+GRANT ALL ON TABLE users TO anon, authenticated, service_role;
+GRANT ALL ON TABLE processes TO anon, authenticated, service_role;
+
+-- Insert Initial Data for auxiliary tables
+INSERT INTO status (nome, descricao) VALUES 
+('Pendente', 'Processo aguardando início'),
+('Cálculo Realizado', 'Cálculo concluído'),
+('Devolvido sem Cálculo', 'Processo devolvido por algum motivo');
+
+INSERT INTO nucleos (nome, descricao) VALUES 
+('1ª CC', '1ª Contadoria de custa'),
+('2ª CC', '2ª Contadoria de custa'),
+('3ª CC', '3ª Contadoria de custa'),
+('4ª CC', '4ª Contadoria de custa'),
+('5ª CC', '5ª Contadoria de custa'),
+('6ª CC', '6ª Contadoria de custa'),
+('7ª CC', '7ª Contadoria de custa'),
+('1ª CCJ', '1ª Contadoria de cálculos judiciais'),
+('2ª CCJ', '2ª Contadoria de cálculos judiciais'),
+('3ª CCJ', '3ª Contadoria de cálculos judiciais'),
+('4ª CCJ', '4ª Contadoria de cálculos judiciais'),
+('5ª CCJ', '5ª Contadoria de cálculos judiciais'),
+('6ª CCJ', '6ª Contadoria de cálculos judiciais'),
+('GERAL', 'Núcleo Geral');
+
+INSERT INTO prioridades (nome, descricao) VALUES 
+('1-Super prioridade', 'Prioridade máxima'),
+('2-Prioridade legal', 'Prioridade por lei'),
+('2-Sem prioridade', 'Sem prioridade especial');
+
+-- Insert Initial Mock Data for users
 INSERT INTO users (matricula, name, role, nucleus, functional_email, gmail, meta_percentage, birth_date, active, password)
 VALUES 
 ('10001', 'Admin Master', 'Administrador', 'GERAL', 'admin@tjpe.jus.br', 'admin@gmail.com', 100, '1970-01-01', true, '123456'),

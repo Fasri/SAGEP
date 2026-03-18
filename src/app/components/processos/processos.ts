@@ -32,7 +32,7 @@ import {read, utils, writeFile} from 'xlsx';
                 <input type="file" (change)="onFileSelected($event)" accept=".csv, .xlsx, .xls" class="hidden" />
               </label>
             </div>
-            <span class="text-[10px] text-slate-400 uppercase font-bold">Colunas: numero, data_entrada, vara, nucleo, prioridade, status, valor_custas, data_atribuicao, data_cumprimento, observacao</span>
+            <span class="text-[10px] text-slate-400 uppercase font-bold">Colunas aceitas: numero, processo, data_entrada, data, vara, nucleo, prioridade, prioridades, status, valor_custas, observacao</span>
           </div>
         }
       </div>
