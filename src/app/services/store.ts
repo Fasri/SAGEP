@@ -746,6 +746,10 @@ export class StoreService {
     console.log('StoreService: Updating process status...', { processId, newStatus });
     const completionDate = newStatus !== 'Pendente' ? new Date().toISOString().split('T')[0] : null;
     
+    // Find the process to know its nucleus before updating
+    const processToUpdate = this.processes().find(p => p.id === processId);
+    const nucleus = processToUpdate?.nucleus;
+
     this.processes.update(prev => prev.map(p => 
       p.id === processId ? { ...p, status: newStatus, completionDate } : p
     ));
@@ -761,7 +765,10 @@ export class StoreService {
         console.error('StoreService: Error updating process status in Supabase:', error);
       } else {
         console.log('StoreService: Process status updated successfully in Supabase.');
-        // Recalculate positions for the nucleus if needed
+        // Recalculate positions for the nucleus
+        if (nucleus) {
+          await this.recalculatePositions(nucleus);
+        }
         this.updateGlobalStats();
       }
     }
@@ -996,6 +1003,59 @@ export class StoreService {
   }
 
   private statsTimeout: ReturnType<typeof setTimeout> | null = null;
+  private async recalculatePositions(nucleus: string) {
+    console.log(`StoreService: Recalculating positions for nucleus ${nucleus}...`);
+    const client = getSupabase();
+    if (!client) return;
+
+    try {
+      // 1. Fetch all "Pendente" processes for this nucleus
+      // We sort by priority level (Super first) then by entry date
+      const { data: pendentes, error: fetchError } = await client
+        .from('processes')
+        .select('id, priority, entry_date')
+        .eq('nucleus', nucleus)
+        .eq('status', 'Pendente');
+
+      if (fetchError) {
+        console.error('StoreService: Error fetching processes for recalculation:', fetchError);
+        return;
+      }
+
+      if (pendentes) {
+        // Sort in memory to apply the same logic as the dashboard
+        const sorted = pendentes.sort((a, b) => {
+          const levelA = a.priority.toUpperCase().includes('SUPER') ? 1 : 2;
+          const levelB = b.priority.toUpperCase().includes('SUPER') ? 1 : 2;
+          if (levelA !== levelB) return levelA - levelB;
+          return new Date(a.entry_date).getTime() - new Date(b.entry_date).getTime();
+        });
+
+        // Update positions sequentially
+        for (let i = 0; i < sorted.length; i++) {
+          await client
+            .from('processes')
+            .update({ position: i + 1 })
+            .eq('id', sorted[i].id);
+        }
+        
+        // 2. Clear positions for non-pendente processes in this nucleus
+        await client
+          .from('processes')
+          .update({ position: 0 })
+          .eq('nucleus', nucleus)
+          .neq('status', 'Pendente');
+        
+        console.log(`StoreService: Positions recalculated for ${nucleus}.`);
+        
+        // Reload data to reflect changes in UI
+        this.loadData();
+      }
+    } catch (err) {
+      console.error('StoreService: Unexpected error in recalculatePositions:', err);
+    }
+  }
+
   async updateGlobalStats() {
     if (this.statsTimeout) clearTimeout(this.statsTimeout);
     
@@ -1128,7 +1188,7 @@ export class StoreService {
   }
 
   // CRUD for Processes
-  async addProcess(process: Omit<Process, 'id' | 'position' | 'priorityPosition'>) {
+  async addProcess(process: Omit<Process, 'id' | 'position' | 'priorityPosition'>, skipRecalculate = false) {
     console.log('StoreService: Adding process...', process);
     const client = getSupabase();
     
@@ -1147,8 +1207,23 @@ export class StoreService {
     await this.ensurePriorityExists(client, normalizedPriority);
     await this.ensureStatusExists(client, normalizedStatus);
     
-    // Calculate position (simple increment for now)
-    const nextPos = this.processes().length + 1;
+    // Calculate position (scoped by nucleus, only for Pendente)
+    let nextPos = 0;
+    if (normalizedStatus === 'Pendente') {
+      const { data: lastProc, error: posError } = await client
+        .from('processes')
+        .select('position')
+        .eq('nucleus', normalizedNucleus)
+        .eq('status', 'Pendente')
+        .order('position', { ascending: false })
+        .limit(1);
+      
+      if (!posError && lastProc && lastProc.length > 0) {
+        nextPos = (lastProc[0].position || 0) + 1;
+      } else {
+        nextPos = 1;
+      }
+    }
     
     // Use provided dates or calculate them
     const assignmentDate = process.assignmentDate !== undefined 
@@ -1213,7 +1288,13 @@ export class StoreService {
         throw new Error(`Erro no banco de dados: ${error.message}`);
       } else if (data && data[0]) {
         console.log('StoreService: Process added successfully in Supabase.');
-        this.updateGlobalStats();
+        
+        // If it's a pending process, we might need to recalculate positions to ensure correct ordering
+        if (!skipRecalculate && normalizedStatus === 'Pendente') {
+          await this.recalculatePositions(normalizedNucleus);
+        } else {
+          this.updateGlobalStats();
+        }
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -1281,6 +1362,7 @@ export class StoreService {
     const importedCount = { success: 0, skipped: 0 };
     const inconsistencies: string[] = [];
     const fileProcessIdentifiers = new Set<string>();
+    const affectedNuclei = new Set<string>();
 
     // Helper to parse date
     const parseDate = (val: unknown) => {
@@ -1365,7 +1447,9 @@ export class StoreService {
           assignmentDate,
           completionDate,
           observacao
-        });
+        }, true); // Skip recalculate during loop
+        
+        affectedNuclei.add(this.normalizeNucleus(nucleus));
         importedCount.success++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -1377,7 +1461,12 @@ export class StoreService {
       }
     }
 
-    // 5. Check inconsistencies
+    // 5. Recalculate positions for all affected nuclei
+    for (const nucleus of affectedNuclei) {
+      await this.recalculatePositions(nucleus);
+    }
+
+    // 6. Check inconsistencies
     // "Se o processo estiver pendente no banco de dados, mas ele não estiver no arquivo do storage"
     for (const p of pendingInDb) {
       const identifier = `${p.number}|${p.entryDate}`;
