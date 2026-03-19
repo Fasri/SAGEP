@@ -305,6 +305,7 @@ export class Processos {
   }
 
   async onImportRealTime() {
+    console.log('UI: onImportRealTime clicked');
     this.isImporting.set(true);
     this.errorMessage.set('');
     this.successMessage.set('');
@@ -312,7 +313,9 @@ export class Processos {
     this.importProgress.set(10);
 
     try {
+      console.log('UI: Calling store.importFromStorage()...');
       const result = await this.store.importFromStorage();
+      console.log('UI: store.importFromStorage() finished with result:', result);
       this.importProgress.set(100);
       
       if (result.success > 0) {
@@ -366,6 +369,12 @@ export class Processos {
         this.importProgress.set(0);
         this.importErrors.set([]);
         
+        console.log(`UI: Starting local file import. Total rows: ${json.length}`);
+        if (json.length > 0) {
+          console.log('UI: First row sample:', json[0]);
+          console.log('UI: Column headers:', Object.keys(json[0]));
+        }
+
         let count = 0;
         let skipped = 0;
         const errors: string[] = [];

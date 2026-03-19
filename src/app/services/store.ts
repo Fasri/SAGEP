@@ -1313,6 +1313,8 @@ export class StoreService {
     const bucket = SUPABASE_STORAGE_BUCKET;
     const filePath = SUPABASE_STORAGE_FILE_PATH;
 
+    console.log(`StoreService: Storage Config - Bucket: "${bucket}", FilePath: "${filePath}"`);
+
     if (!bucket || bucket === 'YOUR_SUPABASE_STORAGE_BUCKET') {
       throw new Error('A variável SUPABASE_STORAGE_BUCKET não foi configurada nas Settings do AI Studio.');
     }
@@ -1325,24 +1327,37 @@ export class StoreService {
     const { data: fileData, error: downloadError } = await client.storage.from(bucket).download(filePath);
     
     if (downloadError) {
-      console.error('StoreService: Full download error object:', downloadError);
+      console.error('StoreService: Supabase Storage download error:', downloadError);
+      
+      // Try to list files to help debug if it's a 404 or similar
+      try {
+        const { data: listData, error: listError } = await client.storage.from(bucket).list();
+        if (listError) {
+          console.warn('StoreService: Could not list bucket contents:', listError);
+        } else if (listData) {
+          console.log(`StoreService: Files found in root of bucket "${bucket}":`, listData.map(f => f.name));
+        }
+      } catch {
+        console.warn('StoreService: Failed to list bucket contents for debugging.');
+      }
       
       // Better error message construction
       let errorMsg = 'Erro desconhecido ao baixar arquivo.';
       if (typeof downloadError === 'string') {
         errorMsg = downloadError;
       } else if (downloadError && typeof downloadError === 'object') {
-        // Supabase storage errors usually have 'message', 'error', or 'statusCode'
         const errObj = downloadError as unknown as Record<string, unknown>;
         errorMsg = (errObj['message'] as string) || (errObj['error'] as string) || JSON.stringify(downloadError);
       }
       
-      throw new Error(`Erro ao baixar arquivo do Storage: ${errorMsg}. Verifique se o bucket "${bucket}" é público ou se as políticas de RLS permitem acesso anônimo.`);
+      throw new Error(`Erro ao baixar arquivo do Storage: ${errorMsg}. Verifique se o bucket "${bucket}" existe e se o arquivo "${filePath}" está lá.`);
     }
 
     if (!fileData) {
-      throw new Error('Arquivo baixado com sucesso, mas o conteúdo está vazio.');
+      throw new Error('Arquivo baixado com sucesso, mas o conteúdo está vazio (0 bytes).');
     }
+
+    console.log(`StoreService: Downloaded file size: ${fileData.size} bytes. MIME type: ${fileData.type}`);
 
     // 2. Parse XLSX
     const buffer = await fileData.arrayBuffer();
@@ -1351,6 +1366,12 @@ export class StoreService {
     const worksheet = workbook.Sheets[sheetName];
     const json = utils.sheet_to_json(worksheet) as Record<string, unknown>[];
 
+    console.log(`StoreService: Parsed XLSX. Found ${json.length} rows in sheet "${sheetName}".`);
+    if (json.length > 0) {
+      console.log('StoreService: Column headers found:', Object.keys(json[0]));
+      console.log('StoreService: First row data:', json[0]);
+    }
+
     if (json.length === 0) {
       throw new Error('O arquivo no Storage está vazio ou não contém dados válidos.');
     }
@@ -1358,6 +1379,7 @@ export class StoreService {
     // 3. Get current processes
     const currentProcesses = this.processes();
     const pendingInDb = currentProcesses.filter(p => p.status === 'Pendente');
+    console.log(`StoreService: Current processes in memory: ${currentProcesses.length} (${pendingInDb.length} pending).`);
 
     const importedCount = { success: 0, skipped: 0 };
     const inconsistencies: string[] = [];
@@ -1382,6 +1404,7 @@ export class StoreService {
     };
 
     // 4. Process file rows
+    console.log(`StoreService: Processing ${json.length} rows from file...`);
     for (const row of json) {
       const getVal = (keys: string[]) => {
         for (const k of keys) {
@@ -1402,26 +1425,23 @@ export class StoreService {
         return undefined;
       };
 
-      const number = this.fixEncoding(String(getVal(['Número do Processo', 'Processo', 'Número', 'numero_processo', 'number']) || '').trim());
-      const entryDate = parseDate(getVal(['Entrada', 'Data de Entrada', 'Data Entrada', 'entrada', 'data_remessa', 'remessa', 'entryDate', 'entry_date', 'data']));
-      const court = String(getVal(['Vara', 'Juízo', 'Vara / Juízo', 'court', 'juizo', 'court_name', 'vara']) || '').trim();
-      const nucleus = String(getVal(['Núcleo', 'Nucleo', 'nucleus', 'nucleo', 'nucleo']) || '1ª CC').trim();
-      const priority = String(getVal(['Prioridade', 'priority', 'prioridade', 'prioridades']) || 'Sem prioridade').trim();
-      const status = String(getVal(['Status', 'status', 'situacao', 'situacao_processo', 'situação']) || 'Pendente').trim();
-      const valorCustas = Number(getVal(['Valor Custas', 'Valor das Custas', 'custas', 'valor_custas', 'valorCustas']) || 0);
-      const assignmentDate = parseDate(getVal(['Atribuição', 'Data de Atribuição', 'Data Atribuição', 'atribuicao', 'data_atribuicao', 'assignmentDate', 'assignment_date', 'data_atrib', 'dt_atrib']));
-      const completionDate = parseDate(getVal(['Cumprimento', 'Data de Cumprimento', 'Data Cumprimento', 'cumprimento', 'data_cumprimento', 'completionDate', 'completion_date']));
-      const observacao = String(getVal(['Observação', 'Observacao', 'observacao', 'obs', 'Nota']) || '').trim();
-      const accountantName = this.fixEncoding(String(getVal(['Atribuído a', 'Atribuido a', 'Contador', 'Calculista', 'Responsável', 'Responsavel', 'Técnico', 'Tecnico', 'assignedTo', 'assigned_to_id']) || '').trim());
+      const number = this.fixEncoding(String(getVal(['numero', 'Número do Processo', 'Processo', 'Número', 'numero_processo', 'number', 'NPU', 'Processo NPU', 'Num. Processo']) || '').trim());
+      const entryDate = parseDate(getVal(['entrada', 'Entrada', 'Data de Entrada', 'Data Entrada', 'data_remessa', 'remessa', 'entryDate', 'entry_date', 'data', 'Data de Remessa', 'Dt. Entrada']));
+      const court = String(getVal(['vara', 'Vara', 'Juízo', 'Vara / Juízo', 'court', 'juizo', 'court_name', 'Órgão Julgador', 'Orgao Julgador']) || '').trim();
+      const nucleus = String(getVal(['nucleo', 'Núcleo', 'Nucleo', 'nucleus']) || '1ª CC').trim();
+      const priority = String(getVal(['prioridades', 'prioridade', 'Prioridade', 'priority']) || 'Sem prioridade').trim();
+      const status = String(getVal(['status', 'Status', 'situacao', 'situacao_processo', 'situação', 'Situação']) || 'Pendente').trim();
+      const valorCustas = Number(getVal(['Valor Custas', 'Valor das Custas', 'custas', 'valor_custas', 'valorCustas', 'Custas']) || 0);
+      const assignmentDate = parseDate(getVal(['Atribuição', 'Data de Atribuição', 'Data Atribuição', 'atribuicao', 'data_atribuicao', 'assignmentDate', 'assignment_date', 'data_atrib', 'dt_atrib', 'Dt. Atribuição']));
+      const completionDate = parseDate(getVal(['Cumprimento', 'Data de Cumprimento', 'Data Cumprimento', 'cumprimento', 'data_cumprimento', 'completionDate', 'completion_date', 'Dt. Cumprimento']));
+      const observacao = String(getVal(['Observação', 'Observacao', 'observacao', 'obs', 'Nota', 'Notas']) || '').trim();
 
-      if (!number || !entryDate) continue;
-
-      let assignedToId = null;
-      if (accountantName) {
-        const user = this.users().find(u => u.name.toLowerCase() === accountantName.toLowerCase()) ||
-                     this.users().find(u => u.name.toLowerCase().includes(accountantName.toLowerCase()));
-        if (user) assignedToId = user.id;
+      if (!number || !entryDate) {
+        console.warn(`StoreService: Linha ignorada - Número: "${number}", Data: "${entryDate}". Colunas disponíveis na linha:`, Object.keys(row));
+        continue;
       }
+
+      const assignedToId = null;
 
       const identifier = `${number}|${entryDate}`;
       fileProcessIdentifiers.add(identifier);
@@ -1429,12 +1449,14 @@ export class StoreService {
       // Rule: If exists with same number and date, skip
       const exists = currentProcesses.find(p => p.number === number && p.entryDate === entryDate);
       if (exists) {
+        console.log(`StoreService: Skipping process ${number} (${entryDate}) because it already exists.`);
         importedCount.skipped++;
         continue;
       }
 
       // Add new process
       try {
+        console.log(`StoreService: Attempting to add new process ${number} (${entryDate})...`);
         await this.addProcess({
           number,
           entryDate,
@@ -1451,9 +1473,11 @@ export class StoreService {
         
         affectedNuclei.add(this.normalizeNucleus(nucleus));
         importedCount.success++;
+        console.log(`StoreService: Successfully added process ${number}.`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes('Já existe um processo cadastrado')) {
+          console.log(`StoreService: Process ${number} (${entryDate}) already in DB (caught in addProcess).`);
           importedCount.skipped++;
         } else {
           console.error(`StoreService: Error adding process ${number} from storage:`, msg);
@@ -1474,6 +1498,8 @@ export class StoreService {
         inconsistencies.push(`${p.number} (${p.entryDate}) - Pendente no sistema, mas ausente no arquivo.`);
       }
     }
+
+    console.log(`StoreService: Import completed. Success: ${importedCount.success}, Skipped: ${importedCount.skipped}, Inconsistencies: ${inconsistencies.length}`);
 
     return {
       success: importedCount.success,
