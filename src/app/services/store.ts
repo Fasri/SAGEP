@@ -1226,11 +1226,11 @@ export class StoreService {
     }
     
     // Use provided dates or calculate them
-    const assignmentDate = process.assignmentDate !== undefined 
+    const assignmentDate = (process.assignmentDate && process.assignmentDate !== '')
       ? process.assignmentDate 
       : (process.assignedToId ? new Date().toISOString().split('T')[0] : null);
       
-    const completionDate = process.completionDate !== undefined 
+    const completionDate = (process.completionDate && process.completionDate !== '')
       ? process.completionDate 
       : (process.status !== 'Pendente' ? new Date().toISOString().split('T')[0] : null);
     
