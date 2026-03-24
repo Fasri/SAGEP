@@ -1,0 +1,90 @@
+<div class="max-w-[98%] mx-auto px-4 py-8">
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Log de Auditoria</h1>
+      <p class="text-slate-500 mt-1">Acompanhe todas as alterações realizadas no sistema</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
+    <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div>
+        <label for="userId" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Usuário</label>
+        <select id="userId" formControlName="userId" class="w-full bg-slate-50 border-slate-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-primary focus:border-primary transition-all">
+          <option value="">Todos os usuários</option>
+          @for (user of users(); track user.id) {
+            <option [value]="user.id">{{ user.name }} ({{ user.role }})</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label for="startDate" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Data Inicial</label>
+        <input id="startDate" type="date" formControlName="startDate" class="w-full bg-slate-50 border-slate-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-primary focus:border-primary transition-all" />
+      </div>
+      <div>
+        <label for="endDate" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Data Final</label>
+        <input id="endDate" type="date" formControlName="endDate" class="w-full bg-slate-50 border-slate-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-primary focus:border-primary transition-all" />
+      </div>
+    </form>
+  </div>
+
+  <!-- Logs Table -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-slate-50 border-b border-slate-200">
+            <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Usuário</th>
+            <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Alteração Feita</th>
+            <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Data de Modificação</th>
+            <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Detalhes</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          @for (log of filteredLogs(); track log.id) {
+            <tr class="hover:bg-slate-50/50 transition-colors">
+              <td class="px-6 py-4">
+                <div class="flex flex-col">
+                  <span class="font-bold text-slate-900">{{ log.userName }}</span>
+                  <span class="text-[10px] text-slate-400 uppercase tracking-wider">{{ log.userId }}</span>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <span class="text-sm text-slate-700">{{ log.action }}</span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center gap-2 text-sm text-slate-600">
+                  <span class="material-symbols-outlined text-lg text-slate-400">calendar_today</span>
+                  {{ formatDate(log.createdAt) }}
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                @if (log.details) {
+                  <button (click)="toggleDetails(log.id)" class="text-xs text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer">
+                    <span class="material-symbols-outlined text-sm">{{ isExpanded(log.id) ? 'expand_less' : 'expand_more' }}</span>
+                    {{ isExpanded(log.id) ? 'Ocultar' : 'Ver Detalhes' }}
+                  </button>
+                  @if (isExpanded(log.id)) {
+                    <pre class="mt-2 p-3 bg-slate-900 text-slate-300 text-[10px] rounded-lg overflow-x-auto max-w-md">{{ getDetails(log) }}</pre>
+                  }
+                } @else {
+                  <span class="text-xs text-slate-400 italic">Nenhum detalhe</span>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="4" class="px-6 py-12 text-center">
+                <div class="flex flex-col items-center gap-2 text-slate-400">
+                  <span class="material-symbols-outlined text-4xl">history</span>
+                  <p>Nenhum log de auditoria encontrado.</p>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

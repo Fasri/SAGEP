@@ -1,5 +1,5 @@
 import {Injectable, signal, effect} from '@angular/core';
-import {User, Process, Nucleo, Prioridade, StatusTipo} from '../types';
+import {User, Process, Nucleo, Prioridade, StatusTipo, AuditLog} from '../types';
 import {getSupabase} from '../supabase';
 import {SupabaseClient} from '@supabase/supabase-js';
 import { read, utils } from 'xlsx';
@@ -127,6 +127,7 @@ export class StoreService {
   nucleos = signal<Nucleo[]>([]);
   prioridades = signal<Prioridade[]>([]);
   statusTipos = signal<StatusTipo[]>([]);
+  auditLogs = signal<AuditLog[]>([]);
   globalStats = signal<{ pendentes: number, concluidos: number, devolvidos: number }>({
     pendentes: 0,
     concluidos: 0,
@@ -325,7 +326,7 @@ export class StoreService {
           position: Number(p['position'] || 0),
           priorityPosition: p['priority_position'] ? Number(p['priority_position']) : null,
           number: String(p['number'] || ''),
-          entryDate: String(p['entry_date'] || new Date().toISOString().split('T')[0]),
+          entryDate: String(p['entry_date'] || new Date().toLocaleDateString('en-CA')),
           court: String(p['court'] || ''),
           nucleus: String(p['nucleus'] || 'GERAL'),
           priority: this.normalizePriority(String(p['priority'] || '2-Sem prioridade')),
@@ -720,6 +721,7 @@ export class StoreService {
   async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate'>>) {
     console.log('StoreService: Updating process fields...', { processId, fields });
     
+    const oldProcess = this.processes().find(p => p.id === processId);
     this.processes.update(prev => prev.map(p => 
       p.id === processId ? { ...p, ...fields } : p
     ));
@@ -737,21 +739,34 @@ export class StoreService {
         this.handleSupabaseError(error, 'updateProcessFields');
       } else {
         console.log('StoreService: Process fields updated successfully in Supabase.');
+        this.addAuditLog(`Atualizou campos do processo ${oldProcess?.number}`, { fields, oldValues: oldProcess });
         this.updateGlobalStats();
       }
+    } else {
+      this.addAuditLog(`Atualizou campos do processo ${oldProcess?.number} (Local)`, { fields });
     }
   }
 
   async updateProcessStatus(processId: string, newStatus: string) {
     console.log('StoreService: Updating process status...', { processId, newStatus });
-    const completionDate = newStatus !== 'Pendente' ? new Date().toISOString().split('T')[0] : null;
+    const now = new Date();
+    const today = now.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
+    const completionDate = newStatus !== 'Pendente' ? today : null;
     
-    // Find the process to know its nucleus before updating
+    // Find the process to know its nucleus and current assignment before updating
     const processToUpdate = this.processes().find(p => p.id === processId);
     const nucleus = processToUpdate?.nucleus;
+    
+    // If status is changing from Pendente to something else, and it's not assigned yet, 
+    // we should probably set the assignment date too if we know who it's assigned to.
+    // But for now, let's just ensure the completion date is handled.
+    let assignmentDate = processToUpdate?.assignmentDate;
+    if (newStatus !== 'Pendente' && !assignmentDate) {
+      assignmentDate = today;
+    }
 
     this.processes.update(prev => prev.map(p => 
-      p.id === processId ? { ...p, status: newStatus, completionDate } : p
+      p.id === processId ? { ...p, status: newStatus, completionDate, assignmentDate } : p
     ));
 
     const client = getSupabase();
@@ -759,25 +774,31 @@ export class StoreService {
       await this.ensureStatusExists(client, newStatus);
       const { error } = await client.from('processes').update({ 
         status: newStatus,
-        completion_date: completionDate
+        completion_date: completionDate,
+        assignment_date: assignmentDate
       }).eq('id', processId);
       if (error) {
         console.error('StoreService: Error updating process status in Supabase:', error);
       } else {
         console.log('StoreService: Process status updated successfully in Supabase.');
+        this.addAuditLog(`Alterou status do processo ${processToUpdate?.number} para ${newStatus}`, { oldStatus: processToUpdate?.status, newStatus });
         // Recalculate positions for the nucleus
         if (nucleus) {
           await this.recalculatePositions(nucleus);
         }
         this.updateGlobalStats();
       }
+    } else {
+      this.addAuditLog(`Alterou status do processo ${processToUpdate?.number} para ${newStatus} (Local)`, { oldStatus: processToUpdate?.status, newStatus });
     }
   }
 
   async assignProcess(processId: string, userId: string | null) {
     console.log('StoreService: Assigning process...', { processId, userId });
-    const assignmentDate = userId ? new Date().toISOString().split('T')[0] : null;
+    const today = new Date().toLocaleDateString('en-CA');
+    const assignmentDate = userId ? today : null;
 
+    const processToAssign = this.processes().find(p => p.id === processId);
     this.processes.update(prev => prev.map(p => 
       p.id === processId ? { ...p, assignedToId: userId, assignmentDate } : p
     ));
@@ -792,8 +813,13 @@ export class StoreService {
         this.handleSupabaseError(error, 'assignProcess');
       } else {
         console.log('StoreService: Process assigned successfully in Supabase.');
+        const userName = userId ? this.users().find(u => u.id === userId)?.name : 'Ninguém';
+        this.addAuditLog(`Atribuiu processo ${processToAssign?.number} para ${userName}`, { userId });
         this.updateGlobalStats();
       }
+    } else {
+      const userName = userId ? this.users().find(u => u.id === userId)?.name : 'Ninguém';
+      this.addAuditLog(`Atribuiu processo ${processToAssign?.number} para ${userName} (Local)`, { userId });
     }
   }
 
@@ -830,11 +856,13 @@ export class StoreService {
           birthDate: data[0].birth_date
         };
         this.users.update(prev => [...prev, newUser]);
+        this.addAuditLog(`Adicionou novo usuário ${user.name}`, { user });
       }
     } else {
       console.warn('StoreService: Supabase not configured. Adding user locally only.');
       const newId = 'u' + (this.users().length + 1);
       this.users.update(prev => [...prev, { ...user, id: newId }]);
+      this.addAuditLog(`Adicionou novo usuário ${user.name} (Local)`, { user });
     }
   }
 
@@ -867,12 +895,16 @@ export class StoreService {
         this.handleSupabaseError(error, 'updateUser');
       } else {
         console.log('StoreService: User updated successfully in Supabase.');
+        this.addAuditLog(`Atualizou dados do usuário ${updatedUser.name}`, { updatedUser });
       }
+    } else {
+      this.addAuditLog(`Atualizou dados do usuário ${updatedUser.name} (Local)`, { updatedUser });
     }
   }
 
   async deleteUser(userId: string) {
     console.log('StoreService: Deleting user...', userId);
+    const userToDelete = this.users().find(u => u.id === userId);
     this.users.update(prev => prev.filter(u => u.id !== userId));
 
     const client = getSupabase();
@@ -888,7 +920,10 @@ export class StoreService {
         this.handleSupabaseError(error, 'deleteUser');
       } else {
         console.log('StoreService: User deleted successfully from Supabase.');
+        this.addAuditLog(`Removeu usuário ${userToDelete?.name}`, { userId });
       }
+    } else {
+      this.addAuditLog(`Removeu usuário ${userToDelete?.name} (Local)`, { userId });
     }
   }
 
@@ -1225,25 +1260,28 @@ export class StoreService {
       }
     }
     
+    const today = new Date().toLocaleDateString('en-CA');
+    
     // Use provided dates or calculate them
     const assignmentDate = (process.assignmentDate && process.assignmentDate !== '')
       ? process.assignmentDate 
-      : (process.assignedToId ? new Date().toISOString().split('T')[0] : null);
+      : (process.assignedToId ? today : null);
       
     const completionDate = (process.completionDate && process.completionDate !== '')
       ? process.completionDate 
-      : (process.status !== 'Pendente' ? new Date().toISOString().split('T')[0] : null);
+      : (process.status !== 'Pendente' ? today : null);
     
-    const createdAt = process.createdAt || new Date().toISOString().split('T')[0];
+    const createdAt = process.createdAt || today;
     
     try {
-      // Manual check for (number, entry_date) to respect the rule:
-      // "se o numero do processo for igual mas data diferente copiar, se tiver data igual não copiar"
+      // Manual check for (number, entry_date, nucleus) to respect the rule:
+      // "se o numero do processo for igual mas data ou núcleo diferente copiar, se tiver tudo igual não copiar"
       const { data: existing, error: checkError } = await client
         .from('processes')
         .select('id')
         .eq('number', process.number)
         .eq('entry_date', process.entryDate)
+        .eq('nucleus', normalizedNucleus)
         .maybeSingle();
 
       if (checkError) {
@@ -1251,7 +1289,7 @@ export class StoreService {
       }
 
       if (existing) {
-        throw new Error(`Já existe um processo cadastrado com o número ${process.number} e data ${process.entryDate}.`);
+        throw new Error(`Já existe um processo cadastrado com o número ${process.number}, data ${process.entryDate} e núcleo ${normalizedNucleus}.`);
       }
 
       const { data, error } = await client.from('processes').insert([{
@@ -1288,6 +1326,15 @@ export class StoreService {
         throw new Error(`Erro no banco de dados: ${error.message}`);
       } else if (data && data[0]) {
         console.log('StoreService: Process added successfully in Supabase.');
+        const logDetails: Record<string, unknown> = {
+          number: process.number,
+          entryDate: process.entryDate,
+          nucleus: normalizedNucleus,
+          priority: normalizedPriority,
+          status: normalizedStatus,
+          assignedToId: process.assignedToId
+        };
+        this.addAuditLog(`Inseriu novo processo ${process.number}`, logDetails);
         
         // If it's a pending process, we might need to recalculate positions to ensure correct ordering
         if (!skipRecalculate && normalizedStatus === 'Pendente') {
@@ -1376,47 +1423,76 @@ export class StoreService {
       throw new Error('O arquivo no Storage está vazio ou não contém dados válidos.');
     }
 
-    // 3. Get current processes
+    // 3. Get current processes identifiers to avoid duplicates
+    console.log('StoreService: Fetching existing process identifiers from database...');
+    const { data: existingData, error: fetchError } = await client
+      .from('processes')
+      .select('number, entry_date, nucleus, status, position');
+    
+    if (fetchError) {
+      console.error('StoreService: Error fetching existing processes:', fetchError);
+      throw new Error('Erro ao verificar processos existentes no banco de dados.');
+    }
+
+    const existingSet = new Set(
+      (existingData || []).map(p => `${p.number}|${p.entry_date}|${this.normalizeNucleus(p.nucleus)}`)
+    );
+    
     const currentProcesses = this.processes();
     const pendingInDb = currentProcesses.filter(p => p.status === 'Pendente');
-    console.log(`StoreService: Current processes in memory: ${currentProcesses.length} (${pendingInDb.length} pending).`);
+    console.log(`StoreService: Found ${existingSet.size} processes in database.`);
 
     const importedCount = { success: 0, skipped: 0 };
     const inconsistencies: string[] = [];
     const fileProcessIdentifiers = new Set<string>();
     const affectedNuclei = new Set<string>();
-
+    
+    // Track next positions in memory to avoid repeated DB queries
+    const nextPositions: Record<string, number> = {};
+    
     // Helper to parse date
     const parseDate = (val: unknown) => {
       if (!val) return null;
       if (typeof val === 'number') {
+        // Excel date format
         const date = new Date((val - 25569) * 86400 * 1000);
-        return date.toISOString().split('T')[0];
+        return date.toLocaleDateString('en-CA');
       }
       if (typeof val === 'string') {
-        if (val.match(/^\d{4}-\d{2}-\d{2}/)) return val.split('T')[0];
-        if (val.match(/^\d{2}\/\d{2}\/\d{4}/)) {
-          const [d, m, y] = val.split('/');
+        const trimmed = val.trim();
+        if (trimmed.match(/^\d{4}-\d{2}-\d{2}/)) return trimmed.split('T')[0];
+        if (trimmed.match(/^\d{2}\/\d{2}\/\d{4}/)) {
+          const [d, m, y] = trimmed.split('/');
           return `${y}-${m}-${d}`;
         }
       }
-      return String(val).split('T')[0];
+      try {
+        const d = new Date(String(val));
+        if (!isNaN(d.getTime())) return d.toLocaleDateString('en-CA');
+      } catch { /* ignore */ }
+      return null;
     };
 
-    // 4. Process file rows
-    console.log(`StoreService: Processing ${json.length} rows from file...`);
+    const today = new Date().toLocaleDateString('en-CA');
+    const processesToInsert: Record<string, unknown>[] = [];
+    
+    // Create a map of user names to IDs for fast lookup
+    const userMap: Record<string, string> = {};
+    this.users().forEach(u => {
+      userMap[u.name.toLowerCase()] = u.id;
+    });
+
+    // 4. Process file rows in memory
+    console.log(`StoreService: Preparing ${json.length} rows for bulk import...`);
+    
     for (const row of json) {
       const getVal = (keys: string[]) => {
         for (const k of keys) {
           if (row[k] !== undefined) return row[k];
-          // Try variations
           const lower = k.toLowerCase();
           if (row[lower] !== undefined) return row[lower];
           const upper = k.toUpperCase();
           if (row[upper] !== undefined) return row[upper];
-          const snake = k.replace(/([A-Z])/g, "_$1").toLowerCase();
-          if (row[snake] !== undefined) return row[snake];
-          // Try common header names
           const normalized = k.replace(/\s/g, '').toLowerCase();
           for (const rowKey of Object.keys(row)) {
             if (rowKey.replace(/\s/g, '').toLowerCase() === normalized) return row[rowKey];
@@ -1427,84 +1503,181 @@ export class StoreService {
 
       const number = this.fixEncoding(String(getVal(['numero', 'Número do Processo', 'Processo', 'Número', 'numero_processo', 'number', 'NPU', 'Processo NPU', 'Num. Processo']) || '').trim());
       const entryDate = parseDate(getVal(['entrada', 'Entrada', 'Data de Entrada', 'Data Entrada', 'data_remessa', 'remessa', 'entryDate', 'entry_date', 'data', 'Data de Remessa', 'Dt. Entrada']));
-      const court = String(getVal(['vara', 'Vara', 'Juízo', 'Vara / Juízo', 'court', 'juizo', 'court_name', 'Órgão Julgador', 'Orgao Julgador']) || '').trim();
-      const nucleus = String(getVal(['nucleo', 'Núcleo', 'Nucleo', 'nucleus']) || '1ª CC').trim();
-      const priority = String(getVal(['prioridades', 'prioridade', 'Prioridade', 'priority']) || 'Sem prioridade').trim();
-      const status = String(getVal(['status', 'Status', 'situacao', 'situacao_processo', 'situação', 'Situação']) || 'Pendente').trim();
-      const valorCustas = Number(getVal(['Valor Custas', 'Valor das Custas', 'custas', 'valor_custas', 'valorCustas', 'Custas']) || 0);
-      const assignmentDate = parseDate(getVal(['Atribuição', 'Data de Atribuição', 'Data Atribuição', 'atribuicao', 'data_atribuicao', 'assignmentDate', 'assignment_date', 'data_atrib', 'dt_atrib', 'Dt. Atribuição']));
-      const completionDate = parseDate(getVal(['Cumprimento', 'Data de Cumprimento', 'Data Cumprimento', 'cumprimento', 'data_cumprimento', 'completionDate', 'completion_date', 'Dt. Cumprimento']));
-      const observacao = String(getVal(['Observação', 'Observacao', 'observacao', 'obs', 'Nota', 'Notas']) || '').trim();
-
+      const nucleusRaw = String(getVal(['nucleo', 'Núcleo', 'Nucleo', 'nucleus']) || '1ª CC').trim();
+      const normalizedNucleus = this.normalizeNucleus(nucleusRaw);
+      
       if (!number || !entryDate) {
-        console.warn(`StoreService: Linha ignorada - Número: "${number}", Data: "${entryDate}". Colunas disponíveis na linha:`, Object.keys(row));
         continue;
       }
 
-      const assignedToId = null;
-
-      const identifier = `${number}|${entryDate}`;
+      const identifier = `${number}|${entryDate}|${normalizedNucleus}`;
       fileProcessIdentifiers.add(identifier);
 
-      // Rule: If exists with same number and date, skip
-      const exists = currentProcesses.find(p => p.number === number && p.entryDate === entryDate);
-      if (exists) {
-        console.log(`StoreService: Skipping process ${number} (${entryDate}) because it already exists.`);
+      if (existingSet.has(identifier)) {
         importedCount.skipped++;
         continue;
       }
 
-      // Add new process
-      try {
-        console.log(`StoreService: Attempting to add new process ${number} (${entryDate})...`);
-        await this.addProcess({
-          number,
-          entryDate,
-          court,
-          nucleus,
-          priority,
-          status,
-          assignedToId,
-          valorCustas,
-          assignmentDate,
-          completionDate,
-          observacao
-        }, true); // Skip recalculate during loop
-        
-        affectedNuclei.add(this.normalizeNucleus(nucleus));
-        importedCount.success++;
-        console.log(`StoreService: Successfully added process ${number}.`);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('Já existe um processo cadastrado')) {
-          console.log(`StoreService: Process ${number} (${entryDate}) already in DB (caught in addProcess).`);
-          importedCount.skipped++;
-        } else {
-          console.error(`StoreService: Error adding process ${number} from storage:`, msg);
+      const court = this.fixEncoding(String(getVal(['vara', 'Vara', 'Juízo', 'Vara / Juízo', 'court', 'juizo', 'court_name', 'Órgão Julgador', 'Orgao Julgador']) || '').trim());
+      const priorityRaw = String(getVal(['prioridades', 'prioridade', 'Prioridade', 'priority']) || 'Sem prioridade').trim();
+      const statusRaw = String(getVal(['status', 'Status', 'situacao', 'situacao_processo', 'situação', 'Situação']) || 'Pendente').trim();
+      const valorCustas = Number(getVal(['Valor Custas', 'Valor das Custas', 'custas', 'valor_custas', 'valorCustas', 'Custas']) || 0);
+      const assignmentDate = parseDate(getVal(['Atribuição', 'Data de Atribuição', 'Atribuicao', 'assignmentDate', 'assignment_date', 'Dt. Atribuição']));
+      const completionDate = parseDate(getVal(['Cumprimento', 'Data de Cumprimento', 'Data Cumprimento', 'completionDate', 'completion_date', 'Dt. Cumprimento']));
+      const observacao = this.fixEncoding(String(getVal(['Observação', 'Observacao', 'observacao', 'obs', 'Nota', 'Notas']) || '').trim());
+      const accountantName = String(getVal(['Atribuído a', 'Contador', 'Calculista', 'Responsável', 'assigned_to', 'user_name']) || '').trim();
+
+      const normalizedPriority = this.normalizePriority(priorityRaw);
+      const normalizedStatus = this.normalizeStatus(statusRaw);
+
+      // Map accountant name to ID
+      let assignedToId = null;
+      if (accountantName) {
+        assignedToId = userMap[accountantName.toLowerCase()] || null;
+      }
+
+      // Calculate position for Pendente
+      let position = null;
+      if (normalizedStatus === 'Pendente') {
+        if (nextPositions[normalizedNucleus] === undefined) {
+          // Initialize next position for this nucleus
+          const lastInDb = (existingData || [])
+            .filter(p => this.normalizeNucleus(p.nucleus) === normalizedNucleus && p.status === 'Pendente')
+            .reduce((max, p) => Math.max(max, p.position || 0), 0);
+          nextPositions[normalizedNucleus] = lastInDb + 1;
         }
+        position = nextPositions[normalizedNucleus]++;
+      }
+
+      processesToInsert.push({
+        number,
+        entry_date: entryDate,
+        court,
+        nucleus: normalizedNucleus,
+        priority: normalizedPriority,
+        status: normalizedStatus,
+        assigned_to_id: assignedToId,
+        position,
+        assignment_date: assignmentDate || (normalizedStatus !== 'Pendente' ? today : null),
+        completion_date: completionDate || (normalizedStatus !== 'Pendente' ? today : null),
+        valor_custas: valorCustas,
+        observacao,
+        created_at: today
+      });
+
+      affectedNuclei.add(normalizedNucleus);
+      existingSet.add(identifier); // Avoid duplicates within the same file
+    }
+
+    // 5. Bulk insert in chunks
+    const chunkSize = 500;
+    console.log(`StoreService: Inserting ${processesToInsert.length} processes in chunks of ${chunkSize}...`);
+    
+    for (let i = 0; i < processesToInsert.length; i += chunkSize) {
+      const chunk = processesToInsert.slice(i, i + chunkSize);
+      const { error: insertError } = await client.from('processes').insert(chunk);
+      
+      if (insertError) {
+        console.error(`StoreService: Error inserting chunk starting at ${i}:`, insertError);
+        // We continue with next chunks even if one fails, or we could throw. 
+        // For 25k records, let's log and keep going.
+      } else {
+        importedCount.success += chunk.length;
+        console.log(`StoreService: Inserted chunk ${i / chunkSize + 1} (${importedCount.success}/${processesToInsert.length})`);
       }
     }
 
-    // 5. Recalculate positions for all affected nuclei
+    // 6. Recalculate positions for all affected nuclei
+    console.log('StoreService: Recalculating positions for affected nuclei...');
     for (const nucleus of affectedNuclei) {
       await this.recalculatePositions(nucleus);
     }
 
-    // 6. Check inconsistencies
-    // "Se o processo estiver pendente no banco de dados, mas ele não estiver no arquivo do storage"
+    // 7. Check inconsistencies
     for (const p of pendingInDb) {
-      const identifier = `${p.number}|${p.entryDate}`;
+      const identifier = `${p.number}|${p.entryDate}|${this.normalizeNucleus(p.nucleus)}`;
       if (!fileProcessIdentifiers.has(identifier)) {
-        inconsistencies.push(`${p.number} (${p.entryDate}) - Pendente no sistema, mas ausente no arquivo.`);
+        inconsistencies.push(`${p.number} (${p.entryDate}) [${p.nucleus}] - Pendente no sistema, mas ausente no arquivo.`);
       }
     }
 
     console.log(`StoreService: Import completed. Success: ${importedCount.success}, Skipped: ${importedCount.skipped}, Inconsistencies: ${inconsistencies.length}`);
+    this.addAuditLog(`Importou processos do storage`, { success: importedCount.success, skipped: importedCount.skipped, inconsistencies: inconsistencies.length });
 
     return {
       success: importedCount.success,
       skipped: importedCount.skipped,
       inconsistencies
     };
+
+  }
+
+  async addAuditLog(action: string, details?: Record<string, unknown>) {
+    const user = this.currentUser();
+    if (!user) return;
+
+    const log: Omit<AuditLog, 'id'> = {
+      userId: user.id,
+      userName: user.name,
+      action,
+      createdAt: new Date().toISOString(),
+      details
+    };
+
+    const client = getSupabase();
+    if (client && !user.id.startsWith('u')) {
+      const { data, error } = await client
+        .from('audit_logs')
+        .insert([{
+          user_id: log.userId,
+          user_name: log.userName,
+          action: log.action,
+          created_at: log.createdAt,
+          details: log.details
+        }])
+        .select();
+
+      if (error) {
+        console.error('StoreService: Error adding audit log to Supabase:', error);
+      } else if (data) {
+        const newLog = {
+          ...log,
+          id: data[0].id,
+          createdAt: data[0].created_at
+        };
+        this.auditLogs.update(logs => [newLog, ...logs]);
+      }
+    } else {
+      // Mock for local
+      const mockLog: AuditLog = {
+        id: Math.random().toString(36).substr(2, 9),
+        ...log
+      };
+      this.auditLogs.update(logs => [mockLog, ...logs]);
+    }
+  }
+
+  async fetchAuditLogs() {
+    const client = getSupabase();
+    if (client) {
+      const { data, error } = await client
+        .from('audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('StoreService: Error fetching audit logs from Supabase:', error);
+      } else if (data) {
+        const logs: AuditLog[] = data.map(d => ({
+          id: d.id,
+          userId: d.user_id,
+          userName: d.user_name,
+          action: d.action,
+          createdAt: d.created_at,
+          details: d.details
+        }));
+        this.auditLogs.set(logs);
+      }
+    }
   }
 }

@@ -49,3 +49,12 @@ export interface Process {
   observacao?: string;
   createdAt?: string; // Data de upload/criação
 }
+
+export interface AuditLog {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  createdAt: string;
+  details?: Record<string, unknown>;
+}

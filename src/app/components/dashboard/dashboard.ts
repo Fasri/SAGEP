@@ -331,18 +331,21 @@ export class Dashboard implements OnInit {
     this.loadServerData();
   }
 
-  updateStatus(process: Process, newStatus: string) {
-    this.store.updateProcessStatus(process.id, newStatus as Process['status']);
+  async updateStatus(process: Process, newStatus: string) {
+    await this.store.updateProcessStatus(process.id, newStatus as Process['status']);
+    this.loadServerData();
   }
 
-  assignProcess(process: Process, userId: string) {
-    this.store.assignProcess(process.id, userId);
+  async assignProcess(process: Process, userId: string) {
+    await this.store.assignProcess(process.id, userId);
+    this.loadServerData();
   }
 
-  updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate', event: Event) {
+  async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate', event: Event) {
     const input = event.target as HTMLInputElement;
     const value = field === 'valorCustas' ? parseFloat(input.value) : input.value;
-    this.store.updateProcessFields(process.id, { [field]: value });
+    await this.store.updateProcessFields(process.id, { [field]: value });
+    this.loadServerData();
   }
 
   getUserName(userId: string | null): string {
