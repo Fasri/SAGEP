@@ -18,6 +18,7 @@ export class Dashboard implements OnInit {
   processes = this.store.processes;
   users = this.store.users;
   statusTipos = this.store.statusTipos;
+  autoAssignProgress = this.store.autoAssignProgress;
 
   searchTerm = signal('');
   statusFilter = signal<'Pendente' | 'Todos'>('Pendente');
@@ -51,6 +52,9 @@ export class Dashboard implements OnInit {
 
   // Dashboard Stats
   isLoading = signal(false);
+  isAutoAssigning = signal(false);
+  autoAssignMessage = signal<string | null>(null);
+  isConfirmingAutoAssign = signal(false);
   totalFilteredCount = signal(0);
   serverProcesses = signal<Process[]>([]);
 
@@ -429,5 +433,52 @@ export class Dashboard implements OnInit {
     
     // Contadores can only change if it's still Pendente
     return process.status === 'Pendente';
+  }
+
+  async autoAssign() {
+    const user = this.currentUser();
+    if (!user) return;
+
+    let nucleus = this.nucleusFilter();
+    
+    if (nucleus === 'Todos') {
+      if (user.nucleus && user.nucleus !== 'Administração') {
+        nucleus = user.nucleus;
+      } else {
+        this.autoAssignMessage.set('Por favor, selecione um núcleo específico no filtro antes de realizar a atribuição automática.');
+        setTimeout(() => this.autoAssignMessage.set(null), 5000);
+        return;
+      }
+    }
+    
+    this.isConfirmingAutoAssign.set(true);
+  }
+
+  async confirmAutoAssign() {
+    const user = this.currentUser();
+    if (!user) return;
+
+    let nucleus = this.nucleusFilter();
+    if (nucleus === 'Todos') nucleus = user.nucleus;
+
+    this.isConfirmingAutoAssign.set(false);
+    this.isAutoAssigning.set(true);
+    this.autoAssignMessage.set('Iniciando atribuição automática...');
+
+    try {
+      const count = await this.store.autoAssignProcesses(nucleus);
+      this.autoAssignMessage.set(`${count} processos foram atribuídos com sucesso no núcleo ${nucleus}.`);
+      this.loadServerData();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.autoAssignMessage.set(`Erro na atribuição automática: ${message}`);
+    } finally {
+      this.isAutoAssigning.set(false);
+      setTimeout(() => this.autoAssignMessage.set(null), 5000);
+    }
+  }
+
+  cancelAutoAssign() {
+    this.isConfirmingAutoAssign.set(false);
   }
 }

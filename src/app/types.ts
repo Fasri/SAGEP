@@ -18,6 +18,7 @@ export interface Nucleo {
   id: string;
   nome: string;
   descricao: string;
+  lastAssignedUserId?: string | null;
 }
 
 export interface Prioridade {

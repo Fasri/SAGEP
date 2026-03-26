@@ -122,6 +122,7 @@ export class StoreService {
   currentUser = signal<User | null>(null);
   isSupabaseConnected = signal<boolean>(false);
   recalculationProgress = signal<number>(0);
+  autoAssignProgress = signal<{ current: number, total: number } | null>(null);
 
   // Dynamic Tables
   nucleos = signal<Nucleo[]>([]);
@@ -256,7 +257,13 @@ export class StoreService {
       // Fetch dynamic tables first to ensure normalization works
       const { data: nucleos } = await client.from('nucleos').select('*');
       if (nucleos && nucleos.length > 0) {
-        this.nucleos.set(nucleos);
+        console.log('StoreService: Nucleos table columns:', Object.keys(nucleos[0]));
+        this.nucleos.set(nucleos.map(n => ({
+          id: n.id,
+          nome: n.nome,
+          descricao: n.descricao,
+          lastAssignedUserId: n.last_assigned_user_id
+        })));
       } else {
         await this.seedDatabase(client);
         // Re-fetch after seed
@@ -1610,6 +1617,125 @@ export class StoreService {
       inconsistencies
     };
 
+  }
+
+  async autoAssignProcesses(nucleusName: string) {
+    const client = getSupabase();
+    if (!client) return;
+
+    console.log(`StoreService: Iniciando atribuição automática para o núcleo: "${nucleusName}"`);
+
+    // 1. Get all active users in this nucleus
+    const usersInNucleus = this.users()
+      .filter(u => u.nucleus === nucleusName && u.active)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    console.log(`StoreService: Encontrados ${usersInNucleus.length} usuários ativos no núcleo "${nucleusName}"`);
+
+    if (usersInNucleus.length === 0) {
+      throw new Error(`Nenhum usuário ativo encontrado no núcleo "${nucleusName}".`);
+    }
+
+    // 2. Get all unassigned pending processes in this nucleus from Supabase
+    const { data: sampleData } = await client.from('processes').select('nucleus').limit(5);
+    console.log('StoreService: Amostra de núcleos na tabela processes:', sampleData?.map(d => d.nucleus));
+
+    const { data: unassignedProcessesData, error: procError } = await client
+      .from('processes')
+      .select('id, number, position')
+      .ilike('nucleus', nucleusName)
+      .eq('status', 'Pendente')
+      .is('assigned_to_id', null)
+      .order('position', { ascending: true });
+
+    if (procError) {
+      console.error('StoreService: Erro ao buscar processos para atribuição:', procError);
+      throw new Error(`Erro ao buscar processos: ${procError.message}`);
+    }
+
+    const total = unassignedProcessesData?.length || 0;
+    console.log(`StoreService: Encontrados ${total} processos pendentes não atribuídos no núcleo "${nucleusName}"`);
+
+    if (!unassignedProcessesData || total === 0) {
+      throw new Error(`Nenhum processo pendente não atribuído encontrado no núcleo "${nucleusName}".`);
+    }
+
+    // 3. Get last assigned user for this nucleus
+    const nucleus = this.nucleos().find(n => n.nome === nucleusName);
+    const lastUserId = nucleus?.lastAssignedUserId;
+
+    let startIndex = 0;
+    if (lastUserId) {
+      const lastIndex = usersInNucleus.findIndex(u => u.id === lastUserId);
+      if (lastIndex !== -1) {
+        startIndex = (lastIndex + 1) % usersInNucleus.length;
+      }
+    }
+
+    const today = new Date().toLocaleDateString('en-CA');
+    let currentIdx = startIndex;
+    let finalUserId = lastUserId;
+    let assignedCount = 0;
+
+    this.autoAssignProgress.set({ current: 0, total });
+
+    // Process in batches of 50 to avoid hitting limits and provide feedback
+    const batchSize = 50;
+    for (let i = 0; i < unassignedProcessesData.length; i += batchSize) {
+      const batch = unassignedProcessesData.slice(i, i + batchSize);
+      
+      // To maintain order, we'll process the batch sequentially
+      for (const item of batch) {
+        const user = usersInNucleus[currentIdx];
+        
+        const { error } = await client
+          .from('processes')
+          .update({ 
+            assigned_to_id: user.id,
+            assignment_date: today 
+          })
+          .eq('id', item.id);
+
+        if (error) {
+          console.error(`StoreService: Erro ao atribuir processo ${item.number}:`, error.message);
+        } else {
+          finalUserId = user.id;
+          assignedCount++;
+        }
+        
+        currentIdx = (currentIdx + 1) % usersInNucleus.length;
+        this.autoAssignProgress.set({ current: assignedCount, total });
+      }
+    }
+
+    // 4. Update last_assigned_user_id in nucleos
+    if (nucleus && finalUserId) {
+      const { error: nError } = await client
+        .from('nucleos')
+        .update({ last_assigned_user_id: finalUserId })
+        .eq('id', nucleus.id);
+      
+      if (nError) {
+        console.error('StoreService: Erro ao atualizar último usuário atribuído no núcleo:', nError);
+      }
+    }
+
+    // 5. Refresh data
+    this.autoAssignProgress.set(null);
+    
+    // Refresh nucleos to get updated state
+    const { data: nucleosData } = await client.from('nucleos').select('*');
+    if (nucleosData) {
+      this.nucleos.set(nucleosData.map(n => ({
+        id: n.id,
+        nome: n.nome,
+        descricao: n.descricao,
+        lastAssignedUserId: n.last_assigned_user_id
+      })));
+    }
+
+    this.addAuditLog(`Atribuição automática de ${assignedCount} processos no núcleo ${nucleusName}`);
+    return assignedCount;
   }
 
   async addAuditLog(action: string, details?: Record<string, unknown>) {
