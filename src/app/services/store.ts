@@ -1044,6 +1044,61 @@ export class StoreService {
     return { processes: mapped, totalCount: count || 0 };
   }
 
+  async fetchReportData(filters: {
+    nucleus?: string,
+    startDate?: string,
+    endDate?: string,
+    user: User
+  }) {
+    const client = getSupabase();
+    if (!client) return { userStats: [], pendingCount: 0, unassignedCount: 0 };
+
+    // Base query for all processes in the scope
+    let query = client.from('vw_processes').select('assigned_to_id, status, entry_date');
+
+    // Apply role-based and nucleus filters
+    if (filters.user.role === 'Chefe' || filters.user.role === 'Gerente') {
+       query = query.ilike('nucleus', filters.user.nucleus);
+    } else if (filters.nucleus && filters.nucleus !== 'Todos') {
+       query = query.ilike('nucleus', filters.nucleus);
+    }
+
+    if (filters.startDate) query = query.gte('entry_date', filters.startDate);
+    if (filters.endDate) query = query.lte('entry_date', filters.endDate);
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('StoreService: Error fetching report data:', error);
+      return { userStats: [], pendingCount: 0, unassignedCount: 0 };
+    }
+
+    // Process data in memory
+    const statsMap = new Map<string, number>();
+    let pendingCount = 0;
+    let unassignedCount = 0;
+
+    (data || []).forEach(p => {
+      if (p['status'] === 'Pendente') pendingCount++;
+      if (!p['assigned_to_id']) unassignedCount++;
+      
+      if (p['assigned_to_id']) {
+        const userId = String(p['assigned_to_id']);
+        statsMap.set(userId, (statsMap.get(userId) || 0) + 1);
+      }
+    });
+
+    const userStats = Array.from(statsMap.entries()).map(([userId, count]) => {
+      const user = this.users().find(u => u.id === userId);
+      return {
+        userId,
+        userName: user ? user.name : 'Desconhecido',
+        count
+      };
+    }).sort((a, b) => b.count - a.count);
+
+    return { userStats, pendingCount, unassignedCount };
+  }
+
   private statsTimeout: ReturnType<typeof setTimeout> | null = null;
   private async recalculatePositions(nucleus: string) {
     console.log(`StoreService: Recalculating positions for nucleus ${nucleus}...`);

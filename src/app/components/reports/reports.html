@@ -1,0 +1,93 @@
+<div class="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold tracking-tight text-slate-900">Relatórios de Produtividade</h1>
+      <p class="text-slate-500 mt-1">Acompanhe a distribuição de processos e o status do núcleo.</p>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 w-full md:w-auto">
+      <form [formGroup]="filterForm" (ngSubmit)="loadReport()" class="flex flex-wrap items-center gap-4">
+        @if (canFilterNucleus()) {
+          <div class="flex flex-col gap-1">
+            <label for="nucleusFilter" class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Núcleo</label>
+            <select id="nucleusFilter" formControlName="nucleus" class="bg-slate-50 border-slate-200 rounded-xl py-2 px-3 text-sm focus:ring-primary focus:border-primary transition-all">
+              <option value="Todos">Todos os Núcleos</option>
+              @for (n of nucleos(); track n.id) {
+                <option [value]="n.nome">{{ n.nome }}</option>
+              }
+            </select>
+          </div>
+        }
+
+        <div class="flex flex-col gap-1">
+          <label for="startDate" class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Início</label>
+          <input id="startDate" type="date" formControlName="startDate" class="bg-slate-50 border-slate-200 rounded-xl py-2 px-3 text-sm focus:ring-primary focus:border-primary transition-all" />
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label for="endDate" class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Fim</label>
+          <input id="endDate" type="date" formControlName="endDate" class="bg-slate-50 border-slate-200 rounded-xl py-2 px-3 text-sm focus:ring-primary focus:border-primary transition-all" />
+        </div>
+
+        <button type="submit" [disabled]="isLoading()" class="mt-5 bg-primary hover:bg-primary/90 text-white font-bold py-2 px-4 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-primary/20 cursor-pointer disabled:opacity-50">
+          <span class="material-symbols-outlined text-lg">{{ isLoading() ? 'sync' : 'refresh' }}</span>
+          Atualizar
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-6">
+      <div class="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center">
+        <span class="material-symbols-outlined text-amber-600 text-3xl">pending_actions</span>
+      </div>
+      <div>
+        <p class="text-sm font-bold text-slate-400 uppercase tracking-widest">Processos Pendentes</p>
+        <h2 class="text-4xl font-bold text-slate-900 mt-1">{{ pendingCount() }}</h2>
+        <p class="text-xs text-slate-500 mt-1">Total de processos aguardando conclusão no período/núcleo.</p>
+      </div>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-6">
+      <div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center">
+        <span class="material-symbols-outlined text-red-600 text-3xl">person_off</span>
+      </div>
+      <div>
+        <p class="text-sm font-bold text-slate-400 uppercase tracking-widest">Não Atribuídos</p>
+        <h2 class="text-4xl font-bold text-slate-900 mt-1">{{ unassignedCount() }}</h2>
+        <p class="text-xs text-slate-500 mt-1">Processos que ainda não foram vinculados a um calculista.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart Section -->
+  <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+    <div class="flex justify-between items-center mb-8">
+      <div>
+        <h2 class="text-xl font-bold text-slate-900">Distribuição por Usuário</h2>
+        <p class="text-sm text-slate-500">Quantidade de processos atribuídos por calculista no período selecionado.</p>
+      </div>
+      <div class="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
+        <span class="w-3 h-3 bg-emerald-600 rounded-sm"></span>
+        Processos Atribuídos
+      </div>
+    </div>
+
+    <div #chartContainer class="w-full h-[500px] flex items-center justify-center">
+      @if (isLoading()) {
+        <div class="flex flex-col items-center gap-4">
+          <span class="material-symbols-outlined text-4xl text-primary animate-spin">sync</span>
+          <p class="text-slate-500 font-medium">Carregando dados do gráfico...</p>
+        </div>
+      } @else if (userStats().length === 0) {
+        <div class="flex flex-col items-center gap-4 text-slate-400">
+          <span class="material-symbols-outlined text-6xl">bar_chart_4_bars</span>
+          <p class="font-medium">Nenhum dado disponível para os filtros selecionados.</p>
+        </div>
+      }
+    </div>
+  </div>
+</div>
