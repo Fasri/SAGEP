@@ -1576,7 +1576,7 @@ export class StoreService {
       };
 
       const number = this.fixEncoding(String(getVal(['numero', 'Número do Processo', 'Processo', 'Número', 'numero_processo', 'number', 'NPU', 'Processo NPU', 'Num. Processo']) || '').trim());
-      const entryDate = parseDate(getVal(['entrada', 'Entrada', 'Data de Entrada', 'Data Entrada', 'data_remessa', 'remessa', 'entryDate', 'entry_date', 'data', 'Data de Remessa', 'Dt. Entrada']));
+      const entryDate = parseDate(getVal(['Data de Remessa', 'data_remessa', 'entrada', 'Entrada', 'Data de Entrada', 'Data Entrada', 'remessa', 'entryDate', 'entry_date', 'data', 'Dt. Entrada']));
       const nucleusRaw = String(getVal(['nucleo', 'Núcleo', 'Nucleo', 'nucleus']) || '1ª CC').trim();
       const normalizedNucleus = this.normalizeNucleus(nucleusRaw);
       
