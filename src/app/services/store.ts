@@ -1056,6 +1056,112 @@ export class StoreService {
     return { processes: mapped, totalCount: count || 0 };
   }
 
+  async fetchAllFilteredProcesses(options: {
+    searchTerm: string,
+    statusFilter: string,
+    startDate: string,
+    endDate: string,
+    user: User,
+    nucleusFilter?: string,
+    onlyAssignedToMe?: boolean,
+    unassignedOnly?: boolean,
+    accountantFilter?: string,
+    externalAccountantIds?: string[],
+    courtFilter?: string
+  }) {
+    const client = getSupabase();
+    if (!client) return [];
+
+    let query = client.from('vw_processes').select('*');
+
+    // Role-based visibility (Base restriction)
+    if (options.user.role === 'Chefe' || options.user.role === 'Gerente') {
+      query = query.or(`nucleus.ilike."${options.user.nucleus}",assigned_to_id.eq."${options.user.id}"`);
+    } else if (options.user.role === 'Contador Judicial') {
+      query = query.eq('assigned_to_id', options.user.id);
+    }
+
+    // Nucleus Filter
+    if (options.nucleusFilter && options.nucleusFilter !== 'Todos') {
+      query = query.ilike('nucleus', options.nucleusFilter);
+    }
+
+    // Court Filter
+    if (options.courtFilter) {
+      query = query.ilike('court', `%${options.courtFilter}%`);
+    }
+
+    // Only Assigned To Me Filter
+    if (options.onlyAssignedToMe) {
+      query = query.eq('assigned_to_id', options.user.id);
+    }
+
+    // Unassigned Only Filter
+    if (options.unassignedOnly) {
+      query = query.is('assigned_to_id', null);
+    }
+
+    // Accountant Filter
+    if (options.accountantFilter && options.accountantFilter !== 'Todos') {
+      query = query.eq('assigned_to_id', options.accountantFilter);
+    }
+
+    // External Accountants Filter
+    if (options.externalAccountantIds && options.externalAccountantIds.length > 0) {
+      query = query.in('assigned_to_id', options.externalAccountantIds);
+    } else if (options.externalAccountantIds && options.externalAccountantIds.length === 0) {
+      query = query.eq('assigned_to_id', '00000000-0000-0000-0000-000000000000');
+    }
+
+    // Status Filter
+    if (options.statusFilter === 'Pendente') {
+      query = query.ilike('status', 'Pendente');
+    }
+
+    // Search Term
+    if (options.searchTerm) {
+      const term = `%${options.searchTerm}%`;
+      query = query.or(`number.ilike."${term}",court.ilike."${term}",nucleus.ilike."${term}"`);
+    }
+
+    // Date Filters
+    if (options.startDate) {
+      query = query.gte('entry_date', options.startDate);
+    }
+    if (options.endDate) {
+      query = query.lte('entry_date', options.endDate);
+    }
+
+    // Sort by priority_level then by position
+    query = query
+      .order('priority_level', { ascending: true })
+      .order('position', { ascending: true, nullsFirst: false });
+
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error('StoreService: Error fetching all filtered processes:', error);
+      return [];
+    }
+
+    return (data || []).map((p: Record<string, unknown>) => ({
+      id: String(p['id']),
+      position: Number(p['position']),
+      priorityPosition: p['priority_position'] ? Number(p['priority_position']) : null,
+      number: String(p['number']),
+      entryDate: String(p['entry_date']),
+      court: String(p['court']),
+      nucleus: String(p['nucleus']),
+      priority: this.normalizePriority(String(p['priority'])),
+      status: this.normalizeStatus(String(p['status'])),
+      assignedToId: p['assigned_to_id'] ? String(p['assigned_to_id']) : null,
+      assignmentDate: p['assignment_date'] ? String(p['assignment_date']) : null,
+      completionDate: p['completion_date'] ? String(p['completion_date']) : null,
+      valorCustas: p['valor_custas'] ? Number(p['valor_custas']) : 0,
+      observacao: p['observacao'] ? String(p['observacao']) : ''
+    }));
+  }
+
   async fetchReportData(filters: {
     nucleus?: string,
     startDate?: string,

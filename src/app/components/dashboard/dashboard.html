@@ -109,6 +109,11 @@
           <span class="material-symbols-outlined text-sm">filter_list</span>
           Aplicar Filtros
         </button>
+
+        <button type="button" (click)="exportToExcel()" [disabled]="isLoading()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          <span class="material-symbols-outlined text-sm">{{ isLoading() ? 'sync' : 'download' }}</span>
+          {{ isLoading() ? 'Exportando...' : 'Exportar Excel' }}
+        </button>
       </form>
 
       <div class="flex flex-wrap items-center gap-4 pt-6 border-t border-slate-50">

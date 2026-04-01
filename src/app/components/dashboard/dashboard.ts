@@ -4,6 +4,7 @@ import {ReactiveFormsModule, FormGroup, FormControl} from '@angular/forms';
 import {MatIconModule} from '@angular/material/icon';
 import {StoreService} from '../../services/store';
 import {Process, Role} from '../../types';
+import * as XLSX from 'xlsx';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -399,6 +400,67 @@ export class Dashboard implements OnInit {
     const value = field === 'valorCustas' ? parseFloat(input.value) : input.value;
     await this.store.updateProcessFields(process.id, { [field]: value });
     this.loadServerData();
+  }
+
+  async exportToExcel() {
+    const user = this.currentUser();
+    if (!user) return;
+
+    this.isLoading.set(true);
+    try {
+      const { startDate, endDate } = this.filterForm.value;
+      const validRoles = ['Contador Judicial', 'Chefe', 'Gerente'];
+      const externalIds = this.users()
+        .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
+        .map(u => u.id);
+
+      const allProcesses = await this.store.fetchAllFilteredProcesses({
+        searchTerm: this.searchTerm(),
+        statusFilter: this.statusFilter(),
+        startDate: startDate || '',
+        endDate: endDate || '',
+        user: user,
+        nucleusFilter: this.nucleusFilter(),
+        onlyAssignedToMe: this.onlyAssignedToMe(),
+        unassignedOnly: this.unassignedOnly(),
+        accountantFilter: this.accountantFilter(),
+        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined,
+        courtFilter: this.courtFilter()
+      });
+
+      if (allProcesses.length === 0) {
+        alert('Nenhum processo encontrado para exportar com os filtros atuais.');
+        return;
+      }
+
+      const data = allProcesses.map(p => ({
+        'Posição Geral': p.position,
+        'Posição Prioridade': p.priorityPosition || '-',
+        'Número do Processo': p.number,
+        'Data de Remessa': p.entryDate,
+        'Vara': p.court,
+        'Núcleo': p.nucleus,
+        'Prioridade': p.priority,
+        'Cumprimento': p.status,
+        'Valor Custas': p.valorCustas,
+        'Observação': p.observacao,
+        'Atribuição': p.assignmentDate,
+        'Data de Cumprimento': p.completionDate,
+        'Atribuído a': this.getUserName(p.assignedToId)
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Processos');
+      
+      const date = new Date().toISOString().split('T')[0];
+      XLSX.writeFile(workbook, `processos_contadoria_${date}.xlsx`);
+    } catch (error) {
+      console.error('Dashboard: Error exporting to Excel:', error);
+      alert('Ocorreu um erro ao exportar os dados. Tente novamente.');
+    } finally {
+      this.isLoading.set(false);
+    }
   }
 
   getUserName(userId: string | null): string {
