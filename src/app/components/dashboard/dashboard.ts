@@ -542,6 +542,11 @@ export class Dashboard implements OnInit {
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
     if (privilegedRoles.includes(user.role)) return true;
     
+    // Contadores can change if the process is assigned to them
+    if (user.role === 'Contador Judicial' && process.assignedToId === user.id) {
+      return true;
+    }
+    
     // Contadores can only change if it's still Pendente
     return process.status === 'Pendente';
   }
