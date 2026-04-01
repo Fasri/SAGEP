@@ -200,7 +200,11 @@
               <td class="px-2 py-5 text-center font-bold text-orange-500">
                 {{ process.priorityPosition ? process.priorityPosition + 'º' : '-' }}
               </td>
-              <td class="px-2 py-5 font-mono font-medium text-slate-900">{{ process.number }}</td>
+              <td class="px-2 py-5 font-mono font-medium"
+                  [class.text-orange-500]="duplicateProcessIds().has(process.id)"
+                  [class.text-slate-900]="!duplicateProcessIds().has(process.id)">
+                {{ process.number }}
+              </td>
               <td class="px-2 py-5 text-xs font-medium text-slate-600">{{ process.entryDate | date:'dd/MM/yyyy' }}</td>
               <td class="px-2 py-5 text-xs text-slate-600">{{ process.court }}</td>
               <td class="px-2 py-5 text-xs font-bold text-blue-600">{{ process.nucleus }}</td>
