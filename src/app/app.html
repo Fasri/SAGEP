@@ -24,14 +24,36 @@
         </div>
 
         <form [formGroup]="loginForm" (ngSubmit)="login()" class="space-y-6">
-          <div>
+          @if (loginError()) {
+            <div class="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2 animate-pulse">
+              <span class="material-symbols-outlined text-red-500">error</span>
+              <span>{{ loginError() }}</span>
+            </div>
+          }
+
+          <div class="relative">
             <label for="userId" class="block text-sm font-semibold text-slate-700 mb-2">Usuário</label>
-            <select id="userId" formControlName="userId" class="w-full bg-slate-50 border-slate-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary focus:border-primary transition-all">
-              <option value="">Selecione um usuário...</option>
-              @for (user of users(); track user.id) {
-                <option [value]="user.id">{{ user.name }} ({{ user.role }}) - {{ user.nucleus }}</option>
-              }
-            </select>
+            <input id="userId" 
+                   formControlName="userId" 
+                   type="text" 
+                   (focus)="onInputFocus()"
+                   (blur)="onInputBlur()"
+                   autocomplete="off"
+                   class="w-full bg-slate-50 border-slate-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary focus:border-primary transition-all" 
+                   placeholder="Digite sua matrícula ou nome" />
+            
+            @if (showDropdown() && filteredUsers().length > 0) {
+              <div class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
+                @for (user of filteredUsers(); track user.id) {
+                  <button type="button" 
+                          (click)="selectUser(user)"
+                          class="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors flex flex-col cursor-pointer">
+                    <span class="font-bold text-sm text-slate-900">{{ user.name }}</span>
+                    <span class="text-[10px] text-slate-500 uppercase tracking-wider">{{ user.matricula }} • {{ user.role }} • {{ user.nucleus }}</span>
+                  </button>
+                }
+              </div>
+            }
           </div>
 
           <div>

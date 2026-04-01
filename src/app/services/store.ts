@@ -713,12 +713,18 @@ export class StoreService {
     }
   }
 
-  login(userId: string, password?: string) {
-    const user = this.users().find(u => u.id === userId);
+  login(identifier: string, password?: string): boolean {
+    const user = this.users().find(u => 
+      u.id === identifier || 
+      u.matricula === identifier || 
+      u.name.toLowerCase() === identifier.toLowerCase()
+    );
     if (user && user.password === password) {
       this.currentUser.set(user);
       this.updateGlobalStats();
+      return true;
     }
+    return false;
   }
 
   logout() {
