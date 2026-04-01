@@ -90,8 +90,19 @@
               </select>
             </div>
           </div>
-        } @else {
-          <div></div> <!-- Spacer -->
+        }
+
+        @if (['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'].includes(currentUser()?.role || '')) {
+          <div class="flex flex-col gap-2">
+            <label for="courtFilter" class="text-xs font-bold text-slate-500 uppercase tracking-wider">Filtrar por Vara</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">gavel</span>
+              <input id="courtFilter" type="text" placeholder="Nome da vara..."
+                     [value]="courtFilter()"
+                     (input)="onCourtFilter($any($event.target).value)"
+                     class="w-full bg-slate-50 border-slate-200 rounded-xl pl-10 py-2.5 text-sm focus:ring-2 focus:ring-primary transition-all outline-none" />
+            </div>
+          </div>
         }
 
         <button type="button" (click)="applyFilters()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-200 cursor-pointer">
@@ -181,15 +192,15 @@
             <th class="px-2 py-4 text-center">Posição Geral</th>
             <th class="px-2 py-4 text-center">Posição Prioridade</th>
             <th class="px-2 py-4">Número do Processo</th>
-            <th class="px-2 py-4">Entrada</th>
+            <th class="px-2 py-4">Data de Remessa</th>
             <th class="px-2 py-4">Vara</th>
             <th class="px-2 py-4">Núcleo</th>
             <th class="px-2 py-4">Prioridade</th>
-            <th class="px-2 py-4">Status</th>
+            <th class="px-2 py-4">Cumprimento</th>
             <th class="px-2 py-4">Valor Custas</th>
             <th class="px-2 py-4">Observação</th>
             <th class="px-2 py-4">Atribuição</th>
-            <th class="px-2 py-4">Cumprimento</th>
+            <th class="px-2 py-4">Data de Cumprimento</th>
             <th class="px-2 py-4">Atribuído a</th>
           </tr>
         </thead>

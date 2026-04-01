@@ -32,7 +32,7 @@ import {read, utils, writeFile} from 'xlsx';
                 <input type="file" (change)="onFileSelected($event)" accept=".csv, .xlsx, .xls" class="hidden" />
               </label>
             </div>
-            <span class="text-[10px] text-slate-400 uppercase font-bold">Colunas aceitas: numero, processo, data_entrada, data, vara, nucleo, prioridade, prioridades, status, valor_custas, observacao</span>
+            <span class="text-[10px] text-slate-400 uppercase font-bold">Colunas aceitas: numero, processo, data_remessa, data, vara, nucleo, prioridade, prioridades, status, cumprimento, data_cumprimento, valor_custas, observacao</span>
           </div>
         }
       </div>
@@ -49,7 +49,7 @@ import {read, utils, writeFile} from 'xlsx';
               </div>
               
               <div class="flex flex-col gap-2">
-                <label for="entryDate" class="text-sm font-bold text-slate-700">Data de Entrada</label>
+                <label for="entryDate" class="text-sm font-bold text-slate-700">Data de Remessa</label>
                 <input id="entryDate" formControlName="entryDate" type="date"
                        class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all" />
               </div>
@@ -87,7 +87,7 @@ import {read, utils, writeFile} from 'xlsx';
               </div>
 
               <div class="flex flex-col gap-2">
-                <label for="status" class="text-sm font-bold text-slate-700">Status Inicial</label>
+                <label for="status" class="text-sm font-bold text-slate-700">Cumprimento Inicial</label>
                 <select id="status" formControlName="status" 
                         class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all cursor-pointer">
                   <option value="Pendente">Pendente</option>
@@ -423,14 +423,14 @@ export class Processos {
             };
 
             const number = String(getVal(['Número do Processo', 'Processo', 'Número', 'numero_processo', 'number']) || '').trim();
-            const entryDate = parseDate(getVal(['Entrada', 'Data de Entrada', 'Data Entrada', 'entrada', 'data_remessa', 'remessa', 'entryDate', 'entry_date'])) || new Date().toISOString().split('T')[0];
+            const entryDate = parseDate(getVal(['Data de Remessa', 'Entrada', 'Data de Entrada', 'Data Entrada', 'entrada', 'data_remessa', 'remessa', 'entryDate', 'entry_date'])) || new Date().toISOString().split('T')[0];
             const court = String(getVal(['Vara', 'Juízo', 'Vara / Juízo', 'court', 'juizo', 'court_name']) || '').trim();
             const nucleus = String(getVal(['Núcleo', 'Nucleo', 'nucleus', 'nucleo']) || '1ª CC').trim();
             const priority = String(getVal(['Prioridade', 'priority', 'prioridade']) || 'Sem prioridade').trim();
-            const status = String(getVal(['Status', 'status', 'situacao']) || 'Pendente').trim();
+            const status = String(getVal(['Cumprimento', 'Status', 'status', 'situacao']) || 'Pendente').trim();
             const valorCustas = Number(getVal(['Valor Custas', 'Valor das Custas', 'custas', 'valor_custas', 'valorCustas']) || 0);
             const assignmentDate = parseDate(getVal(['Atribuição', 'Data de Atribuição', 'Data Atribuição', 'atribuicao', 'data_atribuicao', 'assignmentDate', 'assignment_date']));
-            const completionDate = parseDate(getVal(['Cumprimento', 'Data de Cumprimento', 'Data Cumprimento', 'cumprimento', 'data_cumprimento', 'completionDate', 'completion_date']));
+            const completionDate = parseDate(getVal(['Data de Cumprimento', 'Cumprimento', 'Data de Cumprimento', 'Data Cumprimento', 'cumprimento', 'data_cumprimento', 'completionDate', 'completion_date']));
             const observacao = String(getVal(['Observação', 'Observacao', 'observacao', 'obs', 'Nota']) || '').trim();
             const accountantName = String(getVal(['Atribuído a', 'Atribuido a', 'Contador', 'Calculista', 'Responsável', 'Responsavel', 'Técnico', 'Tecnico', 'assignedTo', 'assigned_to_id']) || '').trim();
 

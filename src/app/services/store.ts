@@ -952,7 +952,8 @@ export class StoreService {
     onlyAssignedToMe?: boolean,
     unassignedOnly?: boolean,
     accountantFilter?: string,
-    externalAccountantIds?: string[]
+    externalAccountantIds?: string[],
+    courtFilter?: string
   }) {
     const client = getSupabase();
     if (!client) return { processes: [], totalCount: 0 };
@@ -969,6 +970,11 @@ export class StoreService {
     // Nucleus Filter (for Coordenador/Supervisor/Admin who see all by default)
     if (options.nucleusFilter && options.nucleusFilter !== 'Todos') {
       query = query.ilike('nucleus', options.nucleusFilter);
+    }
+
+    // Court Filter
+    if (options.courtFilter) {
+      query = query.ilike('court', `%${options.courtFilter}%`);
     }
 
     // Only Assigned To Me Filter (for roles that can see more than just their own)
@@ -1588,10 +1594,10 @@ export class StoreService {
 
       const court = this.fixEncoding(String(getVal(['vara', 'Vara', 'Juízo', 'Vara / Juízo', 'court', 'juizo', 'court_name', 'Órgão Julgador', 'Orgao Julgador']) || '').trim());
       const priorityRaw = String(getVal(['prioridades', 'prioridade', 'Prioridade', 'priority']) || 'Sem prioridade').trim();
-      const statusRaw = String(getVal(['status', 'Status', 'situacao', 'situacao_processo', 'situação', 'Situação']) || 'Pendente').trim();
+      const statusRaw = String(getVal(['Cumprimento', 'status', 'Status', 'situacao', 'situacao_processo', 'situação', 'Situação']) || 'Pendente').trim();
       const valorCustas = Number(getVal(['Valor Custas', 'Valor das Custas', 'custas', 'valor_custas', 'valorCustas', 'Custas']) || 0);
       const assignmentDate = parseDate(getVal(['Atribuição', 'Data de Atribuição', 'Atribuicao', 'assignmentDate', 'assignment_date', 'Dt. Atribuição']));
-      const completionDate = parseDate(getVal(['Cumprimento', 'Data de Cumprimento', 'Data Cumprimento', 'completionDate', 'completion_date', 'Dt. Cumprimento']));
+      const completionDate = parseDate(getVal(['Data de Cumprimento', 'Cumprimento', 'Data Cumprimento', 'completionDate', 'completion_date', 'Dt. Cumprimento']));
       const observacao = this.fixEncoding(String(getVal(['Observação', 'Observacao', 'observacao', 'obs', 'Nota', 'Notas']) || '').trim());
       const accountantName = String(getVal(['Atribuído a', 'Contador', 'Calculista', 'Responsável', 'assigned_to', 'user_name']) || '').trim();
 
