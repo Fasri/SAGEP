@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, inject, signal, computed, effect, ElementRef, ViewChild, AfterViewInit} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, signal, computed, effect, ElementRef, ViewChild, AfterViewInit, OnInit} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {ReactiveFormsModule, FormControl, FormGroup} from '@angular/forms';
 import {MatIconModule} from '@angular/material/icon';
@@ -17,7 +17,7 @@ interface UserStat {
   imports: [CommonModule, ReactiveFormsModule, MatIconModule],
   templateUrl: './reports.html',
 })
-export class Reports implements AfterViewInit {
+export class Reports implements AfterViewInit, OnInit {
   private store = inject(StoreService);
   
   @ViewChild('chartContainer') chartContainer!: ElementRef;
@@ -26,8 +26,8 @@ export class Reports implements AfterViewInit {
   nucleos = this.store.nucleos;
   
   isLoading = signal(false);
+  isInitialized = signal(false);
   userStats = signal<UserStat[]>([]);
-  pendingCount = signal(0);
   unassignedCount = signal(0);
 
   filterForm = new FormGroup({
@@ -47,8 +47,25 @@ export class Reports implements AfterViewInit {
       if (user && !this.canFilterNucleus()) {
         this.filterForm.patchValue({ nucleus: user.nucleus }, { emitEvent: false });
       }
-      this.loadReport();
+      if (this.isInitialized()) {
+        this.loadReport();
+      }
     });
+  }
+
+  async ngOnInit() {
+    const oldestDate = await this.store.getOldestProcessDate();
+    
+    const today = new Date();
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const endOfMonthStr = endOfMonth.toISOString().split('T')[0];
+    
+    this.filterForm.patchValue({
+      startDate: oldestDate ? oldestDate.split('T')[0] : '',
+      endDate: endOfMonthStr
+    });
+    
+    this.isInitialized.set(true);
   }
 
   ngAfterViewInit() {
@@ -70,7 +87,6 @@ export class Reports implements AfterViewInit {
     try {
       const data = await this.store.fetchReportData(filters);
       this.userStats.set(data.userStats);
-      this.pendingCount.set(data.pendingCount);
       this.unassignedCount.set(data.unassignedCount);
       this.renderChart();
     } catch (error) {

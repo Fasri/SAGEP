@@ -1162,6 +1162,24 @@ export class StoreService {
     }));
   }
 
+  async getOldestProcessDate(): Promise<string | null> {
+    const client = getSupabase();
+    if (!client) return null;
+    
+    const { data, error } = await client
+      .from('vw_processes')
+      .select('entry_date')
+      .order('entry_date', { ascending: true })
+      .limit(1)
+      .single();
+      
+    if (error || !data) {
+      return null;
+    }
+    
+    return data.entry_date;
+  }
+
   async fetchReportData(filters: {
     nucleus?: string,
     startDate?: string,
