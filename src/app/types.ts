@@ -57,5 +57,6 @@ export interface AuditLog {
   userName: string;
   action: string;
   createdAt: string;
+  processNumber?: string;
   details?: Record<string, unknown>;
 }

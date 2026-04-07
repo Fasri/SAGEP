@@ -8,7 +8,7 @@
 
   <!-- Filters -->
   <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
-    <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-4 gap-6">
+    <form [formGroup]="filterForm" (ngSubmit)="applyFilters()" class="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
       <div>
         <label for="userId" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Usuário</label>
         <select id="userId" formControlName="userId" class="w-full bg-slate-50 border-slate-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-primary focus:border-primary transition-all">
@@ -30,6 +30,12 @@
         <label for="endDate" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Data Final</label>
         <input id="endDate" type="date" formControlName="endDate" class="w-full bg-slate-50 border-slate-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-primary focus:border-primary transition-all" />
       </div>
+      <div>
+        <button type="submit" class="w-full bg-primary text-white font-bold py-2.5 px-6 rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-sm shadow-primary/20">
+          <span class="material-symbols-outlined">filter_list</span>
+          Aplicar Filtros
+        </button>
+      </div>
     </form>
   </div>
 
@@ -40,6 +46,7 @@
         <thead>
           <tr class="bg-slate-50 border-b border-slate-200">
             <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Usuário</th>
+            <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Processo</th>
             <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Alteração Feita</th>
             <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Data de Modificação</th>
             <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Detalhes</th>
@@ -53,6 +60,9 @@
                   <span class="font-bold text-slate-900">{{ log.userName }}</span>
                   <span class="text-[10px] text-slate-400 uppercase tracking-wider">{{ log.userId }}</span>
                 </div>
+              </td>
+              <td class="px-6 py-4">
+                <span class="text-sm font-medium text-slate-900">{{ getProcessNumber(log) }}</span>
               </td>
               <td class="px-6 py-4">
                 <span class="text-sm text-slate-700">{{ log.action }}</span>

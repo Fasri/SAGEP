@@ -735,12 +735,36 @@ export class StoreService {
   async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate'>>) {
     console.log('StoreService: Updating process fields...', { processId, fields });
     
-    const oldProcess = this.processes().find(p => p.id === processId);
+    let oldProcess = this.processes().find(p => p.id === processId);
+    
+    const client = getSupabase();
+    if (!oldProcess && client) {
+      const { data } = await client.from('processes').select('*').eq('id', processId).maybeSingle();
+      if (data) {
+        oldProcess = {
+          id: data.id,
+          position: data.position,
+          priorityPosition: data.priority_position,
+          number: data.number,
+          entryDate: data.entry_date,
+          court: data.court,
+          nucleus: data.nucleus,
+          priority: data.priority,
+          status: data.status,
+          assignedToId: data.assigned_to_id,
+          assignmentDate: data.assignment_date,
+          completionDate: data.completion_date,
+          valorCustas: data.valor_custas,
+          observacao: data.observacao,
+          createdAt: data.created_at
+        };
+      }
+    }
+
     this.processes.update(prev => prev.map(p => 
       p.id === processId ? { ...p, ...fields } : p
     ));
 
-    const client = getSupabase();
     if (client) {
       const updateData: Record<string, string | number | null> = {};
       if (fields.valorCustas !== undefined) updateData['valor_custas'] = fields.valorCustas;
@@ -753,11 +777,18 @@ export class StoreService {
         this.handleSupabaseError(error, 'updateProcessFields');
       } else {
         console.log('StoreService: Process fields updated successfully in Supabase.');
-        this.addAuditLog(`Atualizou campos do processo ${oldProcess?.number}`, { fields, oldValues: oldProcess });
+        this.addAuditLog(`Atualizou campos do processo ${oldProcess?.number || processId}`, { 
+          fields, 
+          oldValues: oldProcess,
+          processNumber: oldProcess?.number 
+        });
         this.updateGlobalStats();
       }
     } else {
-      this.addAuditLog(`Atualizou campos do processo ${oldProcess?.number} (Local)`, { fields });
+      this.addAuditLog(`Atualizou campos do processo ${oldProcess?.number || processId} (Local)`, { 
+        fields,
+        processNumber: oldProcess?.number 
+      });
     }
   }
 
@@ -768,9 +799,32 @@ export class StoreService {
     const completionDate = newStatus !== 'Pendente' ? today : null;
     
     // Find the process to know its nucleus and current assignment before updating
-    const processToUpdate = this.processes().find(p => p.id === processId);
-    const nucleus = processToUpdate?.nucleus;
+    let processToUpdate = this.processes().find(p => p.id === processId);
     
+    const client = getSupabase();
+    if (!processToUpdate && client) {
+      const { data } = await client.from('processes').select('*').eq('id', processId).maybeSingle();
+      if (data) {
+        processToUpdate = {
+          id: data.id,
+          position: data.position,
+          priorityPosition: data.priority_position,
+          number: data.number,
+          entryDate: data.entry_date,
+          court: data.court,
+          nucleus: data.nucleus,
+          priority: data.priority,
+          status: data.status,
+          assignedToId: data.assigned_to_id,
+          assignmentDate: data.assignment_date,
+          completionDate: data.completion_date,
+          valorCustas: data.valor_custas,
+          observacao: data.observacao,
+          createdAt: data.created_at
+        };
+      }
+    }
+
     // If status is changing from Pendente to something else, and it's not assigned yet, 
     // we should probably set the assignment date too if we know who it's assigned to.
     // But for now, let's just ensure the completion date is handled.
@@ -783,7 +837,6 @@ export class StoreService {
       p.id === processId ? { ...p, status: newStatus, completionDate, assignmentDate } : p
     ));
 
-    const client = getSupabase();
     if (client) {
       await this.ensureStatusExists(client, newStatus);
       const { error } = await client.from('processes').update({ 
@@ -795,11 +848,19 @@ export class StoreService {
         console.error('StoreService: Error updating process status in Supabase:', error);
       } else {
         console.log('StoreService: Process status updated successfully in Supabase.');
-        this.addAuditLog(`Alterou status do processo ${processToUpdate?.number} para ${newStatus}`, { oldStatus: processToUpdate?.status, newStatus });
+        this.addAuditLog(`Alterou status do processo ${processToUpdate?.number || processId} para ${newStatus}`, { 
+          oldStatus: processToUpdate?.status, 
+          newStatus,
+          processNumber: processToUpdate?.number
+        });
         this.updateGlobalStats();
       }
     } else {
-      this.addAuditLog(`Alterou status do processo ${processToUpdate?.number} para ${newStatus} (Local)`, { oldStatus: processToUpdate?.status, newStatus });
+      this.addAuditLog(`Alterou status do processo ${processToUpdate?.number || processId} para ${newStatus} (Local)`, { 
+        oldStatus: processToUpdate?.status, 
+        newStatus,
+        processNumber: processToUpdate?.number
+      });
     }
   }
 
@@ -808,12 +869,36 @@ export class StoreService {
     const today = new Date().toLocaleDateString('en-CA');
     const assignmentDate = userId ? today : null;
 
-    const processToAssign = this.processes().find(p => p.id === processId);
+    let processToAssign = this.processes().find(p => p.id === processId);
+    
+    const client = getSupabase();
+    if (!processToAssign && client) {
+      const { data } = await client.from('processes').select('*').eq('id', processId).maybeSingle();
+      if (data) {
+        processToAssign = {
+          id: data.id,
+          position: data.position,
+          priorityPosition: data.priority_position,
+          number: data.number,
+          entryDate: data.entry_date,
+          court: data.court,
+          nucleus: data.nucleus,
+          priority: data.priority,
+          status: data.status,
+          assignedToId: data.assigned_to_id,
+          assignmentDate: data.assignment_date,
+          completionDate: data.completion_date,
+          valorCustas: data.valor_custas,
+          observacao: data.observacao,
+          createdAt: data.created_at
+        };
+      }
+    }
+
     this.processes.update(prev => prev.map(p => 
       p.id === processId ? { ...p, assignedToId: userId, assignmentDate } : p
     ));
 
-    const client = getSupabase();
     if (client) {
       const { error } = await client.from('processes').update({ 
         assigned_to_id: userId || null,
@@ -824,12 +909,18 @@ export class StoreService {
       } else {
         console.log('StoreService: Process assigned successfully in Supabase.');
         const userName = userId ? this.users().find(u => u.id === userId)?.name : 'Ninguém';
-        this.addAuditLog(`Atribuiu processo ${processToAssign?.number} para ${userName}`, { userId });
+        this.addAuditLog(`Atribuiu processo ${processToAssign?.number || processId} para ${userName}`, { 
+          userId,
+          processNumber: processToAssign?.number
+        });
         this.updateGlobalStats();
       }
     } else {
       const userName = userId ? this.users().find(u => u.id === userId)?.name : 'Ninguém';
-      this.addAuditLog(`Atribuiu processo ${processToAssign?.number} para ${userName} (Local)`, { userId });
+      this.addAuditLog(`Atribuiu processo ${processToAssign?.number || processId} para ${userName} (Local)`, { 
+        userId,
+        processNumber: processToAssign?.number
+      });
     }
   }
 
@@ -1370,7 +1461,7 @@ export class StoreService {
   }
 
   // CRUD for Processes
-  async addProcess(process: Omit<Process, 'id' | 'position' | 'priorityPosition'>, skipRecalculate = false) {
+  async addProcess(process: Omit<Process, 'id' | 'position' | 'priorityPosition'>) {
     console.log('StoreService: Adding process...', process);
     const client = getSupabase();
     
@@ -1455,7 +1546,7 @@ export class StoreService {
       } else if (data && data[0]) {
         console.log('StoreService: Process added successfully in Supabase.');
         const logDetails: Record<string, unknown> = {
-          number: process.number,
+          processNumber: process.number,
           entryDate: process.entryDate,
           nucleus: normalizedNucleus,
           priority: normalizedPriority,
@@ -1831,15 +1922,22 @@ export class StoreService {
     return assignedCount;
   }
 
-  async addAuditLog(action: string, details?: Record<string, unknown>) {
+  async addAuditLog(action: string, details?: Record<string, unknown>, processNumber?: string) {
     const user = this.currentUser();
     if (!user) return;
+
+    // Try to extract processNumber from details if not provided
+    let extractedProcessNumber = processNumber;
+    if (!extractedProcessNumber && details) {
+      extractedProcessNumber = (details['processNumber'] as string) || (details['number'] as string);
+    }
 
     const log: Omit<AuditLog, 'id'> = {
       userId: user.id,
       userName: user.name,
       action,
       createdAt: new Date().toISOString(),
+      processNumber: extractedProcessNumber,
       details
     };
 
@@ -1852,6 +1950,7 @@ export class StoreService {
           user_name: log.userName,
           action: log.action,
           created_at: log.createdAt,
+          process_number: log.processNumber,
           details: log.details
         }])
         .select();
@@ -1862,7 +1961,8 @@ export class StoreService {
         const newLog = {
           ...log,
           id: data[0].id,
-          createdAt: data[0].created_at
+          createdAt: data[0].created_at,
+          processNumber: data[0].process_number
         };
         this.auditLogs.update(logs => [newLog, ...logs]);
       }
@@ -1893,6 +1993,7 @@ export class StoreService {
           userName: d.user_name,
           action: d.action,
           createdAt: d.created_at,
+          processNumber: d.process_number,
           details: d.details
         }));
         this.auditLogs.set(logs);

@@ -26,9 +26,16 @@ export class AuditLogs implements OnInit {
     endDate: new FormControl('')
   });
 
+  appliedFilters = signal({
+    userId: '',
+    processNumber: '',
+    startDate: '',
+    endDate: ''
+  });
+
   filteredLogs = computed(() => {
     const logs = this.auditLogs();
-    const { userId, processNumber, startDate, endDate } = this.filterForm.value;
+    const { userId, processNumber, startDate, endDate } = this.appliedFilters();
 
     return logs.filter(log => {
       const matchesUser = !userId || log.userId === userId;
@@ -41,12 +48,26 @@ export class AuditLogs implements OnInit {
         const searchTerm = processNumber.toLowerCase();
         const detailsStr = log.details ? JSON.stringify(log.details).toLowerCase() : '';
         const actionStr = log.action.toLowerCase();
-        matchesProcess = detailsStr.includes(searchTerm) || actionStr.includes(searchTerm);
+        const logProcessNumber = log.processNumber?.toLowerCase() || '';
+        
+        matchesProcess = logProcessNumber.includes(searchTerm) || 
+                         detailsStr.includes(searchTerm) || 
+                         actionStr.includes(searchTerm);
       }
       
       return matchesUser && matchesStart && matchesEnd && matchesProcess;
     });
   });
+
+  applyFilters() {
+    const values = this.filterForm.value;
+    this.appliedFilters.set({
+      userId: values.userId || '',
+      processNumber: values.processNumber || '',
+      startDate: values.startDate || '',
+      endDate: values.endDate || ''
+    });
+  }
 
   expandedLogs = signal<Set<string>>(new Set());
 
@@ -82,5 +103,27 @@ export class AuditLogs implements OnInit {
     } catch {
       return '';
     }
+  }
+
+  getProcessNumber(log: AuditLog): string {
+    if (log.processNumber) return log.processNumber;
+
+    // Fallback to extraction from details
+    if (log.details) {
+      if (log.details['processNumber']) return log.details['processNumber'] as string;
+      if (log.details['number']) return log.details['number'] as string;
+      
+      const oldValues = log.details['oldValues'] as Record<string, unknown> | undefined;
+      if (oldValues && oldValues['number']) return oldValues['number'] as string;
+      
+      const process = log.details['process'] as Record<string, unknown> | undefined;
+      if (process && process['number']) return process['number'] as string;
+    }
+    
+    // Fallback to extraction from action string
+    const match = log.action.match(/processo\s+([A-Z0-9.\-/]+)/i);
+    if (match) return match[1];
+    
+    return '-';
   }
 }
