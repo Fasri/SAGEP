@@ -21,20 +21,30 @@ export class AuditLogs implements OnInit {
 
   filterForm = new FormGroup({
     userId: new FormControl(''),
+    processNumber: new FormControl(''),
     startDate: new FormControl(''),
     endDate: new FormControl('')
   });
 
   filteredLogs = computed(() => {
     const logs = this.auditLogs();
-    const { userId, startDate, endDate } = this.filterForm.value;
+    const { userId, processNumber, startDate, endDate } = this.filterForm.value;
 
     return logs.filter(log => {
       const matchesUser = !userId || log.userId === userId;
       const logDate = new Date(log.createdAt).toISOString().split('T')[0];
       const matchesStart = !startDate || logDate >= startDate;
       const matchesEnd = !endDate || logDate <= endDate;
-      return matchesUser && matchesStart && matchesEnd;
+      
+      let matchesProcess = true;
+      if (processNumber) {
+        const searchTerm = processNumber.toLowerCase();
+        const detailsStr = log.details ? JSON.stringify(log.details).toLowerCase() : '';
+        const actionStr = log.action.toLowerCase();
+        matchesProcess = detailsStr.includes(searchTerm) || actionStr.includes(searchTerm);
+      }
+      
+      return matchesUser && matchesStart && matchesEnd && matchesProcess;
     });
   });
 

@@ -8,7 +8,7 @@
 
   <!-- Filters -->
   <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
-    <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-4 gap-6">
       <div>
         <label for="userId" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Usuário</label>
         <select id="userId" formControlName="userId" class="w-full bg-slate-50 border-slate-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-primary focus:border-primary transition-all">
@@ -17,6 +17,10 @@
             <option [value]="user.id">{{ user.name }} ({{ user.role }})</option>
           }
         </select>
+      </div>
+      <div>
+        <label for="processNumber" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Nº do Processo</label>
+        <input id="processNumber" type="text" formControlName="processNumber" placeholder="Ex: 0000000-00.0000.0.00.0000" class="w-full bg-slate-50 border-slate-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-primary focus:border-primary transition-all" />
       </div>
       <div>
         <label for="startDate" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Data Inicial</label>
