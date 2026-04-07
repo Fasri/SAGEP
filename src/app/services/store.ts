@@ -328,6 +328,7 @@ export class StoreService {
         console.error('StoreService: Error fetching processes:', processesError);
       } else if (processes && processes.length > 0) {
         console.log(`StoreService: Loaded ${processes.length} processes from Supabase.`);
+        
         this.processes.set(processes.map((p: Record<string, unknown>) => ({
           id: String(p['id'] || ''),
           position: Number(p['position'] || 0),
@@ -795,10 +796,6 @@ export class StoreService {
       } else {
         console.log('StoreService: Process status updated successfully in Supabase.');
         this.addAuditLog(`Alterou status do processo ${processToUpdate?.number} para ${newStatus}`, { oldStatus: processToUpdate?.status, newStatus });
-        // Recalculate positions for the nucleus
-        if (nucleus) {
-          await this.recalculatePositions(nucleus);
-        }
         this.updateGlobalStats();
       }
     } else {
@@ -1236,58 +1233,6 @@ export class StoreService {
   }
 
   private statsTimeout: ReturnType<typeof setTimeout> | null = null;
-  private async recalculatePositions(nucleus: string) {
-    console.log(`StoreService: Recalculating positions for nucleus ${nucleus}...`);
-    const client = getSupabase();
-    if (!client) return;
-
-    try {
-      // 1. Fetch all "Pendente" processes for this nucleus
-      // We sort by priority level (Super first) then by entry date
-      const { data: pendentes, error: fetchError } = await client
-        .from('processes')
-        .select('id, priority, entry_date')
-        .eq('nucleus', nucleus)
-        .eq('status', 'Pendente');
-
-      if (fetchError) {
-        console.error('StoreService: Error fetching processes for recalculation:', fetchError);
-        return;
-      }
-
-      if (pendentes) {
-        // Sort in memory to apply the same logic as the dashboard
-        const sorted = pendentes.sort((a, b) => {
-          const levelA = a.priority.toUpperCase().includes('SUPER') ? 1 : 2;
-          const levelB = b.priority.toUpperCase().includes('SUPER') ? 1 : 2;
-          if (levelA !== levelB) return levelA - levelB;
-          return new Date(a.entry_date).getTime() - new Date(b.entry_date).getTime();
-        });
-
-        // Update positions sequentially
-        for (let i = 0; i < sorted.length; i++) {
-          await client
-            .from('processes')
-            .update({ position: i + 1 })
-            .eq('id', sorted[i].id);
-        }
-        
-        // 2. Clear positions for non-pendente processes in this nucleus
-        await client
-          .from('processes')
-          .update({ position: 0 })
-          .eq('nucleus', nucleus)
-          .neq('status', 'Pendente');
-        
-        console.log(`StoreService: Positions recalculated for ${nucleus}.`);
-        
-        // Reload data to reflect changes in UI
-        this.loadData();
-      }
-    } catch (err) {
-      console.error('StoreService: Unexpected error in recalculatePositions:', err);
-    }
-  }
 
   async updateGlobalStats() {
     if (this.statsTimeout) clearTimeout(this.statsTimeout);
@@ -1440,24 +1385,6 @@ export class StoreService {
     await this.ensurePriorityExists(client, normalizedPriority);
     await this.ensureStatusExists(client, normalizedStatus);
     
-    // Calculate position (scoped by nucleus, only for Pendente)
-    let nextPos = 0;
-    if (normalizedStatus === 'Pendente') {
-      const { data: lastProc, error: posError } = await client
-        .from('processes')
-        .select('position')
-        .eq('nucleus', normalizedNucleus)
-        .eq('status', 'Pendente')
-        .order('position', { ascending: false })
-        .limit(1);
-      
-      if (!posError && lastProc && lastProc.length > 0) {
-        nextPos = (lastProc[0].position || 0) + 1;
-      } else {
-        nextPos = 1;
-      }
-    }
-    
     const today = new Date().toLocaleDateString('en-CA');
     
     // Use provided dates or calculate them
@@ -1498,7 +1425,6 @@ export class StoreService {
         priority: normalizedPriority,
         status: normalizedStatus,
         assigned_to_id: process.assignedToId,
-        position: nextPos,
         assignment_date: assignmentDate,
         completion_date: completionDate,
         valor_custas: process.valorCustas || 0,
@@ -1534,12 +1460,7 @@ export class StoreService {
         };
         this.addAuditLog(`Inseriu novo processo ${process.number}`, logDetails);
         
-        // If it's a pending process, we might need to recalculate positions to ensure correct ordering
-        if (!skipRecalculate && normalizedStatus === 'Pendente') {
-          await this.recalculatePositions(normalizedNucleus);
-        } else {
-          this.updateGlobalStats();
-        }
+        this.updateGlobalStats();
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -1645,9 +1566,6 @@ export class StoreService {
     const fileProcessIdentifiers = new Set<string>();
     const affectedNuclei = new Set<string>();
     
-    // Track next positions in memory to avoid repeated DB queries
-    const nextPositions: Record<string, number> = {};
-    
     // Helper to parse date
     const parseDate = (val: unknown) => {
       if (!val) return null;
@@ -1734,19 +1652,6 @@ export class StoreService {
         assignedToId = userMap[accountantName.toLowerCase()] || null;
       }
 
-      // Calculate position for Pendente
-      let position = null;
-      if (normalizedStatus === 'Pendente') {
-        if (nextPositions[normalizedNucleus] === undefined) {
-          // Initialize next position for this nucleus
-          const lastInDb = (existingData || [])
-            .filter(p => this.normalizeNucleus(p.nucleus) === normalizedNucleus && p.status === 'Pendente')
-            .reduce((max, p) => Math.max(max, p.position || 0), 0);
-          nextPositions[normalizedNucleus] = lastInDb + 1;
-        }
-        position = nextPositions[normalizedNucleus]++;
-      }
-
       processesToInsert.push({
         number,
         entry_date: entryDate,
@@ -1755,7 +1660,6 @@ export class StoreService {
         priority: normalizedPriority,
         status: normalizedStatus,
         assigned_to_id: assignedToId,
-        position,
         assignment_date: assignmentDate || (normalizedStatus !== 'Pendente' ? today : null),
         completion_date: completionDate || (normalizedStatus !== 'Pendente' ? today : null),
         valor_custas: valorCustas,
@@ -1785,13 +1689,7 @@ export class StoreService {
       }
     }
 
-    // 6. Recalculate positions for all affected nuclei
-    console.log('StoreService: Recalculating positions for affected nuclei...');
-    for (const nucleus of affectedNuclei) {
-      await this.recalculatePositions(nucleus);
-    }
-
-    // 7. Check inconsistencies
+    // 6. Check inconsistencies
     for (const p of pendingInDb) {
       const identifier = `${p.number}|${p.entryDate}|${this.normalizeNucleus(p.nucleus)}`;
       if (!fileProcessIdentifiers.has(identifier)) {
