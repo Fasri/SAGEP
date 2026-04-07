@@ -54,14 +54,18 @@ export class Reports implements AfterViewInit, OnInit {
   }
 
   async ngOnInit() {
-    const oldestDate = await this.store.getOldestProcessDate();
-    
     const today = new Date();
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    const endOfMonthStr = endOfMonth.toISOString().split('T')[0];
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    
+    const startOfYearStr = `${year}-01-01`;
+    
+    const endOfMonth = new Date(year, today.getMonth() + 1, 0);
+    const endOfMonthDay = String(endOfMonth.getDate()).padStart(2, '0');
+    const endOfMonthStr = `${year}-${month}-${endOfMonthDay}`;
     
     this.filterForm.patchValue({
-      startDate: oldestDate ? oldestDate.split('T')[0] : '',
+      startDate: startOfYearStr,
       endDate: endOfMonthStr
     });
     
