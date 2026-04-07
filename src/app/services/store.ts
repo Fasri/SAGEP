@@ -879,6 +879,10 @@ export class StoreService {
   async updateUser(updatedUser: User) {
     console.log('StoreService: Updating user...', updatedUser);
     this.users.update(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    
+    if (this.currentUser()?.id === updatedUser.id) {
+      this.currentUser.set(updatedUser);
+    }
 
     const client = getSupabase();
     if (client) {

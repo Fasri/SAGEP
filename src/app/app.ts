@@ -24,10 +24,25 @@ export class App {
   showLogin = computed(() => !this.currentUser());
   loginError = signal<string | null>(null);
   showDropdown = signal(false);
+  
+  showChangePasswordModal = signal(false);
+  changePasswordError = signal<string | null>(null);
+  changePasswordSuccess = signal(false);
+
+  isDefaultPassword = computed(() => {
+    const user = this.currentUser();
+    return user ? user.password === '123456' : false;
+  });
 
   loginForm = new FormGroup({
     userId: new FormControl('', Validators.required),
     password: new FormControl('', Validators.required)
+  });
+
+  changePasswordForm = new FormGroup({
+    currentPassword: new FormControl('', Validators.required),
+    newPassword: new FormControl('', [Validators.required, Validators.minLength(6)]),
+    confirmPassword: new FormControl('', Validators.required)
   });
 
   // Convert form value changes to a signal so computed() can track it
@@ -81,6 +96,55 @@ export class App {
   onInputBlur() {
     // Small delay to allow click event on dropdown to fire
     setTimeout(() => this.showDropdown.set(false), 200);
+  }
+
+  openChangePasswordModal() {
+    this.changePasswordForm.reset();
+    this.changePasswordError.set(null);
+    this.changePasswordSuccess.set(false);
+    this.showChangePasswordModal.set(true);
+  }
+
+  closeChangePasswordModal() {
+    this.showChangePasswordModal.set(false);
+  }
+
+  async changePassword() {
+    this.changePasswordError.set(null);
+    this.changePasswordSuccess.set(false);
+
+    if (this.changePasswordForm.invalid) {
+      this.changePasswordError.set('Preencha todos os campos corretamente. A nova senha deve ter no mínimo 6 caracteres.');
+      return;
+    }
+
+    const { currentPassword, newPassword, confirmPassword } = this.changePasswordForm.value;
+    const user = this.currentUser();
+
+    if (!user) return;
+
+    if (currentPassword !== user.password) {
+      this.changePasswordError.set('Senha atual incorreta.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      this.changePasswordError.set('A nova senha e a confirmação não coincidem.');
+      return;
+    }
+
+    if (newPassword === currentPassword) {
+      this.changePasswordError.set('A nova senha não pode ser igual à senha atual.');
+      return;
+    }
+
+    const updatedUser = { ...user, password: newPassword! };
+    await this.store.updateUser(updatedUser);
+    
+    this.changePasswordSuccess.set(true);
+    setTimeout(() => {
+      this.closeChangePasswordModal();
+    }, 2000);
   }
 }
 
