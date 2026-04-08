@@ -7,11 +7,6 @@
         <p class="text-slate-500">Gestão de Contadoria Judicial</p>
       </div>
       <div class="flex items-center gap-3">
-        <div class="relative">
-          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-          <input #searchInput (input)="onSearch(searchInput.value)" type="text" placeholder="Buscar processo..." 
-                 class="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all w-64 shadow-sm" />
-        </div>
         <button (click)="isFilterVisible.set(!isFilterVisible())" 
                 class="bg-primary hover:bg-primary/90 text-white font-bold py-2 px-4 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-primary/20 cursor-pointer">
           <span class="material-symbols-outlined text-lg">filter_list</span>
@@ -66,7 +61,15 @@
        [class.p-0]="!isFilterVisible()"
        [class.border-none]="!isFilterVisible()">
     <div class="flex flex-col gap-6">
-      <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+      <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 items-end">
+        <div class="flex flex-col gap-2 md:col-span-2 lg:col-span-2 xl:col-span-1">
+          <label for="searchFilter" class="text-xs font-bold text-slate-500 uppercase tracking-wider">Buscar Processo</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+            <input id="searchFilter" #searchInput (input)="onSearch(searchInput.value)" type="text" placeholder="Número, vara, status..." 
+                   class="w-full bg-slate-50 border-slate-200 rounded-xl pl-10 py-2.5 text-sm focus:ring-2 focus:ring-primary transition-all outline-none" />
+          </div>
+        </div>
         <div class="flex flex-col gap-2">
           <label for="startDate" class="text-xs font-bold text-slate-500 uppercase tracking-wider">Data Início</label>
           <div class="relative">
@@ -112,15 +115,17 @@
           </div>
         }
 
-        <button type="button" (click)="applyFilters()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-200 cursor-pointer">
-          <span class="material-symbols-outlined text-sm">filter_list</span>
-          Aplicar Filtros
-        </button>
+        <div class="flex gap-3 md:col-span-2 lg:col-span-2 xl:col-span-1">
+          <button type="button" (click)="applyFilters()" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-200 cursor-pointer">
+            <span class="material-symbols-outlined text-sm">filter_list</span>
+            Aplicar
+          </button>
 
-        <button type="button" (click)="exportToExcel()" [disabled]="isLoading()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-          <span class="material-symbols-outlined text-sm">{{ isLoading() ? 'sync' : 'download' }}</span>
-          {{ isLoading() ? 'Exportando...' : 'Exportar Excel' }}
-        </button>
+          <button type="button" (click)="exportToExcel()" [disabled]="isLoading()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+            <span class="material-symbols-outlined text-sm">{{ isLoading() ? 'sync' : 'download' }}</span>
+            Excel
+          </button>
+        </div>
       </form>
 
       <div class="flex flex-wrap items-center gap-4 pt-6 border-t border-slate-50">
