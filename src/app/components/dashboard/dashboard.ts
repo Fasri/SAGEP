@@ -129,7 +129,7 @@ export class Dashboard implements OnInit {
     const allUsers = this.users();
     if (!user) return [];
     
-    const validRoles = ['Contador Judicial', 'Chefe', 'Gerente'];
+    const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
 
     if (user.role === 'Chefe' || user.role === 'Gerente') {
       return allUsers.filter(u => u.nucleus === user.nucleus && validRoles.includes(u.role));
@@ -246,7 +246,7 @@ export class Dashboard implements OnInit {
     try {
       const { startDate, endDate } = this.filterForm.value;
       
-      const validRoles = ['Contador Judicial', 'Chefe', 'Gerente'];
+      const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
       const externalIds = this.users()
         .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
         .map(u => u.id);
@@ -409,7 +409,7 @@ export class Dashboard implements OnInit {
     this.isLoading.set(true);
     try {
       const { startDate, endDate } = this.filterForm.value;
-      const validRoles = ['Contador Judicial', 'Chefe', 'Gerente'];
+      const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
       const externalIds = this.users()
         .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
         .map(u => u.id);
