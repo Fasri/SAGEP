@@ -1044,8 +1044,7 @@ export class StoreService {
     onlyAssignedToMe?: boolean,
     unassignedOnly?: boolean,
     accountantFilter?: string,
-    externalAccountantIds?: string[],
-    courtFilter?: string
+    externalAccountantIds?: string[]
   }) {
     const client = getSupabase();
     if (!client) return { processes: [], totalCount: 0 };
@@ -1062,11 +1061,6 @@ export class StoreService {
     // Nucleus Filter (for Coordenador/Supervisor/Admin who see all by default)
     if (options.nucleusFilter && options.nucleusFilter !== 'Todos') {
       query = query.ilike('nucleus', options.nucleusFilter);
-    }
-
-    // Court Filter
-    if (options.courtFilter) {
-      query = query.ilike('court', `%${options.courtFilter}%`);
     }
 
     // Only Assigned To Me Filter (for roles that can see more than just their own)
@@ -1158,8 +1152,7 @@ export class StoreService {
     onlyAssignedToMe?: boolean,
     unassignedOnly?: boolean,
     accountantFilter?: string,
-    externalAccountantIds?: string[],
-    courtFilter?: string
+    externalAccountantIds?: string[]
   }) {
     const client = getSupabase();
     if (!client) return [];
@@ -1176,11 +1169,6 @@ export class StoreService {
     // Nucleus Filter
     if (options.nucleusFilter && options.nucleusFilter !== 'Todos') {
       query = query.ilike('nucleus', options.nucleusFilter);
-    }
-
-    // Court Filter
-    if (options.courtFilter) {
-      query = query.ilike('court', `%${options.courtFilter}%`);
     }
 
     // Only Assigned To Me Filter

@@ -28,7 +28,6 @@ export class Dashboard implements OnInit {
   unassignedOnly = signal(false);
   accountantFilter = signal('Todos');
   externalAccountantsOnly = signal(false);
-  courtFilter = signal('');
   isFilterVisible = signal(true);
   currentPage = signal(1);
   pageSize = 20;
@@ -154,7 +153,6 @@ export class Dashboard implements OnInit {
     const unassignedOnly = this.unassignedOnly();
     const accountantFilter = this.accountantFilter();
     const externalAccountantsOnly = this.externalAccountantsOnly();
-    const courtFilter = this.courtFilter().toLowerCase();
     const user = this.currentUser();
     const allUsers = this.users();
     const { startDate, endDate } = this.filterForm.value;
@@ -165,9 +163,6 @@ export class Dashboard implements OnInit {
 
       // Nucleus Filter
       if (nucleusFilter !== 'Todos' && p.nucleus !== nucleusFilter) return false;
-
-      // Court Filter
-      if (courtFilter && !p.court.toLowerCase().includes(courtFilter)) return false;
 
       // Assigned To Me Filter
       if (onlyAssignedToMe && user && p.assignedToId !== user.id) return false;
@@ -263,8 +258,7 @@ export class Dashboard implements OnInit {
         onlyAssignedToMe: this.onlyAssignedToMe(),
         unassignedOnly: this.unassignedOnly(),
         accountantFilter: this.accountantFilter(),
-        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined,
-        courtFilter: this.courtFilter()
+        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined
       });
 
       this.serverProcesses.set(result.processes);
@@ -360,12 +354,6 @@ export class Dashboard implements OnInit {
     this.loadServerData();
   }
 
-  onCourtFilter(input: string) {
-    this.courtFilter.set(input);
-    this.currentPage.set(1);
-    this.loadServerData();
-  }
-
   nextPage() {
     if (this.currentPage() < this.totalPages()) {
       this.currentPage.update(p => p + 1);
@@ -424,8 +412,7 @@ export class Dashboard implements OnInit {
         onlyAssignedToMe: this.onlyAssignedToMe(),
         unassignedOnly: this.unassignedOnly(),
         accountantFilter: this.accountantFilter(),
-        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined,
-        courtFilter: this.courtFilter()
+        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined
       });
 
       if (allProcesses.length === 0) {
