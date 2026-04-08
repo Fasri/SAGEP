@@ -1791,21 +1791,25 @@ export class StoreService {
 
   }
 
-  async autoAssignProcesses(nucleusName: string) {
+  async autoAssignProcesses(nucleusName: string, selectedUserIds?: string[]) {
     const client = getSupabase();
     if (!client) return;
 
     console.log(`StoreService: Iniciando atribuição automática para o núcleo: "${nucleusName}"`);
 
     // 1. Get all active users in this nucleus
-    const usersInNucleus = this.users()
+    let usersInNucleus = this.users()
       .filter(u => u.nucleus === nucleusName && u.active)
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    console.log(`StoreService: Encontrados ${usersInNucleus.length} usuários ativos no núcleo "${nucleusName}"`);
+    if (selectedUserIds && selectedUserIds.length > 0) {
+      usersInNucleus = usersInNucleus.filter(u => selectedUserIds.includes(u.id));
+    }
+
+    console.log(`StoreService: Encontrados ${usersInNucleus.length} usuários ativos no núcleo "${nucleusName}" para distribuição`);
 
     if (usersInNucleus.length === 0) {
-      throw new Error(`Nenhum usuário ativo encontrado no núcleo "${nucleusName}".`);
+      throw new Error(`Nenhum usuário ativo selecionado encontrado no núcleo "${nucleusName}".`);
     }
 
     // 2. Get all unassigned pending processes in this nucleus from Supabase

@@ -93,6 +93,7 @@ export class Dashboard implements OnInit {
   isAutoAssigning = signal(false);
   autoAssignMessage = signal<string | null>(null);
   isConfirmingAutoAssign = signal(false);
+  selectedAutoAssignUserIds = signal<string[]>([]);
   totalFilteredCount = signal(0);
   serverProcesses = signal<Process[]>([]);
 
@@ -114,6 +115,14 @@ export class Dashboard implements OnInit {
       { label: 'Devolvidos', value: devolvidos.toLocaleString('pt-BR'), icon: 'flag', subtext: 'Sem possibilidade de cálculo', color: 'slate' },
       { label: 'Meta Realizada', value: `${metaRealizada}%`, icon: 'analytics', subtext: 'Progresso global de metas', color: 'blue' },
     ];
+  });
+
+  usersInNucleusForAutoAssign = computed(() => {
+    const user = this.currentUser();
+    if (!user) return [];
+    let nucleus = this.nucleusFilter();
+    if (nucleus === 'Todos') nucleus = user.nucleus;
+    return this.users().filter(u => u.nucleus === nucleus && u.active);
   });
 
   private getPriorityLevel(priority: string): number {
@@ -554,7 +563,21 @@ export class Dashboard implements OnInit {
       }
     }
     
+    // Initialize selected users with all active users in the nucleus
+    const activeUsers = this.users().filter(u => u.nucleus === nucleus && u.active);
+    this.selectedAutoAssignUserIds.set(activeUsers.map(u => u.id));
+    
     this.isConfirmingAutoAssign.set(true);
+  }
+
+  toggleUserSelection(userId: string) {
+    this.selectedAutoAssignUserIds.update(ids => {
+      if (ids.includes(userId)) {
+        return ids.filter(id => id !== userId);
+      } else {
+        return [...ids, userId];
+      }
+    });
   }
 
   async confirmAutoAssign() {
@@ -564,12 +587,19 @@ export class Dashboard implements OnInit {
     let nucleus = this.nucleusFilter();
     if (nucleus === 'Todos') nucleus = user.nucleus;
 
+    const selectedIds = this.selectedAutoAssignUserIds();
+    if (selectedIds.length === 0) {
+      this.autoAssignMessage.set('Selecione pelo menos um contador para a atribuição.');
+      setTimeout(() => this.autoAssignMessage.set(null), 3000);
+      return;
+    }
+
     this.isConfirmingAutoAssign.set(false);
     this.isAutoAssigning.set(true);
     this.autoAssignMessage.set('Iniciando atribuição automática...');
 
     try {
-      const count = await this.store.autoAssignProcesses(nucleus);
+      const count = await this.store.autoAssignProcesses(nucleus, selectedIds);
       this.autoAssignMessage.set(`${count} processos foram atribuídos com sucesso no núcleo ${nucleus}.`);
       this.loadServerData();
     } catch (error: unknown) {
