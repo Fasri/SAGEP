@@ -1096,7 +1096,15 @@ export class StoreService {
     // Search Term
     if (options.searchTerm) {
       const term = `%${options.searchTerm}%`;
-      query = query.or(`number.ilike."${term}",court.ilike."${term}",nucleus.ilike."${term}"`);
+      const matchingUserIds = this.users()
+        .filter(u => u.name.toLowerCase().includes(options.searchTerm.toLowerCase()))
+        .map(u => u.id);
+      
+      let orClause = `number.ilike."${term}",court.ilike."${term}",nucleus.ilike."${term}"`;
+      if (matchingUserIds.length > 0) {
+        orClause += `,assigned_to_id.in.(${matchingUserIds.join(',')})`;
+      }
+      query = query.or(orClause);
     }
 
     // Date Filters
@@ -1202,7 +1210,15 @@ export class StoreService {
     // Search Term
     if (options.searchTerm) {
       const term = `%${options.searchTerm}%`;
-      query = query.or(`number.ilike."${term}",court.ilike."${term}",nucleus.ilike."${term}"`);
+      const matchingUserIds = this.users()
+        .filter(u => u.name.toLowerCase().includes(options.searchTerm.toLowerCase()))
+        .map(u => u.id);
+      
+      let orClause = `number.ilike."${term}",court.ilike."${term}",nucleus.ilike."${term}"`;
+      if (matchingUserIds.length > 0) {
+        orClause += `,assigned_to_id.in.(${matchingUserIds.join(',')})`;
+      }
+      query = query.or(orClause);
     }
 
     // Date Filters

@@ -26,8 +26,6 @@ export class Dashboard implements OnInit {
   nucleusFilter = signal('Todos');
   onlyAssignedToMe = signal(false);
   unassignedOnly = signal(false);
-  accountantFilter = signal('Todos');
-  externalAccountantsOnly = signal(false);
   isFilterVisible = signal(true);
   currentPage = signal(1);
   pageSize = 20;
@@ -133,36 +131,12 @@ export class Dashboard implements OnInit {
     return 2;
   }
 
-  availableAccountants = computed(() => {
-    const user = this.currentUser();
-    const allUsers = this.users();
-    if (!user) return [];
-    
-    const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
-
-    if (user.role === 'Chefe' || user.role === 'Gerente') {
-      return allUsers.filter(u => u.nucleus === user.nucleus && validRoles.includes(u.role));
-    }
-    
-    if (user.role === 'Coordenador' || user.role === 'Supervisor' || user.role === 'Administrador') {
-      const selectedNucleus = this.nucleusFilter();
-      if (selectedNucleus && selectedNucleus !== 'Todos') {
-        return allUsers.filter(u => u.nucleus === selectedNucleus && validRoles.includes(u.role));
-      }
-      return allUsers.filter(u => validRoles.includes(u.role));
-    }
-    
-    return [];
-  });
-
   filteredProcesses = computed(() => {
     const term = this.searchTerm().toLowerCase();
     const status = this.statusFilter();
     const nucleusFilter = this.nucleusFilter();
     const onlyAssignedToMe = this.onlyAssignedToMe();
     const unassignedOnly = this.unassignedOnly();
-    const accountantFilter = this.accountantFilter();
-    const externalAccountantsOnly = this.externalAccountantsOnly();
     const user = this.currentUser();
     const allUsers = this.users();
     const { startDate, endDate } = this.filterForm.value;
@@ -180,15 +154,6 @@ export class Dashboard implements OnInit {
       // Unassigned Only Filter
       if (unassignedOnly && p.assignedToId) return false;
 
-      // Accountant Filter
-      if (accountantFilter !== 'Todos' && p.assignedToId !== accountantFilter) return false;
-
-      // External Accountants Filter
-      if (externalAccountantsOnly && user) {
-        const assignedUser = allUsers.find(u => u.id === p.assignedToId);
-        if (!assignedUser || assignedUser.nucleus === user.nucleus) return false;
-      }
-
       // Date Filter
       if (startDate) {
         // Use UTC to avoid timezone shifts during comparison
@@ -202,10 +167,13 @@ export class Dashboard implements OnInit {
         if (pDate > eDate) return false;
       }
 
+      const assignedUserName = p.assignedToId ? allUsers.find(u => u.id === p.assignedToId)?.name || '' : '';
+
       return p.number.toLowerCase().includes(term) || 
              p.court.toLowerCase().includes(term) ||
              p.status.toLowerCase().includes(term) ||
-             p.nucleus.toLowerCase().includes(term);
+             p.nucleus.toLowerCase().includes(term) ||
+             assignedUserName.toLowerCase().includes(term);
     });
 
     // Robust sorting:
@@ -251,11 +219,6 @@ export class Dashboard implements OnInit {
     try {
       const { startDate, endDate } = this.filterForm.value;
       
-      const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
-      const externalIds = this.users()
-        .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
-        .map(u => u.id);
-
       const result = await this.store.fetchPaginatedProcesses({
         page: this.currentPage(),
         pageSize: this.pageSize,
@@ -266,9 +229,7 @@ export class Dashboard implements OnInit {
         user: user,
         nucleusFilter: this.nucleusFilter(),
         onlyAssignedToMe: this.onlyAssignedToMe(),
-        unassignedOnly: this.unassignedOnly(),
-        accountantFilter: this.accountantFilter(),
-        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined
+        unassignedOnly: this.unassignedOnly()
       });
 
       this.serverProcesses.set(result.processes);
@@ -340,35 +301,10 @@ export class Dashboard implements OnInit {
     this.loadServerData();
   }
 
-  setAccountantFilter(accountantId: string) {
-    if (accountantId !== 'Todos') {
-      this.externalAccountantsOnly.set(false);
-      this.unassignedOnly.set(false);
-      this.onlyAssignedToMe.set(false);
-    }
-    this.accountantFilter.set(accountantId);
-    this.currentPage.set(1);
-    this.loadServerData();
-  }
-
-  toggleExternalAccountants() {
-    const newValue = !this.externalAccountantsOnly();
-    if (newValue) {
-      this.unassignedOnly.set(false);
-      this.onlyAssignedToMe.set(false);
-      this.accountantFilter.set('Todos');
-    }
-    this.externalAccountantsOnly.set(newValue);
-    this.currentPage.set(1);
-    this.loadServerData();
-  }
-
   toggleUnassignedOnly() {
     const newValue = !this.unassignedOnly();
     if (newValue) {
-      this.externalAccountantsOnly.set(false);
       this.onlyAssignedToMe.set(false);
-      this.accountantFilter.set('Todos');
     }
     this.unassignedOnly.set(newValue);
     this.currentPage.set(1);
@@ -378,9 +314,7 @@ export class Dashboard implements OnInit {
   toggleOnlyAssignedToMe() {
     const newValue = !this.onlyAssignedToMe();
     if (newValue) {
-      this.externalAccountantsOnly.set(false);
       this.unassignedOnly.set(false);
-      this.accountantFilter.set('Todos');
     }
     this.onlyAssignedToMe.set(newValue);
     this.currentPage.set(1);
@@ -543,10 +477,6 @@ export class Dashboard implements OnInit {
     this.isLoading.set(true);
     try {
       const { startDate, endDate } = this.filterForm.value;
-      const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
-      const externalIds = this.users()
-        .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
-        .map(u => u.id);
 
       const allProcesses = await this.store.fetchAllFilteredProcesses({
         searchTerm: this.searchTerm(),
@@ -556,9 +486,7 @@ export class Dashboard implements OnInit {
         user: user,
         nucleusFilter: this.nucleusFilter(),
         onlyAssignedToMe: this.onlyAssignedToMe(),
-        unassignedOnly: this.unassignedOnly(),
-        accountantFilter: this.accountantFilter(),
-        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined
+        unassignedOnly: this.unassignedOnly()
       });
 
       if (allProcesses.length === 0) {
@@ -599,27 +527,6 @@ export class Dashboard implements OnInit {
   getUserName(userId: string | null): string {
     if (!userId) return 'Não atribuído';
     return this.users().find(u => u.id === userId)?.name || 'Desconhecido';
-  }
-
-  getAccountantName(id: string): string {
-    if (id === 'Todos') return '';
-    return this.users().find(u => u.id === id)?.name || '';
-  }
-
-  handleAccountantInput(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const value = input.value.trim();
-    if (!value || value === 'Todos os Contadores' || value === 'Todos') {
-      this.setAccountantFilter('Todos');
-      return;
-    }
-    const acc = this.availableAccountants().find(a => a.name.toLowerCase() === value.toLowerCase());
-    if (acc) {
-      this.setAccountantFilter(acc.id);
-    } else {
-      this.setAccountantFilter('Todos');
-      input.value = '';
-    }
   }
 
   handleAssignInput(process: Process, event: Event) {
