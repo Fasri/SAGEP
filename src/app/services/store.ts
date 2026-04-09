@@ -732,7 +732,7 @@ export class StoreService {
     this.currentUser.set(null);
   }
 
-  async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate'>>) {
+  async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate' | 'priority'>>) {
     console.log('StoreService: Updating process fields...', { processId, fields });
     
     let oldProcess = this.processes().find(p => p.id === processId);
@@ -771,6 +771,7 @@ export class StoreService {
       if (fields.observacao !== undefined) updateData['observacao'] = fields.observacao;
       if (fields.assignmentDate !== undefined) updateData['assignment_date'] = fields.assignmentDate;
       if (fields.completionDate !== undefined) updateData['completion_date'] = fields.completionDate;
+      if (fields.priority !== undefined) updateData['priority'] = fields.priority;
 
       const { error } = await client.from('processes').update(updateData).eq('id', processId);
       if (error) {

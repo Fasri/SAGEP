@@ -216,14 +216,28 @@
               <td class="px-2 py-5 text-xs text-slate-600">{{ process.court }}</td>
               <td class="px-2 py-5 text-xs font-bold text-blue-600">{{ process.nucleus }}</td>
               <td class="px-2 py-5">
-                <span class="text-[9px] font-bold px-2 py-1 rounded-lg uppercase tracking-wider"
-                      [ngClass]="{
-                        'bg-purple-100 text-purple-700': process.priority.toUpperCase().includes('SUPER'),
-                        'bg-red-100 text-red-700': process.priority.toUpperCase().includes('LEGAL'),
-                        'bg-green-100 text-green-700': !process.priority.toUpperCase().includes('SUPER') && !process.priority.toUpperCase().includes('LEGAL')
-                      }">
-                  {{ stripPriorityPrefix(process.priority) }}
-                </span>
+                @if (canEditPriority()) {
+                  <select (change)="updateFields(process, 'priority', $event)"
+                          class="w-full text-[10px] font-bold py-1 px-2 rounded-lg border-none focus:ring-2 focus:ring-primary cursor-pointer appearance-none"
+                          [ngClass]="{
+                            'bg-purple-100 text-purple-700': process.priority.toUpperCase().includes('SUPER'),
+                            'bg-red-100 text-red-700': process.priority.toUpperCase().includes('LEGAL'),
+                            'bg-green-100 text-green-700': !process.priority.toUpperCase().includes('SUPER') && !process.priority.toUpperCase().includes('LEGAL')
+                          }">
+                    @for (p of prioridades(); track p.id) {
+                      <option [value]="p.nome" [selected]="process.priority === p.nome">{{ p.nome }}</option>
+                    }
+                  </select>
+                } @else {
+                  <span class="text-[9px] font-bold px-2 py-1 rounded-lg uppercase tracking-wider"
+                        [ngClass]="{
+                          'bg-purple-100 text-purple-700': process.priority.toUpperCase().includes('SUPER'),
+                          'bg-red-100 text-red-700': process.priority.toUpperCase().includes('LEGAL'),
+                          'bg-green-100 text-green-700': !process.priority.toUpperCase().includes('SUPER') && !process.priority.toUpperCase().includes('LEGAL')
+                        }">
+                    {{ stripPriorityPrefix(process.priority) }}
+                  </span>
+                }
               </td>
               <td class="px-2 py-5">
                 <div class="w-full min-w-[120px]">

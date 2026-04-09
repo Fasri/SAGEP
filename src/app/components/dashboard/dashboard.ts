@@ -33,6 +33,7 @@ export class Dashboard implements OnInit {
   pageSize = 20;
   
   nucleos = this.store.nucleos;
+  prioridades = this.store.prioridades;
 
   // Identify processes with same number and nucleus but different dates
   // We only mark them as duplicates if they are both visible in the current view (paginated)
@@ -392,8 +393,15 @@ export class Dashboard implements OnInit {
     this.loadServerData();
   }
 
-  async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate', event: Event) {
-    const input = event.target as HTMLInputElement;
+  canEditPriority(): boolean {
+    const user = this.currentUser();
+    if (!user) return false;
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
+    return privilegedRoles.includes(user.role);
+  }
+
+  async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate' | 'priority', event: Event) {
+    const input = event.target as HTMLInputElement | HTMLSelectElement;
     const value = field === 'valorCustas' ? parseFloat(input.value) : input.value;
     await this.store.updateProcessFields(process.id, { [field]: value });
     this.loadServerData();
