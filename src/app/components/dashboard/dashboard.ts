@@ -341,25 +341,48 @@ export class Dashboard implements OnInit {
   }
 
   setAccountantFilter(accountantId: string) {
+    if (accountantId !== 'Todos') {
+      this.externalAccountantsOnly.set(false);
+      this.unassignedOnly.set(false);
+      this.onlyAssignedToMe.set(false);
+    }
     this.accountantFilter.set(accountantId);
     this.currentPage.set(1);
     this.loadServerData();
   }
 
   toggleExternalAccountants() {
-    this.externalAccountantsOnly.update(v => !v);
+    const newValue = !this.externalAccountantsOnly();
+    if (newValue) {
+      this.unassignedOnly.set(false);
+      this.onlyAssignedToMe.set(false);
+      this.accountantFilter.set('Todos');
+    }
+    this.externalAccountantsOnly.set(newValue);
     this.currentPage.set(1);
     this.loadServerData();
   }
 
   toggleUnassignedOnly() {
-    this.unassignedOnly.update(v => !v);
+    const newValue = !this.unassignedOnly();
+    if (newValue) {
+      this.externalAccountantsOnly.set(false);
+      this.onlyAssignedToMe.set(false);
+      this.accountantFilter.set('Todos');
+    }
+    this.unassignedOnly.set(newValue);
     this.currentPage.set(1);
     this.loadServerData();
   }
 
   toggleOnlyAssignedToMe() {
-    this.onlyAssignedToMe.update(v => !v);
+    const newValue = !this.onlyAssignedToMe();
+    if (newValue) {
+      this.externalAccountantsOnly.set(false);
+      this.unassignedOnly.set(false);
+      this.accountantFilter.set('Todos');
+    }
+    this.onlyAssignedToMe.set(newValue);
     this.currentPage.set(1);
     this.loadServerData();
   }
