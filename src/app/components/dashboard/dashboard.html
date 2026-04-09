@@ -188,16 +188,16 @@
             <th class="px-1 py-4 text-center text-[10px]">Posição Geral</th>
             <th class="px-1 py-4 text-center text-[10px]">Posição Prioridade</th>
             <th class="px-1 py-4 text-[10px]">Número do Processo</th>
-            <th class="px-1 py-4 text-[10px]">Data de Remessa</th>
             <th class="px-1 py-4 text-[10px]">Vara</th>
+            <th class="px-1 py-4 text-[10px]">Data de Remessa</th>
             <th class="px-1 py-4 text-[10px]">Núcleo</th>
             <th class="px-1 py-4 text-[10px]">Prioridade</th>
+            <th class="px-1 py-4 text-[10px]">Atribuído a</th>
+            <th class="px-1 py-4 text-[10px]">Data de Atribuição</th>
             <th class="px-1 py-4 text-[10px]">Cumprimento</th>
+            <th class="px-1 py-4 text-[10px]">Data de Cumprimento</th>
             <th class="px-1 py-4 text-[10px]">Valor Custas</th>
             <th class="px-1 py-4 text-[10px]">Observação</th>
-            <th class="px-1 py-4 text-[10px]">Atribuição</th>
-            <th class="px-1 py-4 text-[10px]">Data de Cumprimento</th>
-            <th class="px-1 py-4 text-[10px]">Atribuído a</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-50" [class.opacity-50]="isLoading()">
@@ -212,8 +212,8 @@
                   [class.text-slate-900]="!duplicateProcessIds().has(process.id)">
                 {{ process.number }}
               </td>
-              <td class="px-1 py-5 text-xs font-medium text-slate-600">{{ process.entryDate | date:'dd/MM/yyyy' }}</td>
               <td class="px-1 py-5 text-xs text-slate-600">{{ process.court }}</td>
+              <td class="px-1 py-5 text-xs font-medium text-slate-600">{{ process.entryDate | date:'dd/MM/yyyy' }}</td>
               <td class="px-1 py-5 text-xs font-bold text-blue-600">{{ process.nucleus }}</td>
               <td class="px-1 py-5">
                 @if (canEditPriority()) {
@@ -245,6 +245,34 @@
                 }
               </td>
               <td class="px-1 py-5">
+                @if (canAssign()) {
+                  <div class="relative">
+                    <span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">person</span>
+                    <input type="text" [attr.list]="'assign-list-' + process.id"
+                           [placeholder]="getUserName(process.assignedToId)"
+                           [value]="getUserName(process.assignedToId) === 'Não atribuído' ? '' : getUserName(process.assignedToId)"
+                           (change)="handleAssignInput(process, $event)"
+                           class="w-full bg-slate-50 border-none rounded-lg pl-7 py-1.5 text-xs font-semibold text-slate-600 focus:ring-2 focus:ring-primary outline-none cursor-pointer">
+                    <datalist [id]="'assign-list-' + process.id">
+                      <option value=""></option>
+                      @for (user of getAssignableUsers(process.nucleus); track user.id) {
+                        <option [value]="user.name"></option>
+                      }
+                    </datalist>
+                  </div>
+                } @else {
+                  <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-slate-400 text-sm">person</span>
+                    <span class="text-xs font-medium text-slate-600">{{ getUserName(process.assignedToId) }}</span>
+                  </div>
+                }
+              </td>
+              <td class="px-1 py-5">
+                <input type="date" [value]="process.assignmentDate" 
+                       (change)="updateFields(process, 'assignmentDate', $event)"
+                       class="w-24 bg-slate-50 border-none rounded-lg px-1 py-1 text-[10px] text-slate-500 focus:ring-2 focus:ring-primary outline-none">
+              </td>
+              <td class="px-1 py-5">
                 <div class="w-full min-w-[140px] relative">
                   <!-- Custom Dropdown Trigger -->
                   <button (click)="toggleStatusDropdown(process.id, $event)"
@@ -270,6 +298,11 @@
                 </div>
               </td>
               <td class="px-1 py-5">
+                <input type="date" [value]="process.completionDate" 
+                       (change)="updateFields(process, 'completionDate', $event)"
+                       class="w-24 bg-slate-50 border-none rounded-lg px-1 py-1 text-[10px] text-slate-500 focus:ring-2 focus:ring-primary outline-none">
+              </td>
+              <td class="px-1 py-5">
                 <div class="relative">
                   <span class="absolute left-1 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">R$</span>
                   <input type="text" 
@@ -285,44 +318,11 @@
                        placeholder="Nota..."
                        class="w-32 bg-slate-50 border-none rounded-lg px-2 py-1 text-xs text-slate-600 focus:ring-2 focus:ring-primary outline-none italic">
               </td>
-              <td class="px-1 py-5">
-                <input type="date" [value]="process.assignmentDate" 
-                       (change)="updateFields(process, 'assignmentDate', $event)"
-                       class="w-24 bg-slate-50 border-none rounded-lg px-1 py-1 text-[10px] text-slate-500 focus:ring-2 focus:ring-primary outline-none">
-              </td>
-              <td class="px-1 py-5">
-                <input type="date" [value]="process.completionDate" 
-                       (change)="updateFields(process, 'completionDate', $event)"
-                       class="w-24 bg-slate-50 border-none rounded-lg px-1 py-1 text-[10px] text-slate-500 focus:ring-2 focus:ring-primary outline-none">
-              </td>
-              <td class="px-1 py-5">
-                @if (canAssign()) {
-                  <div class="relative">
-                    <span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">person</span>
-                    <input type="text" [attr.list]="'assign-list-' + process.id"
-                           [placeholder]="getUserName(process.assignedToId)"
-                           [value]="getUserName(process.assignedToId) === 'Não atribuído' ? '' : getUserName(process.assignedToId)"
-                           (change)="handleAssignInput(process, $event)"
-                           class="w-full bg-slate-50 border-none rounded-lg pl-7 py-1.5 text-xs font-semibold text-slate-600 focus:ring-2 focus:ring-primary outline-none cursor-pointer">
-                    <datalist [id]="'assign-list-' + process.id">
-                      <option value=""></option>
-                      @for (user of getAssignableUsers(process.nucleus); track user.id) {
-                        <option [value]="user.name"></option>
-                      }
-                    </datalist>
-                  </div>
-                } @else {
-                  <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-slate-400 text-sm">person</span>
-                    <span class="text-xs font-medium text-slate-600">{{ getUserName(process.assignedToId) }}</span>
-                  </div>
-                }
-              </td>
             </tr>
           }
           @if (paginatedProcesses().length === 0 && !isLoading()) {
             <tr>
-              <td colspan="14" class="px-6 py-12 text-center text-slate-400">
+              <td colspan="13" class="px-6 py-12 text-center text-slate-400">
                 <span class="material-symbols-outlined text-4xl mb-2">folder_open</span>
                 <p>Nenhum processo encontrado para os critérios atuais.</p>
               </td>
