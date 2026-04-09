@@ -184,102 +184,118 @@
     <div class="overflow-x-auto">
       <table class="w-full text-left border-collapse">
         <thead>
-          <tr class="bg-white text-slate-500 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100">
-            <th class="px-2 py-4 text-center">Posição Geral</th>
-            <th class="px-2 py-4 text-center">Posição Prioridade</th>
-            <th class="px-2 py-4">Número do Processo</th>
-            <th class="px-2 py-4">Data de Remessa</th>
-            <th class="px-2 py-4">Vara</th>
-            <th class="px-2 py-4">Núcleo</th>
-            <th class="px-2 py-4">Prioridade</th>
-            <th class="px-2 py-4">Cumprimento</th>
-            <th class="px-2 py-4">Valor Custas</th>
-            <th class="px-2 py-4">Observação</th>
-            <th class="px-2 py-4">Atribuição</th>
-            <th class="px-2 py-4">Data de Cumprimento</th>
-            <th class="px-2 py-4">Atribuído a</th>
+          <tr class="bg-white text-slate-500 uppercase font-bold tracking-wider border-b border-slate-100">
+            <th class="px-1 py-4 text-center text-[10px]">Posição Geral</th>
+            <th class="px-1 py-4 text-center text-[10px]">Posição Prioridade</th>
+            <th class="px-1 py-4 text-[10px]">Número do Processo</th>
+            <th class="px-1 py-4 text-[10px]">Data de Remessa</th>
+            <th class="px-1 py-4 text-[10px]">Vara</th>
+            <th class="px-1 py-4 text-[10px]">Núcleo</th>
+            <th class="px-1 py-4 text-[10px]">Prioridade</th>
+            <th class="px-1 py-4 text-[10px]">Cumprimento</th>
+            <th class="px-1 py-4 text-[10px]">Valor Custas</th>
+            <th class="px-1 py-4 text-[10px]">Observação</th>
+            <th class="px-1 py-4 text-[10px]">Atribuição</th>
+            <th class="px-1 py-4 text-[10px]">Data de Cumprimento</th>
+            <th class="px-1 py-4 text-[10px]">Atribuído a</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-50" [class.opacity-50]="isLoading()">
           @for (process of paginatedProcesses(); track process.id) {
             <tr class="hover:bg-slate-50 transition-colors">
-              <td class="px-2 py-5 text-center font-bold text-slate-700">{{ process.position }}º</td>
-              <td class="px-2 py-5 text-center font-bold text-orange-500">
+              <td class="px-1 py-5 text-center font-bold text-slate-700 text-xs">{{ process.position }}º</td>
+              <td class="px-1 py-5 text-center font-bold text-orange-500 text-xs">
                 {{ process.priorityPosition ? process.priorityPosition + 'º' : '-' }}
               </td>
-              <td class="px-2 py-5 font-mono font-medium"
+              <td class="px-1 py-5 font-mono font-medium text-xs whitespace-nowrap"
                   [class.text-orange-500]="duplicateProcessIds().has(process.id)"
                   [class.text-slate-900]="!duplicateProcessIds().has(process.id)">
                 {{ process.number }}
               </td>
-              <td class="px-2 py-5 text-xs font-medium text-slate-600">{{ process.entryDate | date:'dd/MM/yyyy' }}</td>
-              <td class="px-2 py-5 text-xs text-slate-600">{{ process.court }}</td>
-              <td class="px-2 py-5 text-xs font-bold text-blue-600">{{ process.nucleus }}</td>
-              <td class="px-2 py-5">
+              <td class="px-1 py-5 text-xs font-medium text-slate-600">{{ process.entryDate | date:'dd/MM/yyyy' }}</td>
+              <td class="px-1 py-5 text-xs text-slate-600">{{ process.court }}</td>
+              <td class="px-1 py-5 text-xs font-bold text-blue-600">{{ process.nucleus }}</td>
+              <td class="px-1 py-5">
                 @if (canEditPriority()) {
-                  <select (change)="updateFields(process, 'priority', $event)"
-                          class="w-full text-[10px] font-bold py-1 px-2 rounded-lg border-none focus:ring-2 focus:ring-primary cursor-pointer appearance-none"
-                          [ngClass]="{
-                            'bg-purple-100 text-purple-700': process.priority.toUpperCase().includes('SUPER'),
-                            'bg-red-100 text-red-700': process.priority.toUpperCase().includes('LEGAL'),
-                            'bg-green-100 text-green-700': !process.priority.toUpperCase().includes('SUPER') && !process.priority.toUpperCase().includes('LEGAL')
-                          }">
-                    @for (p of prioridades(); track p.id) {
-                      <option [value]="p.nome" [selected]="process.priority === p.nome">{{ p.nome }}</option>
+                  <div class="w-full min-w-[120px] relative">
+                    <button (click)="togglePriorityDropdown(process.id, $event)"
+                            class="w-full text-[10px] font-bold py-1 px-2 rounded-full border-none focus:ring-2 focus:ring-primary cursor-pointer transition-all text-center flex items-center justify-center gap-1"
+                            [ngClass]="getPriorityClass(process.priority)">
+                      <span class="truncate">{{ process.priority }}</span>
+                      <mat-icon class="text-[14px] w-[14px] h-[14px]">expand_more</mat-icon>
+                    </button>
+
+                    @if (openPriorityDropdownId() === process.id) {
+                      <div class="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+                        @for (p of prioridades(); track p.id) {
+                          <button (click)="updatePriority(process, p.nome)"
+                                  class="w-full text-left px-3 py-2 text-[10px] font-bold transition-colors hover:brightness-95"
+                                  [ngClass]="getPriorityClass(p.nome)">
+                            {{ p.nome }}
+                          </button>
+                        }
+                      </div>
                     }
-                  </select>
+                  </div>
                 } @else {
-                  <span class="text-[9px] font-bold px-2 py-1 rounded-lg uppercase tracking-wider"
-                        [ngClass]="{
-                          'bg-purple-100 text-purple-700': process.priority.toUpperCase().includes('SUPER'),
-                          'bg-red-100 text-red-700': process.priority.toUpperCase().includes('LEGAL'),
-                          'bg-green-100 text-green-700': !process.priority.toUpperCase().includes('SUPER') && !process.priority.toUpperCase().includes('LEGAL')
-                        }">
-                    {{ stripPriorityPrefix(process.priority) }}
-                  </span>
+                  <div class="px-2 py-1 rounded-full text-[10px] font-bold text-center"
+                       [ngClass]="getPriorityClass(process.priority)">
+                    {{ process.priority }}
+                  </div>
                 }
               </td>
-              <td class="px-2 py-5">
-                <div class="w-full min-w-[120px]">
-                  <select (change)="updateStatus(process, $any($event.target).value)" 
+              <td class="px-1 py-5">
+                <div class="w-full min-w-[140px] relative">
+                  <!-- Custom Dropdown Trigger -->
+                  <button (click)="toggleStatusDropdown(process.id, $event)"
                           [disabled]="!canChangeStatus(process)"
-                          class="w-full text-[11px] font-bold py-1.5 px-3 rounded-lg border-none focus:ring-2 focus:ring-primary cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed appearance-none"
-                          [ngClass]="{
-                            'bg-amber-100 text-amber-800': process.status === 'Pendente',
-                            'bg-green-100 text-green-800': process.status === 'Cálculo Realizado',
-                            'bg-red-100 text-red-800': process.status === 'Devolvido sem Cálculo'
-                          }">
-                    @for (status of statusTipos(); track status.id) {
-                      <option [value]="status.nome" [selected]="process.status === status.nome">{{ status.nome }}</option>
-                    }
-                  </select>
+                          class="w-full text-[10px] font-bold py-1 px-3 rounded-full border-none focus:ring-2 focus:ring-primary cursor-pointer disabled:opacity-90 disabled:cursor-not-allowed transition-all text-center flex items-center justify-center gap-1"
+                          [ngClass]="getStatusClass(process.status)">
+                    <span>{{ process.status }}</span>
+                    <mat-icon class="text-[14px] w-[14px] h-[14px]">expand_more</mat-icon>
+                  </button>
+
+                  <!-- Custom Dropdown List -->
+                  @if (openStatusDropdownId() === process.id) {
+                    <div class="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+                      @for (status of statusTipos(); track status.id) {
+                        <button (click)="updateStatus(process, status.nome)"
+                                class="w-full text-left px-3 py-2 text-[10px] font-bold transition-colors hover:brightness-95"
+                                [ngClass]="getStatusClass(status.nome)">
+                          {{ status.nome }}
+                        </button>
+                      }
+                    </div>
+                  }
                 </div>
               </td>
-              <td class="px-2 py-5">
+              <td class="px-1 py-5">
                 <div class="relative">
                   <span class="absolute left-1 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">R$</span>
-                  <input type="number" [value]="process.valorCustas" 
+                  <input type="text" 
+                         [value]="formatCurrency(process.valorCustas)"
+                         (input)="maskCurrency($event)"
                          (change)="updateFields(process, 'valorCustas', $event)"
-                         class="w-20 bg-slate-50 border-none rounded-lg pl-6 py-1 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-primary outline-none">
+                         class="w-24 bg-slate-50 border-none rounded-lg pl-6 py-1 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-primary outline-none">
                 </div>
               </td>
-              <td class="px-2 py-5">
+              <td class="px-1 py-5">
                 <input type="text" [value]="process.observacao" 
                        (change)="updateFields(process, 'observacao', $event)"
                        placeholder="Nota..."
                        class="w-32 bg-slate-50 border-none rounded-lg px-2 py-1 text-xs text-slate-600 focus:ring-2 focus:ring-primary outline-none italic">
               </td>
-              <td class="px-2 py-5">
+              <td class="px-1 py-5">
                 <input type="date" [value]="process.assignmentDate" 
                        (change)="updateFields(process, 'assignmentDate', $event)"
                        class="w-24 bg-slate-50 border-none rounded-lg px-1 py-1 text-[10px] text-slate-500 focus:ring-2 focus:ring-primary outline-none">
               </td>
-              <td class="px-2 py-5">
+              <td class="px-1 py-5">
                 <input type="date" [value]="process.completionDate" 
                        (change)="updateFields(process, 'completionDate', $event)"
                        class="w-24 bg-slate-50 border-none rounded-lg px-1 py-1 text-[10px] text-slate-500 focus:ring-2 focus:ring-primary outline-none">
               </td>
-              <td class="px-2 py-5">
+              <td class="px-1 py-5">
                 @if (canAssign()) {
                   <div class="relative">
                     <span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">person</span>

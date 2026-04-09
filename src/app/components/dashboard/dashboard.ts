@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, signal, computed, inject, OnInit, effect} from '@angular/core';
+import {ChangeDetectionStrategy, Component, signal, computed, inject, OnInit, effect, HostListener} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {ReactiveFormsModule, FormGroup, FormControl} from '@angular/forms';
 import {MatIconModule} from '@angular/material/icon';
@@ -411,6 +411,11 @@ export class Dashboard implements OnInit {
     this.loadServerData();
   }
 
+  async updatePriority(process: Process, newPriority: string) {
+    await this.store.updateProcessFields(process.id, { priority: newPriority });
+    this.loadServerData();
+  }
+
   async assignProcess(process: Process, userId: string) {
     await this.store.assignProcess(process.id, userId);
     this.loadServerData();
@@ -425,9 +430,110 @@ export class Dashboard implements OnInit {
 
   async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate' | 'priority', event: Event) {
     const input = event.target as HTMLInputElement | HTMLSelectElement;
-    const value = field === 'valorCustas' ? parseFloat(input.value) : input.value;
-    await this.store.updateProcessFields(process.id, { [field]: value });
+    
+    if (field === 'valorCustas') {
+      const value = this.parseCurrency(input.value);
+      await this.store.updateProcessFields(process.id, { valorCustas: value });
+    } else {
+      await this.store.updateProcessFields(process.id, { [field]: input.value });
+    }
+    
     this.loadServerData();
+  }
+
+  formatCurrency(value: number | undefined): string {
+    if (value === undefined || value === null) return '0,00';
+    return new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
+  }
+
+  parseCurrency(value: string): number {
+    if (!value) return 0;
+    const cleanValue = value.replace(/\./g, '').replace(',', '.');
+    return parseFloat(cleanValue) || 0;
+  }
+
+  maskCurrency(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const value = input.value.replace(/\D/g, '');
+    if (value === '') {
+      input.value = '';
+      return;
+    }
+    const numberValue = parseInt(value, 10) / 100;
+    input.value = new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(numberValue);
+  }
+
+  openStatusDropdownId = signal<string | null>(null);
+  openPriorityDropdownId = signal<string | null>(null);
+
+  toggleStatusDropdown(id: string, event: Event) {
+    event.stopPropagation();
+    this.openPriorityDropdownId.set(null); // Close other dropdown
+    if (this.openStatusDropdownId() === id) {
+      this.openStatusDropdownId.set(null);
+    } else {
+      this.openStatusDropdownId.set(id);
+    }
+  }
+
+  togglePriorityDropdown(id: string, event: Event) {
+    event.stopPropagation();
+    this.openStatusDropdownId.set(null); // Close other dropdown
+    if (this.openPriorityDropdownId() === id) {
+      this.openPriorityDropdownId.set(null);
+    } else {
+      this.openPriorityDropdownId.set(id);
+    }
+  }
+
+  @HostListener('window:click')
+  closeDropdowns() {
+    this.openStatusDropdownId.set(null);
+    this.openPriorityDropdownId.set(null);
+  }
+
+  getStatusClass(status: string): string {
+    const greenStatuses = [
+      'Cálculo atualizado',
+      'Cálculo realizado',
+      'Devolvido: ausência de parâmetros',
+      'Devolvido: ausência de documentos para os cálculos',
+      'Devolvido: Beneficiário da Justiça Gratuita',
+      'Devolvido: Custas Satisfeitas',
+      'Devolvido: esclarecimento realizado',
+      'Partilha Realizada'
+    ];
+
+    if (status === 'Pendente') {
+      return 'bg-red-700 text-white';
+    }
+    if (status === 'Triagem do Gestor') {
+      return 'bg-amber-100 text-amber-800';
+    }
+    if (greenStatuses.includes(status)) {
+      return 'bg-green-100 text-green-800';
+    }
+    return 'bg-slate-100 text-slate-700';
+  }
+
+  getPriorityClass(priority: string): string {
+    const p = priority.toUpperCase();
+    if (p.includes('SUPER')) {
+      return 'bg-purple-600 text-white';
+    }
+    if (p.includes('LEGAL')) {
+      return 'bg-amber-100 text-amber-800';
+    }
+    if (p.includes('SEM PRIORIDADE')) {
+      return 'bg-green-100 text-green-800';
+    }
+    return 'bg-orange-100 text-orange-800';
   }
 
   async exportToExcel() {
