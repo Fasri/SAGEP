@@ -1835,10 +1835,11 @@ export class StoreService {
 
     const { data: unassignedProcessesData, error: procError } = await client
       .from('processes')
-      .select('id, number, position')
+      .select('id, number, position, priority')
       .ilike('nucleus', nucleusName)
       .eq('status', 'Pendente')
       .is('assigned_to_id', null)
+      .not('priority', 'ilike', '%SUPER%')
       .order('position', { ascending: true });
 
     if (procError) {
