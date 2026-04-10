@@ -26,6 +26,7 @@ export class Dashboard implements OnInit {
   nucleusFilter = signal('Todos');
   onlyAssignedToMe = signal(false);
   unassignedOnly = signal(false);
+  externalAccountantsOnly = signal(false);
   isFilterVisible = signal(true);
   currentPage = signal(1);
   pageSize = 20;
@@ -137,6 +138,7 @@ export class Dashboard implements OnInit {
     const nucleusFilter = this.nucleusFilter();
     const onlyAssignedToMe = this.onlyAssignedToMe();
     const unassignedOnly = this.unassignedOnly();
+    const externalAccountantsOnly = this.externalAccountantsOnly();
     const user = this.currentUser();
     const allUsers = this.users();
     const { startDate, endDate } = this.filterForm.value;
@@ -153,6 +155,12 @@ export class Dashboard implements OnInit {
 
       // Unassigned Only Filter
       if (unassignedOnly && p.assignedToId) return false;
+
+      // External Accountants Filter
+      if (externalAccountantsOnly && user) {
+        const assignedUser = allUsers.find(u => u.id === p.assignedToId);
+        if (!assignedUser || assignedUser.nucleus === user.nucleus) return false;
+      }
 
       // Date Filter
       if (startDate) {
@@ -219,6 +227,11 @@ export class Dashboard implements OnInit {
     try {
       const { startDate, endDate } = this.filterForm.value;
       
+      const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
+      const externalIds = this.users()
+        .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
+        .map(u => u.id);
+
       const result = await this.store.fetchPaginatedProcesses({
         page: this.currentPage(),
         pageSize: this.pageSize,
@@ -229,7 +242,8 @@ export class Dashboard implements OnInit {
         user: user,
         nucleusFilter: this.nucleusFilter(),
         onlyAssignedToMe: this.onlyAssignedToMe(),
-        unassignedOnly: this.unassignedOnly()
+        unassignedOnly: this.unassignedOnly(),
+        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined
       });
 
       this.serverProcesses.set(result.processes);
@@ -264,6 +278,7 @@ export class Dashboard implements OnInit {
   });
 
   filterForm = new FormGroup({
+    searchTerm: new FormControl(''),
     startDate: new FormControl(this.getDefaultStartDate()),
     endDate: new FormControl(this.getDefaultEndDate())
   });
@@ -284,13 +299,9 @@ export class Dashboard implements OnInit {
     this.loadServerData();
   }
 
-  onSearch(input: string) {
-    this.searchTerm.set(input);
-    this.currentPage.set(1);
-    this.loadServerData();
-  }
-
   applyFilters() {
+    const { searchTerm } = this.filterForm.value;
+    this.searchTerm.set(searchTerm || '');
     this.currentPage.set(1);
     this.loadServerData();
   }
@@ -301,10 +312,22 @@ export class Dashboard implements OnInit {
     this.loadServerData();
   }
 
+  toggleExternalAccountants() {
+    const newValue = !this.externalAccountantsOnly();
+    if (newValue) {
+      this.unassignedOnly.set(false);
+      this.onlyAssignedToMe.set(false);
+    }
+    this.externalAccountantsOnly.set(newValue);
+    this.currentPage.set(1);
+    this.loadServerData();
+  }
+
   toggleUnassignedOnly() {
     const newValue = !this.unassignedOnly();
     if (newValue) {
       this.onlyAssignedToMe.set(false);
+      this.externalAccountantsOnly.set(false);
     }
     this.unassignedOnly.set(newValue);
     this.currentPage.set(1);
@@ -315,6 +338,7 @@ export class Dashboard implements OnInit {
     const newValue = !this.onlyAssignedToMe();
     if (newValue) {
       this.unassignedOnly.set(false);
+      this.externalAccountantsOnly.set(false);
     }
     this.onlyAssignedToMe.set(newValue);
     this.currentPage.set(1);
@@ -477,6 +501,10 @@ export class Dashboard implements OnInit {
     this.isLoading.set(true);
     try {
       const { startDate, endDate } = this.filterForm.value;
+      const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
+      const externalIds = this.users()
+        .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
+        .map(u => u.id);
 
       const allProcesses = await this.store.fetchAllFilteredProcesses({
         searchTerm: this.searchTerm(),
@@ -486,7 +514,8 @@ export class Dashboard implements OnInit {
         user: user,
         nucleusFilter: this.nucleusFilter(),
         onlyAssignedToMe: this.onlyAssignedToMe(),
-        unassignedOnly: this.unassignedOnly()
+        unassignedOnly: this.unassignedOnly(),
+        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined
       });
 
       if (allProcesses.length === 0) {
