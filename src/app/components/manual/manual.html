@@ -1,0 +1,220 @@
+<div class="max-w-[98%] mx-auto px-4 py-8">
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold text-slate-900">Manual do Usuário - SAGEP</h1>
+    <p class="text-slate-500 mt-2">Guia de utilização do Sistema de Acompanhamento e Gestão de Processos por perfil de acesso.</p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+    <!-- Sidebar Navigation -->
+    <div class="lg:col-span-1">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden sticky top-24">
+        <div class="p-4 bg-slate-50 border-b border-slate-200">
+          <h2 class="font-bold text-slate-700 uppercase tracking-wider text-xs">Perfis de Acesso</h2>
+        </div>
+        <div class="p-2 space-y-1">
+          <button (click)="setTab('Geral')" 
+                  [class.bg-primary/10]="activeTab() === 'Geral'"
+                  [class.text-primary]="activeTab() === 'Geral'"
+                  class="w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-slate-50 flex items-center gap-3 cursor-pointer">
+            <span class="material-symbols-outlined">info</span>
+            Visão Geral
+          </button>
+          <button (click)="setTab('Administrador')" 
+                  [class.bg-primary/10]="activeTab() === 'Administrador'"
+                  [class.text-primary]="activeTab() === 'Administrador'"
+                  class="w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-slate-50 flex items-center gap-3 cursor-pointer">
+            <span class="material-symbols-outlined">admin_panel_settings</span>
+            Administrador / Coord.
+          </button>
+          <button (click)="setTab('Chefe')" 
+                  [class.bg-primary/10]="activeTab() === 'Chefe'"
+                  [class.text-primary]="activeTab() === 'Chefe'"
+                  class="w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-slate-50 flex items-center gap-3 cursor-pointer">
+            <span class="material-symbols-outlined">manager</span>
+            Chefe / Gerente
+          </button>
+          <button (click)="setTab('Contador Judicial')" 
+                  [class.bg-primary/10]="activeTab() === 'Contador Judicial'"
+                  [class.text-primary]="activeTab() === 'Contador Judicial'"
+                  class="w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-slate-50 flex items-center gap-3 cursor-pointer">
+            <span class="material-symbols-outlined">person</span>
+            Contador Judicial
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="lg:col-span-3">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 min-h-[600px]">
+        
+        <!-- Geral -->
+        @if (activeTab() === 'Geral') {
+          <div class="animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-3">
+              <span class="material-symbols-outlined text-primary">info</span>
+              Visão Geral do Sistema
+            </h2>
+            <div class="prose prose-slate max-w-none space-y-6">
+              <p class="text-slate-600 leading-relaxed">
+                O <strong>SAGEP</strong> é uma ferramenta desenvolvida para otimizar a gestão de processos judiciais na Contadoria do TJPE. O sistema permite o acompanhamento em tempo real da produtividade, distribuição equitativa de carga de trabalho e geração de relatórios estatísticos.
+              </p>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                <div class="p-6 rounded-2xl bg-slate-50 border border-slate-100">
+                  <h3 class="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-sm">login</span>
+                    Acesso
+                  </h3>
+                  <p class="text-sm text-slate-500">O acesso é realizado através da matrícula e senha. A senha padrão inicial é <code>123456</code>.</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-slate-50 border border-slate-100">
+                  <h3 class="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-sm">security</span>
+                    Segurança
+                  </h3>
+                  <p class="text-sm text-slate-500">Recomenda-se a alteração da senha no primeiro acesso através do ícone de chave no cabeçalho.</p>
+                </div>
+              </div>
+
+              <h3 class="text-lg font-bold text-slate-800 mt-8">Estrutura de Dados</h3>
+              <ul class="list-disc pl-6 space-y-2 text-slate-600">
+                <li><strong>Processos:</strong> Unidade básica de trabalho, contendo número, vara, núcleo e prioridade.</li>
+                <li><strong>Núcleos:</strong> Divisões administrativas da Contadoria (ex: 1ª CC, 2ª CCJ).</li>
+                <li><strong>Status:</strong> Ciclo de vida do processo (Pendente, Em andamento, Concluído, etc).</li>
+              </ul>
+            </div>
+          </div>
+        }
+
+        <!-- Administrador / Coordenador / Supervisor -->
+        @if (activeTab() === 'Administrador') {
+          <div class="animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-3">
+              <span class="material-symbols-outlined text-primary">admin_panel_settings</span>
+              Manual: Administrador, Coordenador e Supervisor
+            </h2>
+            <div class="space-y-8">
+              <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">1. Gestão de Contadores</h3>
+                <p class="text-slate-600 mb-4">Acesse o menu <strong>Contadores</strong> para gerenciar a equipe de todos os núcleos.</p>
+                <ul class="list-disc pl-6 space-y-2 text-slate-600 text-sm">
+                  <li><strong>Cadastrar:</strong> Insira novos usuários definindo matrícula, nome, e-mails, núcleo e meta.</li>
+                  <li><strong>Editar:</strong> Atualize informações ou mude o núcleo de atuação de um contador.</li>
+                  <li><strong>Ativar/Desativar:</strong> Contadores desativados não recebem novos processos na distribuição automática.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">2. Importação de Processos</h3>
+                <p class="text-slate-600 mb-4">No menu <strong>Adicionar Processos</strong>, você pode carregar planilhas Excel extraídas do PJe.</p>
+                <div class="bg-amber-50 p-4 rounded-xl border border-amber-100 text-sm text-amber-800">
+                  <strong>Dica:</strong> O sistema normaliza automaticamente as prioridades e núcleos durante a importação.
+                </div>
+              </section>
+
+              <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">3. Distribuição Automática</h3>
+                <p class="text-slate-600 mb-4">No Dashboard, utilize o botão <strong>Atribuição Automática</strong>.</p>
+                <ul class="list-disc pl-6 space-y-2 text-slate-600 text-sm">
+                  <li>Selecione um núcleo no filtro.</li>
+                  <li>Escolha quais contadores participarão da rodada de distribuição.</li>
+                  <li>O sistema distribuirá os processos pendentes de forma equitativa, respeitando a ordem de entrada.</li>
+                  <li><strong>Nota:</strong> Processos com "Super prioridade" são ignorados pela distribuição automática para tratamento manual.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">4. Auditoria e Relatórios</h3>
+                <ul class="list-disc pl-6 space-y-2 text-slate-600 text-sm">
+                  <li><strong>Auditoria:</strong> Acompanhe todas as ações críticas realizadas no sistema (quem atribuiu, quem mudou status, etc).</li>
+                  <li><strong>Relatórios:</strong> Gere estatísticas de produtividade por núcleo ou por contador para períodos específicos.</li>
+                </ul>
+              </section>
+            </div>
+          </div>
+        }
+
+        <!-- Chefe / Gerente -->
+        @if (activeTab() === 'Chefe') {
+          <div class="animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-3">
+              <span class="material-symbols-outlined text-primary">manager</span>
+              Manual: Chefe e Gerente
+            </h2>
+            <div class="space-y-8">
+              <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">1. Gestão do Núcleo</h3>
+                <p class="text-slate-600 mb-4">Sua visão é focada nos processos e contadores do seu núcleo de lotação.</p>
+                <ul class="list-disc pl-6 space-y-2 text-slate-600 text-sm">
+                  <li><strong>Visualização:</strong> Você enxerga todos os processos do seu núcleo, mesmo os não atribuídos.</li>
+                  <li><strong>Contadores:</strong> Visualize a lista de contadores do seu núcleo e suas respectivas metas.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">2. Atribuição de Processos</h3>
+                <p class="text-slate-600 mb-4">Você é responsável por garantir que a carga de trabalho do seu núcleo esteja bem distribuída.</p>
+                <ul class="list-disc pl-6 space-y-2 text-slate-600 text-sm">
+                  <li><strong>Atribuição Manual:</strong> Clique no campo "Contador" em qualquer processo pendente do seu núcleo para atribuí-lo.</li>
+                  <li><strong>Atribuição Automática:</strong> Execute a distribuição entre os contadores ativos do seu núcleo.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">3. Monitoramento</h3>
+                <p class="text-slate-600 mb-4">Acompanhe o status dos processos (Pendente, Em andamento, Devolvido) para identificar gargalos no núcleo.</p>
+              </section>
+            </div>
+          </div>
+        }
+
+        <!-- Contador Judicial -->
+        @if (activeTab() === 'Contador Judicial') {
+          <div class="animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-3">
+              <span class="material-symbols-outlined text-primary">person</span>
+              Manual: Contador Judicial
+            </h2>
+            <div class="space-y-8">
+              <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">1. Meu Dashboard</h3>
+                <p class="text-slate-600 mb-4">Ao logar, você verá apenas os processos que foram atribuídos a você.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-center">
+                    <div class="text-2xl font-bold text-emerald-700">Concluídos</div>
+                    <div class="text-xs text-emerald-600 uppercase font-bold">Produtividade</div>
+                  </div>
+                  <div class="p-4 rounded-xl bg-amber-50 border border-amber-100 text-center">
+                    <div class="text-2xl font-bold text-amber-700">Pendentes</div>
+                    <div class="text-xs text-amber-600 uppercase font-bold">Carga Atual</div>
+                  </div>
+                  <div class="p-4 rounded-xl bg-blue-50 border border-blue-100 text-center">
+                    <div class="text-2xl font-bold text-blue-700">Meta</div>
+                    <div class="text-xs text-blue-600 uppercase font-bold">Objetivo Mensal</div>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">2. Atualização de Processos</h3>
+                <p class="text-slate-600 mb-4">É fundamental manter seus processos atualizados para o cálculo correto das estatísticas.</p>
+                <ul class="list-disc pl-6 space-y-2 text-slate-600 text-sm">
+                  <li><strong>Status:</strong> Altere para "Em andamento" ao iniciar o trabalho e para "Concluído" ao finalizar no PJe.</li>
+                  <li><strong>Custas:</strong> Insira o valor das custas calculadas, se aplicável.</li>
+                  <li><strong>Observações:</strong> Utilize este campo para anotações importantes sobre o processo.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">3. Filtros e Busca</h3>
+                <p class="text-slate-600 mb-4">Utilize a barra de busca para encontrar processos específicos pelo número ou vara.</p>
+              </section>
+            </div>
+          </div>
+        }
+
+      </div>
+    </div>
+  </div>
+</div>

@@ -1499,6 +1499,16 @@ export class StoreService {
     const createdAt = process.createdAt || today;
     
     try {
+      // Get the next position
+      const { data: maxPosData } = await client
+        .from('processes')
+        .select('position')
+        .order('position', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      const nextPosition = (maxPosData?.position || 0) + 1;
+
       // Manual check for (number, entry_date, nucleus) to respect the rule:
       // "se o numero do processo for igual mas data ou núcleo diferente copiar, se tiver tudo igual não copiar"
       const { data: existing, error: checkError } = await client
@@ -1518,6 +1528,7 @@ export class StoreService {
       }
 
       const { data, error } = await client.from('processes').insert([{
+        position: nextPosition,
         number: this.fixEncoding(process.number),
         entry_date: process.entryDate,
         court: this.fixEncoding(process.court),
@@ -1690,6 +1701,16 @@ export class StoreService {
     };
 
     const today = new Date().toLocaleDateString('en-CA');
+    
+    // Get the current max position to increment for new processes
+    const { data: maxPosData } = await client
+      .from('processes')
+      .select('position')
+      .order('position', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    let nextPosition = (maxPosData?.position || 0) + 1;
     const processesToInsert: Record<string, unknown>[] = [];
     
     // Create a map of user names to IDs for fast lookup
@@ -1753,6 +1774,7 @@ export class StoreService {
       }
 
       processesToInsert.push({
+        position: nextPosition++,
         number,
         entry_date: entryDate,
         court,
