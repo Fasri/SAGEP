@@ -245,9 +245,9 @@
                 }
               </td>
               <td class="px-1 py-5">
-                <input type="date" [value]="process.assignmentDate" 
-                       (change)="updateFields(process, 'assignmentDate', $event)"
-                       class="w-24 bg-slate-50 border-none rounded-lg px-1 py-1 text-[10px] text-slate-500 focus:ring-2 focus:ring-primary outline-none">
+                <div class="text-[10px] text-slate-500 font-medium text-center">
+                  {{ process.assignmentDate ? (process.assignmentDate | date:'dd/MM/yyyy') : '-' }}
+                </div>
               </td>
               <td class="px-1 py-5">
                 <div class="w-full min-w-[140px] relative">
@@ -275,9 +275,9 @@
                 </div>
               </td>
               <td class="px-1 py-5">
-                <input type="date" [value]="process.completionDate" 
-                       (change)="updateFields(process, 'completionDate', $event)"
-                       class="w-24 bg-slate-50 border-none rounded-lg px-1 py-1 text-[10px] text-slate-500 focus:ring-2 focus:ring-primary outline-none">
+                <div class="text-[10px] text-slate-500 font-medium text-center">
+                  {{ process.completionDate ? (process.completionDate | date:'dd/MM/yyyy') : '-' }}
+                </div>
               </td>
               <td class="px-1 py-5">
                 <div class="relative">

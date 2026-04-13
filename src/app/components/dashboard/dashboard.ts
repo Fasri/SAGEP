@@ -386,7 +386,7 @@ export class Dashboard implements OnInit {
     return privilegedRoles.includes(user.role);
   }
 
-  async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate' | 'priority', event: Event) {
+  async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'priority', event: Event) {
     const input = event.target as HTMLInputElement | HTMLSelectElement;
     
     if (field === 'valorCustas') {

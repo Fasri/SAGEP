@@ -732,7 +732,7 @@ export class StoreService {
     this.currentUser.set(null);
   }
 
-  async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao' | 'assignmentDate' | 'completionDate' | 'priority'>>) {
+  async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao' | 'priority'>>) {
     console.log('StoreService: Updating process fields...', { processId, fields });
     
     let oldProcess = this.processes().find(p => p.id === processId);
@@ -769,8 +769,6 @@ export class StoreService {
       const updateData: Record<string, string | number | null> = {};
       if (fields.valorCustas !== undefined) updateData['valor_custas'] = fields.valorCustas;
       if (fields.observacao !== undefined) updateData['observacao'] = fields.observacao;
-      if (fields.assignmentDate !== undefined) updateData['assignment_date'] = fields.assignmentDate;
-      if (fields.completionDate !== undefined) updateData['completion_date'] = fields.completionDate;
       if (fields.priority !== undefined) updateData['priority'] = fields.priority;
 
       const { error } = await client.from('processes').update(updateData).eq('id', processId);
@@ -1487,14 +1485,9 @@ export class StoreService {
     
     const today = new Date().toLocaleDateString('en-CA');
     
-    // Use provided dates or calculate them
-    const assignmentDate = (process.assignmentDate && process.assignmentDate !== '')
-      ? process.assignmentDate 
-      : (process.assignedToId ? today : null);
-      
-    const completionDate = (process.completionDate && process.completionDate !== '')
-      ? process.completionDate 
-      : (process.status !== 'Pendente' ? today : null);
+    // Dates are now fully automatic
+    const assignmentDate = process.assignedToId ? today : null;
+    const completionDate = normalizedStatus !== 'Pendente' ? today : null;
     
     const createdAt = process.createdAt || today;
     

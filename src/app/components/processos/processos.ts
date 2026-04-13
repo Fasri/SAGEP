@@ -125,18 +125,6 @@ import {read, utils, writeFile} from 'xlsx';
                        class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all" />
               </div>
 
-              <div class="flex flex-col gap-2">
-                <label for="assignmentDate" class="text-sm font-bold text-slate-700">Data de Atribuição</label>
-                <input id="assignmentDate" formControlName="assignmentDate" type="date"
-                       class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all" />
-              </div>
-
-              <div class="flex flex-col gap-2">
-                <label for="completionDate" class="text-sm font-bold text-slate-700">Data de Conclusão</label>
-                <input id="completionDate" formControlName="completionDate" type="date"
-                       class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all" />
-              </div>
-
               <div class="flex flex-col gap-2 md:col-span-2">
                 <label for="observacao" class="text-sm font-bold text-slate-700">Observação</label>
                 <textarea id="observacao" formControlName="observacao" rows="3"
@@ -228,8 +216,6 @@ export class Processos {
     status: new FormControl('Pendente', Validators.required),
     assignedToId: new FormControl<string | null>(null),
     valorCustas: new FormControl(0),
-    assignmentDate: new FormControl<string | null>(null),
-    completionDate: new FormControl<string | null>(null),
     observacao: new FormControl('')
   });
 
@@ -277,8 +263,6 @@ export class Processos {
           status: val.status!,
           assignedToId: val.assignedToId || null,
           valorCustas: val.valorCustas || 0,
-          assignmentDate: val.assignmentDate || null,
-          completionDate: val.completionDate || null,
           observacao: val.observacao || '',
           createdAt: new Date().toISOString().split('T')[0]
         });
@@ -290,8 +274,6 @@ export class Processos {
           priority: '2-Sem prioridade',
           assignedToId: null,
           valorCustas: 0,
-          assignmentDate: null,
-          completionDate: null,
           observacao: ''
         });
         setTimeout(() => this.successMessage.set(''), 3000);
