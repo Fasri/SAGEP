@@ -121,6 +121,7 @@ export class StoreService {
   // Auth State
   currentUser = signal<User | null>(null);
   isSupabaseConnected = signal<boolean>(false);
+  lastEtlUpdate = signal<Date | null>(null);
   recalculationProgress = signal<number>(0);
   autoAssignProgress = signal<{ current: number, total: number } | null>(null);
 
@@ -293,6 +294,7 @@ export class StoreService {
 
       // Fetch counts for stats
       this.updateGlobalStats();
+      this.fetchLastEtlUpdate();
       
       console.log('StoreService: Fetching users from Supabase...');
       const { data: users, error: usersError } = await client.from('users').select('*');
@@ -1380,6 +1382,31 @@ export class StoreService {
         console.error('StoreService: Error updating global stats:', e);
       }
     }, 500); // 500ms debounce
+  }
+
+  async fetchLastEtlUpdate() {
+    const client = getSupabase();
+    if (!client) return;
+
+    const etlUserId = '7a78bb7f-42d4-4ea0-9100-54faff68b72e';
+    
+    try {
+      const { data, error } = await client
+        .from('audit_logs')
+        .select('created_at')
+        .eq('user_id', etlUserId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('StoreService: Error fetching last ETL update:', error);
+      } else if (data) {
+        this.lastEtlUpdate.set(new Date(data.created_at));
+      }
+    } catch (e) {
+      console.error('StoreService: Unexpected error fetching last ETL update:', e);
+    }
   }
 
   private async ensureStatusExists(client: SupabaseClient, statusName: string) {

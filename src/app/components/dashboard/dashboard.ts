@@ -20,6 +20,7 @@ export class Dashboard implements OnInit {
   users = this.store.users;
   statusTipos = this.store.statusTipos;
   autoAssignProgress = this.store.autoAssignProgress;
+  lastEtlUpdate = this.store.lastEtlUpdate;
 
   searchTerm = signal('');
   statusFilter = signal<'Pendente' | 'Todos'>('Pendente');

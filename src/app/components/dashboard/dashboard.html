@@ -5,6 +5,14 @@
       <div>
         <h1 class="text-2xl font-bold text-slate-900">Dashboard de Processos</h1>
         <p class="text-slate-500">SAGEP – Sistema de Acompanhamento e Gestão de Processos</p>
+        <div class="flex flex-col gap-0.5 mt-1">
+          @if (lastEtlUpdate()) {
+            <p class="text-[10px] text-slate-400 flex items-center gap-1">
+              <span class="material-symbols-outlined text-[12px]">auto_mode</span>
+              Última carga automática (ETL): {{ lastEtlUpdate() | date:'dd/MM/yyyy HH:mm' }}
+            </p>
+          }
+        </div>
       </div>
       <div class="flex items-center gap-3">
         <button (click)="isFilterVisible.set(!isFilterVisible())" 
