@@ -102,6 +102,11 @@
             Aplicar
           </button>
 
+          <button type="button" (click)="clearFilters()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer">
+            <span class="material-symbols-outlined text-sm">restart_alt</span>
+            Limpar
+          </button>
+
           <button type="button" (click)="exportToExcel()" [disabled]="isLoading()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
             <span class="material-symbols-outlined text-sm">{{ isLoading() ? 'sync' : 'download' }}</span>
             Excel
@@ -118,6 +123,13 @@
                     [class.shadow-md]="statusFilter() === 'Pendente'"
                     class="px-6 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer">
               Pendentes
+            </button>
+            <button (click)="setStatusFilter('Devolvidos')" 
+                    [class.bg-amber-500]="statusFilter() === 'Devolvidos'"
+                    [class.text-white]="statusFilter() === 'Devolvidos'"
+                    [class.shadow-md]="statusFilter() === 'Devolvidos'"
+                    class="px-6 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer">
+              Devolvidos
             </button>
             <button (click)="setStatusFilter('Todos')" 
                     [class.bg-emerald-600]="statusFilter() === 'Todos'"

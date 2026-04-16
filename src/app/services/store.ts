@@ -319,12 +319,12 @@ export class StoreService {
         })));
       }
 
-      console.log('StoreService: Fetching processes from Supabase (limited to 100)...');
+      console.log('StoreService: Fetching processes from Supabase (limited to 5000)...');
       const { data: processes, error: processesError } = await client.from('vw_processes')
         .select('*')
-        .order('priority_level', { ascending: true })
+        .order('priority', { ascending: true })
         .order('position', { ascending: true })
-        .limit(100);
+        .limit(5000);
       
       if (processesError) {
         console.error('StoreService: Error fetching processes:', processesError);
@@ -336,7 +336,7 @@ export class StoreService {
           position: Number(p['position'] || 0),
           priorityPosition: p['priority_position'] ? Number(p['priority_position']) : null,
           number: String(p['number'] || ''),
-          entryDate: String(p['entry_date'] || new Date().toLocaleDateString('en-CA')),
+          entryDate: this.normalizeDate(String(p['entry_date'] || '')),
           court: String(p['court'] || ''),
           nucleus: String(p['nucleus'] || 'GERAL'),
           priority: this.normalizePriority(String(p['priority'] || '2-Sem prioridade')),
@@ -440,6 +440,20 @@ export class StoreService {
     // Both Super and Legal should have a priority position
     // Check for prefixes as well (1- or 2- for legal)
     return p.includes('SUPER') || p.includes('LEGAL') || p.startsWith('1-') || p.startsWith('2-PRIORIDADE');
+  }
+
+  private normalizeDate(dateStr: string): string {
+    if (!dateStr) return new Date().toLocaleDateString('en-CA');
+    // If it's already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      return dateStr.split('T')[0];
+    }
+    // If it's DD/MM/YYYY
+    const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (match) {
+      return `${match[3]}-${match[2]}-${match[1]}`;
+    }
+    return dateStr.split('T')[0] || new Date().toLocaleDateString('en-CA');
   }
 
   private normalizePriority(name: string): string {
@@ -1050,18 +1064,30 @@ export class StoreService {
     const client = getSupabase();
     if (!client) return { processes: [], totalCount: 0 };
 
+    console.log('StoreService: fetchPaginatedProcesses options:', {
+      page: options.page,
+      status: options.statusFilter,
+      start: options.startDate,
+      end: options.endDate,
+      onlyMe: options.onlyAssignedToMe,
+      userId: options.user.id
+    });
     let query = client.from('vw_processes').select('*', { count: 'exact' });
 
     // Role-based visibility (Base restriction)
-    if (options.user.role === 'Chefe' || options.user.role === 'Gerente') {
-      query = query.or(`nucleus.ilike."${options.user.nucleus}",assigned_to_id.eq."${options.user.id}"`);
+    if (options.user.role === 'Administrador' || options.user.role === 'Coordenador' || options.user.role === 'Supervisor') {
+      // No restriction
     } else if (options.user.role === 'Contador Judicial') {
       query = query.eq('assigned_to_id', options.user.id);
+    } else {
+      // For Chefe, Gerente and others, restrict to their nucleus OR assigned to them
+      const nucleus = options.user.nucleus || '';
+      query = query.or(`nucleus.eq."${nucleus}",assigned_to_id.eq.${options.user.id}`);
     }
 
     // Nucleus Filter (for Coordenador/Supervisor/Admin who see all by default)
     if (options.nucleusFilter && options.nucleusFilter !== 'Todos') {
-      query = query.ilike('nucleus', options.nucleusFilter);
+      query = query.eq('nucleus', options.nucleusFilter);
     }
 
     // Only Assigned To Me Filter (for roles that can see more than just their own)
@@ -1089,8 +1115,14 @@ export class StoreService {
     }
 
     // Status Filter
-    if (options.statusFilter === 'Pendente') {
-      query = query.ilike('status', 'Pendente');
+    if (options.statusFilter && options.statusFilter !== 'Todos') {
+      if (options.statusFilter === 'Devolvidos') {
+        query = query.not('status', 'ilike', 'Pendente%');
+      } else {
+        // Use wildcard for Pendente to be more inclusive
+        const filterValue = options.statusFilter === 'Pendente' ? 'Pendente%' : options.statusFilter;
+        query = query.ilike('status', filterValue);
+      }
     }
 
     // Search Term
@@ -1109,17 +1141,19 @@ export class StoreService {
 
     // Date Filters
     if (options.startDate) {
-      query = query.gte('entry_date', options.startDate);
+      const start = options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`;
+      query = query.gte('entry_date', start);
     }
     if (options.endDate) {
-      query = query.lte('entry_date', options.endDate);
+      const end = options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`;
+      query = query.lte('entry_date', end);
     }
 
     // Pagination
     const from = (options.page - 1) * options.pageSize;
     const to = from + options.pageSize - 1;
     
-    // CRITICAL: Sort by priority_level (1 for Super, 2 for others) then by position
+    // Sort by priority_level then by position
     query = query.range(from, to)
       .order('priority_level', { ascending: true })
       .order('position', { ascending: true, nullsFirst: false });
@@ -1136,7 +1170,7 @@ export class StoreService {
       position: Number(p['position']),
       priorityPosition: p['priority_position'] ? Number(p['priority_position']) : null,
       number: String(p['number']),
-      entryDate: String(p['entry_date']),
+      entryDate: String(p['entry_date'] || '').split('T')[0],
       court: String(p['court']),
       nucleus: String(p['nucleus']),
       priority: this.normalizePriority(String(p['priority'])),
@@ -1169,15 +1203,19 @@ export class StoreService {
     let query = client.from('vw_processes').select('*');
 
     // Role-based visibility (Base restriction)
-    if (options.user.role === 'Chefe' || options.user.role === 'Gerente') {
-      query = query.or(`nucleus.ilike."${options.user.nucleus}",assigned_to_id.eq."${options.user.id}"`);
+    if (options.user.role === 'Administrador' || options.user.role === 'Coordenador' || options.user.role === 'Supervisor') {
+      // No restriction
     } else if (options.user.role === 'Contador Judicial') {
       query = query.eq('assigned_to_id', options.user.id);
+    } else {
+      // For Chefe, Gerente and others, restrict to their nucleus OR assigned to them
+      const nucleus = options.user.nucleus || '';
+      query = query.or(`nucleus.eq."${nucleus}",assigned_to_id.eq.${options.user.id}`);
     }
 
     // Nucleus Filter
     if (options.nucleusFilter && options.nucleusFilter !== 'Todos') {
-      query = query.ilike('nucleus', options.nucleusFilter);
+      query = query.eq('nucleus', options.nucleusFilter);
     }
 
     // Only Assigned To Me Filter
@@ -1203,8 +1241,14 @@ export class StoreService {
     }
 
     // Status Filter
-    if (options.statusFilter === 'Pendente') {
-      query = query.ilike('status', 'Pendente');
+    if (options.statusFilter && options.statusFilter !== 'Todos') {
+      if (options.statusFilter === 'Devolvidos') {
+        query = query.not('status', 'ilike', 'Pendente%');
+      } else {
+        // Use wildcard for Pendente to be more inclusive
+        const filterValue = options.statusFilter === 'Pendente' ? 'Pendente%' : options.statusFilter;
+        query = query.ilike('status', filterValue);
+      }
     }
 
     // Search Term
@@ -1223,10 +1267,12 @@ export class StoreService {
 
     // Date Filters
     if (options.startDate) {
-      query = query.gte('entry_date', options.startDate);
+      const start = options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`;
+      query = query.gte('entry_date', start);
     }
     if (options.endDate) {
-      query = query.lte('entry_date', options.endDate);
+      const end = options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`;
+      query = query.lte('entry_date', end);
     }
 
     // Sort by priority_level then by position
@@ -1246,7 +1292,7 @@ export class StoreService {
       position: Number(p['position']),
       priorityPosition: p['priority_position'] ? Number(p['priority_position']) : null,
       number: String(p['number']),
-      entryDate: String(p['entry_date']),
+      entryDate: String(p['entry_date'] || '').split('T')[0],
       court: String(p['court']),
       nucleus: String(p['nucleus']),
       priority: this.normalizePriority(String(p['priority'])),
@@ -1264,7 +1310,7 @@ export class StoreService {
     if (!client) return null;
     
     const { data, error } = await client
-      .from('vw_processes')
+      .from('processes')
       .select('entry_date')
       .order('entry_date', { ascending: true })
       .limit(1)
@@ -1287,13 +1333,13 @@ export class StoreService {
     if (!client) return { userStats: [], pendingCount: 0, unassignedCount: 0 };
 
     // Base query for all processes in the scope
-    let query = client.from('vw_processes').select('assigned_to_id, status, entry_date');
+    let query = client.from('processes').select('assigned_to_id, status, entry_date');
 
     // Apply role-based and nucleus filters
     if (filters.user.role === 'Chefe' || filters.user.role === 'Gerente') {
-       query = query.ilike('nucleus', filters.user.nucleus);
+       query = query.eq('nucleus', filters.user.nucleus);
     } else if (filters.nucleus && filters.nucleus !== 'Todos') {
-       query = query.ilike('nucleus', filters.nucleus);
+       query = query.eq('nucleus', filters.nucleus);
     }
 
     if (filters.startDate) query = query.gte('entry_date', filters.startDate);
@@ -1351,17 +1397,17 @@ export class StoreService {
         const getCount = async (status: string | null) => {
           try {
             let q = client.from('processes').select('*', { count: 'exact', head: true });
-            if (status) q = q.ilike('status', status);
+            if (status) q = q.eq('status', status);
             
             if (user.role === 'Chefe' || user.role === 'Gerente') {
-              q = q.ilike('nucleus', user.nucleus);
+              q = q.eq('nucleus', user.nucleus);
             } else if (user.role === 'Contador Judicial') {
               q = q.eq('assigned_to_id', user.id);
             }
             
             const { count, error } = await q;
             if (error) {
-              console.error(`StoreService: Error getting count for ${status}:`, error.message);
+              console.error(`StoreService: Error getting count for ${status}:`, error);
               return 0;
             }
             return count || 0;
@@ -1878,7 +1924,7 @@ export class StoreService {
     const { data: unassignedProcessesData, error: procError } = await client
       .from('processes')
       .select('id, number, position, priority')
-      .ilike('nucleus', nucleusName)
+      .eq('nucleus', nucleusName)
       .eq('status', 'Pendente')
       .is('assigned_to_id', null)
       .not('priority', 'ilike', '%SUPER%')

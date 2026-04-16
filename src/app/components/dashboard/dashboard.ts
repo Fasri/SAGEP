@@ -1,4 +1,5 @@
-import {ChangeDetectionStrategy, Component, signal, computed, inject, OnInit, effect, HostListener} from '@angular/core';
+import {ChangeDetectionStrategy, Component, signal, computed, inject, effect, HostListener, untracked} from '@angular/core';
+import {toSignal} from '@angular/core/rxjs-interop';
 import {CommonModule} from '@angular/common';
 import {ReactiveFormsModule, FormGroup, FormControl} from '@angular/forms';
 import {MatIconModule} from '@angular/material/icon';
@@ -12,7 +13,7 @@ import * as XLSX from 'xlsx';
   imports: [CommonModule, ReactiveFormsModule, MatIconModule],
   templateUrl: './dashboard.html',
 })
-export class Dashboard implements OnInit {
+export class Dashboard {
   private store = inject(StoreService);
 
   currentUser = this.store.currentUser;
@@ -23,7 +24,7 @@ export class Dashboard implements OnInit {
   lastEtlUpdate = this.store.lastEtlUpdate;
 
   searchTerm = signal('');
-  statusFilter = signal<'Pendente' | 'Todos'>('Pendente');
+  statusFilter = signal<'Pendente' | 'Todos' | 'Devolvidos'>('Pendente');
   nucleusFilter = signal('Todos');
   onlyAssignedToMe = signal(false);
   unassignedOnly = signal(false);
@@ -34,6 +35,16 @@ export class Dashboard implements OnInit {
   
   nucleos = this.store.nucleos;
   prioridades = this.store.prioridades;
+  
+  filterForm = new FormGroup({
+    searchTerm: new FormControl(''),
+    startDate: new FormControl(this.getDefaultStartDate()),
+    endDate: new FormControl(this.getDefaultEndDate())
+  });
+
+  formValue = toSignal(this.filterForm.valueChanges, {
+    initialValue: this.filterForm.value
+  });
 
   // Identify processes with same number and nucleus but different dates
   // We only mark them as duplicates if they are both visible in the current view (paginated)
@@ -78,15 +89,20 @@ export class Dashboard implements OnInit {
     const all = this.processes();
     if (!user) return [];
 
-    return all.filter(p => {
+    const res = all.filter(p => {
       if (user.role === 'Administrador' || user.role === 'Coordenador' || user.role === 'Supervisor') {
         return true;
       } else if (user.role === 'Contador Judicial') {
         return p.assignedToId === user.id;
       } else {
-        return p.nucleus === user.nucleus || p.assignedToId === user.id;
+        // Use normalized comparison for nucleus to handle encoding issues
+        const pNucleus = p.nucleus?.trim().toUpperCase() || '';
+        const uNucleus = user.nucleus?.trim().toUpperCase() || '';
+        return pNucleus === uNucleus || p.assignedToId === user.id;
       }
     });
+    console.log('Dashboard: visibleProcesses count:', res.length, 'Total processes:', all.length);
+    return res;
   });
 
   // Dashboard Stats
@@ -97,6 +113,18 @@ export class Dashboard implements OnInit {
   selectedAutoAssignUserIds = signal<string[]>([]);
   totalFilteredCount = signal(0);
   serverProcesses = signal<Process[]>([]);
+  hasLoadedServerData = signal(false);
+
+  appliedFilters = signal({
+    searchTerm: '',
+    startDate: '2020-01-01',
+    endDate: this.getDefaultEndDate(),
+    status: 'Pendente' as 'Pendente' | 'Todos' | 'Devolvidos',
+    nucleus: 'Todos',
+    onlyAssignedToMe: false,
+    unassignedOnly: false,
+    externalAccountantsOnly: false
+  });
 
   stats = computed(() => {
     const serverStats = this.store.globalStats();
@@ -134,22 +162,28 @@ export class Dashboard implements OnInit {
   }
 
   filteredProcesses = computed(() => {
-    const term = this.searchTerm().toLowerCase();
-    const status = this.statusFilter();
-    const nucleusFilter = this.nucleusFilter();
-    const onlyAssignedToMe = this.onlyAssignedToMe();
-    const unassignedOnly = this.unassignedOnly();
-    const externalAccountantsOnly = this.externalAccountantsOnly();
+    const filters = this.appliedFilters();
+    const term = filters.searchTerm.toLowerCase();
+    const status = filters.status;
+    const nucleusFilter = filters.nucleus;
+    const onlyAssignedToMe = filters.onlyAssignedToMe;
+    const unassignedOnly = filters.unassignedOnly;
+    const externalAccountantsOnly = filters.externalAccountantsOnly;
     const user = this.currentUser();
     const allUsers = this.users();
-    const { startDate, endDate } = this.filterForm.value;
+    const startDate = filters.startDate;
+    const endDate = filters.endDate;
     
     const filtered = this.visibleProcesses().filter(p => {
       // Status Filter
       if (status === 'Pendente' && p.status !== 'Pendente') return false;
 
       // Nucleus Filter
-      if (nucleusFilter !== 'Todos' && p.nucleus !== nucleusFilter) return false;
+      if (nucleusFilter !== 'Todos') {
+        const pNucleus = p.nucleus?.trim().toUpperCase() || '';
+        const fNucleus = nucleusFilter.trim().toUpperCase();
+        if (pNucleus !== fNucleus) return false;
+      }
 
       // Assigned To Me Filter
       if (onlyAssignedToMe && user && p.assignedToId !== user.id) return false;
@@ -163,17 +197,14 @@ export class Dashboard implements OnInit {
         if (!assignedUser || assignedUser.nucleus === user.nucleus) return false;
       }
 
-      // Date Filter
-      if (startDate) {
-        // Use UTC to avoid timezone shifts during comparison
-        const pDate = new Date(p.entryDate + 'T00:00:00');
-        const sDate = new Date(startDate + 'T00:00:00');
-        if (pDate < sDate) return false;
-      }
-      if (endDate) {
-        const pDate = new Date(p.entryDate + 'T00:00:00');
-        const eDate = new Date(endDate + 'T00:00:00');
-        if (pDate > eDate) return false;
+      // Date Filter - Use normalized comparison to handle different formats (DD/MM/YYYY vs YYYY-MM-DD)
+      if (startDate || endDate) {
+        const pDate = this.normalizeDateForComparison(p.entryDate);
+        const sDate = startDate ? this.normalizeDateForComparison(startDate) : null;
+        const eDate = endDate ? this.normalizeDateForComparison(endDate) : null;
+
+        if (sDate && pDate < sDate) return false;
+        if (eDate && pDate > eDate) return false;
       }
 
       const assignedUserName = p.assignedToId ? allUsers.find(u => u.id === p.assignedToId)?.name || '' : '';
@@ -202,87 +233,94 @@ export class Dashboard implements OnInit {
   });
 
   // This effect will trigger whenever filters or page change
-  constructor() {
-    // Initial load is handled by store.loadData which has the 1000 limit.
-    // We will override the display with a more robust fetch if needed.
-    
-    // Auto-reload when user changes
-    effect(() => {
+    constructor() {
+      // Initial load - use untracked to prevent this effect from 
+      // becoming a dependency of the filter signals themselves.
+      // We only want it to run when the user is first loaded.
+      effect(() => {
+        const user = this.currentUser();
+        if (user) {
+          untracked(() => {
+            this.applyFilters();
+          });
+        }
+      }, { allowSignalWrites: true });
+    }
+
+    // We'll use a more direct approach: update the list whenever filters change
+    async loadServerData() {
       const user = this.currentUser();
-      if (user) {
-        this.loadServerData();
+      if (!user) return;
+
+      this.isLoading.set(true);
+      try {
+        const filters = this.appliedFilters();
+        console.log('Dashboard: loadServerData with appliedFilters:', filters);
+        
+        const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
+        const externalIds = this.users()
+          .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
+          .map(u => u.id);
+
+        const result = await this.store.fetchPaginatedProcesses({
+          page: this.currentPage(),
+          pageSize: this.pageSize,
+          searchTerm: filters.searchTerm,
+          statusFilter: filters.status,
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          user: user,
+          nucleusFilter: filters.nucleus,
+          onlyAssignedToMe: filters.onlyAssignedToMe,
+          unassignedOnly: filters.unassignedOnly,
+          externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
+        });
+
+        this.serverProcesses.set(result.processes);
+        this.totalFilteredCount.set(result.totalCount);
+        this.hasLoadedServerData.set(true);
+        console.log('Dashboard: loadServerData success. Count:', result.totalCount, 'Processes:', result.processes.length);
+        
+        // Also refresh the stats cards
+        this.store.updateGlobalStats();
+      } catch (e) {
+        console.error('Dashboard: Error loading server data:', e);
+      } finally {
+        this.isLoading.set(false);
       }
+    }
+
+    // Override the computed to use server data if available, otherwise fallback to local
+    paginatedProcesses = computed(() => {
+      if (this.hasLoadedServerData()) {
+        return this.serverProcesses();
+      }
+      
+      // Fallback to local pagination for initial load only
+      const all = this.filteredProcesses();
+      const start = (this.currentPage() - 1) * this.pageSize;
+      const end = start + this.pageSize;
+      return all.slice(start, end);
     });
-  }
-
-  ngOnInit() {
-    this.loadServerData();
-  }
-
-  // We'll use a more direct approach: update the list whenever filters change
-  async loadServerData() {
-    const user = this.currentUser();
-    if (!user) return;
-
-    this.isLoading.set(true);
-    try {
-      const { startDate, endDate } = this.filterForm.value;
-      
-      const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
-      const externalIds = this.users()
-        .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
-        .map(u => u.id);
-
-      const result = await this.store.fetchPaginatedProcesses({
-        page: this.currentPage(),
-        pageSize: this.pageSize,
-        searchTerm: this.searchTerm(),
-        statusFilter: this.statusFilter(),
-        startDate: startDate || '',
-        endDate: endDate || '',
-        user: user,
-        nucleusFilter: this.nucleusFilter(),
-        onlyAssignedToMe: this.onlyAssignedToMe(),
-        unassignedOnly: this.unassignedOnly(),
-        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined
-      });
-
-      this.serverProcesses.set(result.processes);
-      this.totalFilteredCount.set(result.totalCount);
-      
-      // Also refresh the stats cards
-      this.store.updateGlobalStats();
-    } catch (e) {
-      console.error('Dashboard: Error loading server data:', e);
-    } finally {
-      this.isLoading.set(false);
-    }
-  }
-
-  // Override the computed to use server data if available, otherwise fallback to local
-  paginatedProcesses = computed(() => {
-    const server = this.serverProcesses();
-    if (server.length > 0 || this.totalFilteredCount() > 1000) {
-      return server;
-    }
-    
-    // Fallback to local pagination for small datasets or initial load
-    const all = this.filteredProcesses();
-    const start = (this.currentPage() - 1) * this.pageSize;
-    const end = start + this.pageSize;
-    return all.slice(start, end);
-  });
 
   totalPages = computed(() => {
     const total = Math.max(this.totalFilteredCount(), this.filteredProcesses().length);
     return Math.max(1, Math.ceil(total / this.pageSize));
   });
 
-  filterForm = new FormGroup({
-    searchTerm: new FormControl(''),
-    startDate: new FormControl(this.getDefaultStartDate()),
-    endDate: new FormControl(this.getDefaultEndDate())
-  });
+  private normalizeDateForComparison(dateStr: string): string {
+    if (!dateStr) return '';
+    // If it's already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      return dateStr.split('T')[0];
+    }
+    // If it's DD/MM/YYYY
+    const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (match) {
+      return `${match[3]}-${match[2]}-${match[1]}`;
+    }
+    return dateStr;
+  }
 
   private getDefaultStartDate(): string {
     // Default to a much earlier date to ensure mock/older data is visible
@@ -291,18 +329,47 @@ export class Dashboard implements OnInit {
 
   private getDefaultEndDate(): string {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    // Use local date string to avoid timezone shifts from toISOString()
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return lastDay.toLocaleDateString('en-CA');
   }
 
-  setStatusFilter(status: 'Pendente' | 'Todos') {
+  setStatusFilter(status: 'Pendente' | 'Todos' | 'Devolvidos') {
     this.statusFilter.set(status);
     this.currentPage.set(1);
-    this.loadServerData();
+    this.applyFilters();
+  }
+
+  clearFilters() {
+    this.filterForm.patchValue({
+      searchTerm: '',
+      startDate: this.getDefaultStartDate(),
+      endDate: this.getDefaultEndDate()
+    });
+    this.nucleusFilter.set('Todos');
+    this.statusFilter.set('Pendente');
+    this.onlyAssignedToMe.set(false);
+    this.unassignedOnly.set(false);
+    this.externalAccountantsOnly.set(false);
+    this.applyFilters();
   }
 
   applyFilters() {
-    const { searchTerm } = this.filterForm.value;
-    this.searchTerm.set(searchTerm || '');
+    const { searchTerm, startDate, endDate } = this.filterForm.value;
+    
+    console.log('Dashboard: applyFilters called with:', { searchTerm, startDate, endDate });
+    
+    this.appliedFilters.set({
+      searchTerm: searchTerm || '',
+      startDate: startDate || '2020-01-01',
+      endDate: endDate || this.getDefaultEndDate(),
+      status: this.statusFilter(),
+      nucleus: this.nucleusFilter(),
+      onlyAssignedToMe: this.onlyAssignedToMe(),
+      unassignedOnly: this.unassignedOnly(),
+      externalAccountantsOnly: this.externalAccountantsOnly()
+    });
+
     this.currentPage.set(1);
     this.loadServerData();
   }
@@ -310,7 +377,7 @@ export class Dashboard implements OnInit {
   setNucleusFilter(nucleus: string) {
     this.nucleusFilter.set(nucleus);
     this.currentPage.set(1);
-    this.loadServerData();
+    this.applyFilters();
   }
 
   toggleExternalAccountants() {
@@ -320,8 +387,7 @@ export class Dashboard implements OnInit {
       this.onlyAssignedToMe.set(false);
     }
     this.externalAccountantsOnly.set(newValue);
-    this.currentPage.set(1);
-    this.loadServerData();
+    this.applyFilters();
   }
 
   toggleUnassignedOnly() {
@@ -331,8 +397,7 @@ export class Dashboard implements OnInit {
       this.externalAccountantsOnly.set(false);
     }
     this.unassignedOnly.set(newValue);
-    this.currentPage.set(1);
-    this.loadServerData();
+    this.applyFilters();
   }
 
   toggleOnlyAssignedToMe() {
@@ -342,8 +407,7 @@ export class Dashboard implements OnInit {
       this.externalAccountantsOnly.set(false);
     }
     this.onlyAssignedToMe.set(newValue);
-    this.currentPage.set(1);
-    this.loadServerData();
+    this.applyFilters();
   }
 
   nextPage() {
@@ -501,22 +565,22 @@ export class Dashboard implements OnInit {
 
     this.isLoading.set(true);
     try {
-      const { startDate, endDate } = this.filterForm.value;
+      const filters = this.appliedFilters();
       const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
       const externalIds = this.users()
         .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
         .map(u => u.id);
 
       const allProcesses = await this.store.fetchAllFilteredProcesses({
-        searchTerm: this.searchTerm(),
-        statusFilter: this.statusFilter(),
-        startDate: startDate || '',
-        endDate: endDate || '',
+        searchTerm: filters.searchTerm,
+        statusFilter: filters.status,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
         user: user,
-        nucleusFilter: this.nucleusFilter(),
-        onlyAssignedToMe: this.onlyAssignedToMe(),
-        unassignedOnly: this.unassignedOnly(),
-        externalAccountantIds: this.externalAccountantsOnly() ? externalIds : undefined
+        nucleusFilter: filters.nucleus,
+        onlyAssignedToMe: filters.onlyAssignedToMe,
+        unassignedOnly: filters.unassignedOnly,
+        externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
       });
 
       if (allProcesses.length === 0) {
