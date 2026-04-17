@@ -207,7 +207,12 @@
               <td class="px-1 py-5 font-mono font-medium text-xs whitespace-nowrap"
                   [class.text-orange-500]="duplicateProcessIds().has(process.id)"
                   [class.text-slate-900]="!duplicateProcessIds().has(process.id)">
-                {{ process.number }}
+                <div class="flex items-center gap-1.5">
+                  <button (click)="copyProcessNumber(process.number)" title="Copiar Número do Processo" class="text-slate-400 hover:text-primary transition-colors cursor-pointer flex items-center justify-center">
+                    <span class="material-symbols-outlined text-[14px]">content_copy</span>
+                  </button>
+                  <span>{{ process.number }}</span>
+                </div>
               </td>
               <td class="px-1 py-5 text-xs text-slate-600">{{ process.court }}</td>
               <td class="px-1 py-5 text-xs font-medium text-slate-600">{{ process.entryDate | date:'dd/MM/yyyy' }}</td>

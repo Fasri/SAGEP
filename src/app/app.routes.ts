@@ -1,18 +1,11 @@
 import {Routes} from '@angular/router';
-import {Dashboard} from './components/dashboard/dashboard';
-import {Contadores} from './components/contadores/contadores';
-import {Processos} from './components/processos/processos';
-import {AuditLogs} from './components/audit-logs/audit-logs';
-import {Reports} from './components/reports/reports';
-
-import {Manual} from './components/manual/manual';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
-  { path: 'dashboard', component: Dashboard },
-  { path: 'contadores', component: Contadores },
-  { path: 'processos', component: Processos },
-  { path: 'audit-logs', component: AuditLogs },
-  { path: 'relatorios', component: Reports },
-  { path: 'manual', component: Manual },
+  { path: 'dashboard', loadComponent: () => import('./components/dashboard/dashboard').then(m => m.Dashboard) },
+  { path: 'contadores', loadComponent: () => import('./components/contadores/contadores').then(m => m.Contadores) },
+  { path: 'processos', loadComponent: () => import('./components/processos/processos').then(m => m.Processos) },
+  { path: 'audit-logs', loadComponent: () => import('./components/audit-logs/audit-logs').then(m => m.AuditLogs) },
+  { path: 'relatorios', loadComponent: () => import('./components/reports/reports').then(m => m.Reports) },
+  { path: 'manual', loadComponent: () => import('./components/manual/manual').then(m => m.Manual) },
 ];

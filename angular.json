@@ -5,7 +5,8 @@
     "packageManager": "npm",
     "schematicCollections": [
       "angular-eslint"
-    ]
+    ],
+    "analytics": "f631b71b-2ffd-4787-be89-3b4665deee6d"
   },
   "newProjectRoot": "projects",
   "projects": {
@@ -49,8 +50,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "1MB",
-                  "maximumError": "2MB"
+                  "maximumWarning": "700kB",
+                  "maximumError": "900kB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -70,6 +71,11 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "host": "0.0.0.0",
+            "port": 3000,
+            "allowedHosts": ["localhost", "127.0.0.1"]
+          },
           "configurations": {
             "production": {
               "buildTarget": "app:build:production"

@@ -16,13 +16,21 @@ export const getSupabase = (): SupabaseClient | null => {
       return val as string;
     };
 
+    const hasTemplatePlaceholder = (value: string) =>
+      value.includes('${') || value.includes('%') || value.includes('YOUR_SUPABASE_');
+
     supabaseUrl = getGlobal(typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : undefined);
     supabaseAnonKey = getGlobal(typeof SUPABASE_ANON_KEY !== 'undefined' ? SUPABASE_ANON_KEY : undefined);
     
     // Check for placeholders or invalid URLs
-    const isInvalid = (url: string) => !url || url.includes('YOUR_SUPABASE_URL') || url.includes('ais-dev-') || url.includes('ais-pre-');
+    const isInvalid = (url: string) =>
+      !url ||
+      hasTemplatePlaceholder(url) ||
+      url.includes('ais-dev-') ||
+      url.includes('ais-pre-') ||
+      !/^https?:\/\//i.test(url);
     if (isInvalid(supabaseUrl)) supabaseUrl = '';
-    if (!supabaseAnonKey || supabaseAnonKey.includes('YOUR_SUPABASE_ANON_KEY')) supabaseAnonKey = '';
+    if (!supabaseAnonKey || hasTemplatePlaceholder(supabaseAnonKey)) supabaseAnonKey = '';
     const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
     if (!supabaseUrl) supabaseUrl = env['SUPABASE_URL'] || env['VITE_SUPABASE_URL'] || env['NG_SUPABASE_URL'] || '';
     if (!supabaseAnonKey) supabaseAnonKey = env['SUPABASE_ANON_KEY'] || env['VITE_SUPABASE_ANON_KEY'] || env['NG_SUPABASE_ANON_KEY'] || '';

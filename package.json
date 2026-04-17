@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "dev": "cross-env ng serve --port=3000 --host=0.0.0.0 --define=\"GEMINI_API_KEY=\\'${GEMINI_API_KEY}\\'\" --define=\"SUPABASE_URL=\\'${SUPABASE_URL:-${VITE_SUPABASE_URL}}\\'\" --define=\"SUPABASE_ANON_KEY=\\'${SUPABASE_ANON_KEY:-${VITE_SUPABASE_ANON_KEY}}\\'\" --define=\"SUPABASE_STORAGE_BUCKET=\\'${SUPABASE_STORAGE_BUCKET}\\'\" --define=\"SUPABASE_STORAGE_FILE_PATH=\\'${SUPABASE_STORAGE_FILE_PATH}\\'\" ${DISABLE_HMR:+--live-reload=false}",
-    "build": "ng build --define=\"SUPABASE_URL='${SUPABASE_URL:-}'\" --define=\"SUPABASE_ANON_KEY='${SUPABASE_ANON_KEY:-}'\" --define=\"SUPABASE_STORAGE_BUCKET='${SUPABASE_STORAGE_BUCKET:-}'\" --define=\"SUPABASE_STORAGE_FILE_PATH='${SUPABASE_STORAGE_FILE_PATH:-}'\"",
+    "start": "node scripts/ng-env-runner.cjs serve --port=3000 --host=0.0.0.0",
+    "dev": "node scripts/ng-env-runner.cjs serve --port=3000 --host=0.0.0.0",
+    "build": "node scripts/ng-env-runner.cjs build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",

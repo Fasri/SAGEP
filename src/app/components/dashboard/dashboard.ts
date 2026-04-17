@@ -221,6 +221,12 @@ export class Dashboard {
     // 2. Position (within nucleus)
     // 3. Entry Date
     return filtered.sort((a, b) => {
+      if (status === 'Devolvidos') {
+        const dateA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
+        const dateB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
+        if (dateA !== dateB) return dateB - dateA;
+      }
+
       const levelA = this.getPriorityLevel(a.priority);
       const levelB = this.getPriorityLevel(b.priority);
       
@@ -247,11 +253,14 @@ export class Dashboard {
       }, { allowSignalWrites: true });
     }
 
+    private currentRequestId = 0;
+
     // We'll use a more direct approach: update the list whenever filters change
     async loadServerData() {
       const user = this.currentUser();
       if (!user) return;
 
+      const requestId = ++this.currentRequestId;
       this.isLoading.set(true);
       try {
         const filters = this.appliedFilters();
@@ -275,6 +284,11 @@ export class Dashboard {
           unassignedOnly: filters.unassignedOnly,
           externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
         });
+
+        if (this.currentRequestId !== requestId) {
+          // A newer request has been made, ignore this one
+          return;
+        }
 
         this.serverProcesses.set(result.processes);
         this.totalFilteredCount.set(result.totalCount);
@@ -329,9 +343,11 @@ export class Dashboard {
 
   private getDefaultEndDate(): string {
     const now = new Date();
-    // Use local date string to avoid timezone shifts from toISOString()
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return lastDay.toLocaleDateString('en-CA');
+    const y = lastDay.getFullYear();
+    const m = String(lastDay.getMonth() + 1).padStart(2, '0');
+    const d = String(lastDay.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   setStatusFilter(status: 'Pendente' | 'Todos' | 'Devolvidos') {
@@ -751,5 +767,13 @@ export class Dashboard {
 
   cancelAutoAssign() {
     this.isConfirmingAutoAssign.set(false);
+  }
+
+  async copyProcessNumber(processNumber: string) {
+    try {
+      await navigator.clipboard.writeText(processNumber);
+    } catch (err) {
+      console.error('Falha ao copiar número do processo', err);
+    }
   }
 }

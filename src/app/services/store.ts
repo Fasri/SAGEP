@@ -2,7 +2,6 @@ import {Injectable, signal, effect} from '@angular/core';
 import {User, Process, Nucleo, Prioridade, StatusTipo, AuditLog} from '../types';
 import {getSupabase} from '../supabase';
 import {SupabaseClient} from '@supabase/supabase-js';
-import { read, utils } from 'xlsx';
 
 @Injectable({
   providedIn: 'root'
@@ -1153,10 +1152,18 @@ export class StoreService {
     const from = (options.page - 1) * options.pageSize;
     const to = from + options.pageSize - 1;
     
-    // Sort by priority_level then by position
-    query = query.range(from, to)
-      .order('priority_level', { ascending: true })
-      .order('position', { ascending: true, nullsFirst: false });
+    query = query.range(from, to);
+
+    if (options.statusFilter === 'Devolvidos') {
+      query = query
+        .order('completion_date', { ascending: false, nullsFirst: false })
+        .order('priority_level', { ascending: true })
+        .order('position', { ascending: true, nullsFirst: false });
+    } else {
+      query = query
+        .order('priority_level', { ascending: true })
+        .order('position', { ascending: true, nullsFirst: false });
+    }
 
     const { data, count, error } = await query;
     
@@ -1704,6 +1711,7 @@ export class StoreService {
 
     // 2. Parse XLSX
     const buffer = await fileData.arrayBuffer();
+    const { read, utils } = await import('xlsx');
     const workbook = read(buffer, { type: 'array' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
