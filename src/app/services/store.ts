@@ -1207,94 +1207,109 @@ export class StoreService {
     const client = getSupabase();
     if (!client) return [];
 
-    let query = client.from('vw_processes').select('*');
+    // We need to fetch all records, but Supabase/PostgREST has a default limit of 1000.
+    // We'll fetch in batches until we have all of them.
+    let allData: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    // Role-based visibility (Base restriction)
-    if (options.user.role === 'Administrador' || options.user.role === 'Coordenador' || options.user.role === 'Supervisor') {
-      // No restriction
-    } else if (options.user.role === 'Contador Judicial') {
-      query = query.eq('assigned_to_id', options.user.id);
-    } else {
-      // For Chefe, Gerente and others, restrict to their nucleus OR assigned to them
-      const nucleus = options.user.nucleus || '';
-      query = query.or(`nucleus.eq."${nucleus}",assigned_to_id.eq.${options.user.id}`);
-    }
-
-    // Nucleus Filter
-    if (options.nucleusFilter && options.nucleusFilter !== 'Todos') {
-      query = query.eq('nucleus', options.nucleusFilter);
-    }
-
-    // Only Assigned To Me Filter
-    if (options.onlyAssignedToMe) {
-      query = query.eq('assigned_to_id', options.user.id);
-    }
-
-    // Unassigned Only Filter
-    if (options.unassignedOnly) {
-      query = query.is('assigned_to_id', null);
-    }
-
-    // Accountant Filter
-    if (options.accountantFilter && options.accountantFilter !== 'Todos') {
-      query = query.eq('assigned_to_id', options.accountantFilter);
-    }
-
-    // External Accountants Filter
-    if (options.externalAccountantIds && options.externalAccountantIds.length > 0) {
-      query = query.in('assigned_to_id', options.externalAccountantIds);
-    } else if (options.externalAccountantIds && options.externalAccountantIds.length === 0) {
-      query = query.eq('assigned_to_id', '00000000-0000-0000-0000-000000000000');
-    }
-
-    // Status Filter
-    if (options.statusFilter && options.statusFilter !== 'Todos') {
-      if (options.statusFilter === 'Devolvidos') {
-        query = query.not('status', 'ilike', 'Pendente%');
-      } else {
-        // Use wildcard for Pendente to be more inclusive
-        const filterValue = options.statusFilter === 'Pendente' ? 'Pendente%' : options.statusFilter;
-        query = query.ilike('status', filterValue);
-      }
-    }
-
-    // Search Term
-    if (options.searchTerm) {
-      const term = `%${options.searchTerm}%`;
-      const matchingUserIds = this.users()
-        .filter(u => u.name.toLowerCase().includes(options.searchTerm.toLowerCase()))
-        .map(u => u.id);
+    while (hasMore) {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
       
-      let orClause = `number.ilike."${term}",court.ilike."${term}",nucleus.ilike."${term}"`;
-      if (matchingUserIds.length > 0) {
-        orClause += `,assigned_to_id.in.(${matchingUserIds.join(',')})`;
+      // We must recreate the query base for each range because the query object 
+      // can maintain state in some versions of the client.
+      let batchQuery = client.from('vw_processes').select('*');
+
+      // Re-apply all filters (this is necessary because we need a fresh query object for each .range() call)
+      // Role-based visibility
+      if (options.user.role === 'Administrador' || options.user.role === 'Coordenador' || options.user.role === 'Supervisor') {
+        // No restriction
+      } else if (options.user.role === 'Contador Judicial') {
+        batchQuery = batchQuery.eq('assigned_to_id', options.user.id);
+      } else {
+        const nucleus = options.user.nucleus || '';
+        batchQuery = batchQuery.or(`nucleus.eq."${nucleus}",assigned_to_id.eq.${options.user.id}`);
       }
-      query = query.or(orClause);
+
+      if (options.nucleusFilter && options.nucleusFilter !== 'Todos') {
+        batchQuery = batchQuery.eq('nucleus', options.nucleusFilter);
+      }
+      if (options.onlyAssignedToMe) {
+        batchQuery = batchQuery.eq('assigned_to_id', options.user.id);
+      }
+      if (options.unassignedOnly) {
+        batchQuery = batchQuery.is('assigned_to_id', null);
+      }
+      if (options.accountantFilter && options.accountantFilter !== 'Todos') {
+        batchQuery = batchQuery.eq('assigned_to_id', options.accountantFilter);
+      }
+      if (options.externalAccountantIds && options.externalAccountantIds.length > 0) {
+        batchQuery = batchQuery.in('assigned_to_id', options.externalAccountantIds);
+      } else if (options.externalAccountantIds && options.externalAccountantIds.length === 0) {
+        batchQuery = batchQuery.eq('assigned_to_id', '00000000-0000-0000-0000-000000000000');
+      }
+
+      if (options.statusFilter && options.statusFilter !== 'Todos') {
+        if (options.statusFilter === 'Devolvidos') {
+          batchQuery = batchQuery.not('status', 'ilike', 'Pendente%');
+        } else {
+          const filterValue = options.statusFilter === 'Pendente' ? 'Pendente%' : options.statusFilter;
+          batchQuery = batchQuery.ilike('status', filterValue);
+        }
+      }
+
+      if (options.searchTerm) {
+        const term = `%${options.searchTerm}%`;
+        const matchingUserIds = this.users()
+          .filter(u => u.name.toLowerCase().includes(options.searchTerm.toLowerCase()))
+          .map(u => u.id);
+        let orClause = `number.ilike."${term}",court.ilike."${term}",nucleus.ilike."${term}"`;
+        if (matchingUserIds.length > 0) {
+          orClause += `,assigned_to_id.in.(${matchingUserIds.join(',')})`;
+        }
+        batchQuery = batchQuery.or(orClause);
+      }
+
+      if (options.startDate) {
+        const start = options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`;
+        batchQuery = batchQuery.gte('entry_date', start);
+      }
+      if (options.endDate) {
+        const end = options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`;
+        batchQuery = batchQuery.lte('entry_date', end);
+      }
+
+      batchQuery = batchQuery
+        .order('priority_level', { ascending: true })
+        .order('position', { ascending: true, nullsFirst: false })
+        .range(from, to);
+
+      const { data, error } = await batchQuery;
+      
+      if (error) {
+        console.error('StoreService: Error fetching batch of processes:', error);
+        hasMore = false;
+        if (allData.length === 0) return []; // Only fail if we have nothing
+      } else if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        if (data.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+          // Safety break to prevent infinite loops if something goes wrong
+          if (page > 200) { // Max 200k records
+            console.warn('StoreService: Reached safety limit of 200k records in export.');
+            hasMore = false;
+          }
+        }
+      } else {
+        hasMore = false;
+      }
     }
 
-    // Date Filters
-    if (options.startDate) {
-      const start = options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`;
-      query = query.gte('entry_date', start);
-    }
-    if (options.endDate) {
-      const end = options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`;
-      query = query.lte('entry_date', end);
-    }
-
-    // Sort by priority_level then by position
-    query = query
-      .order('priority_level', { ascending: true })
-      .order('position', { ascending: true, nullsFirst: false });
-
-    const { data, error } = await query;
-    
-    if (error) {
-      console.error('StoreService: Error fetching all filtered processes:', error);
-      return [];
-    }
-
-    return (data || []).map((p: Record<string, unknown>) => ({
+    return allData.map((p: Record<string, unknown>) => ({
       id: String(p['id']),
       position: Number(p['position']),
       priorityPosition: p['priority_position'] ? Number(p['priority_position']) : null,
