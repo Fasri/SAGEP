@@ -1138,14 +1138,16 @@ export class StoreService {
       query = query.or(orClause);
     }
 
-    // Date Filters
+    // Date Filters - Use entry_date for Pending/All, completion_date for Devolvidos
+    const dateField = options.statusFilter === 'Devolvidos' ? 'completion_date' : 'entry_date';
+
     if (options.startDate) {
       const start = options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`;
-      query = query.gte('entry_date', start);
+      query = query.gte(dateField, start);
     }
     if (options.endDate) {
       const end = options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`;
-      query = query.lte('entry_date', end);
+      query = query.lte(dateField, end);
     }
 
     // Pagination
@@ -1272,19 +1274,30 @@ export class StoreService {
         batchQuery = batchQuery.or(orClause);
       }
 
+      // Date Filters - Use entry_date for Pending/All, completion_date for Devolvidos
+      const dateField = options.statusFilter === 'Devolvidos' ? 'completion_date' : 'entry_date';
+
       if (options.startDate) {
         const start = options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`;
-        batchQuery = batchQuery.gte('entry_date', start);
+        batchQuery = batchQuery.gte(dateField, start);
       }
       if (options.endDate) {
         const end = options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`;
-        batchQuery = batchQuery.lte('entry_date', end);
+        batchQuery = batchQuery.lte(dateField, end);
       }
 
-      batchQuery = batchQuery
-        .order('priority_level', { ascending: true })
-        .order('position', { ascending: true, nullsFirst: false })
-        .range(from, to);
+      if (options.statusFilter === 'Devolvidos') {
+        batchQuery = batchQuery
+          .order('completion_date', { ascending: false, nullsFirst: false })
+          .order('priority_level', { ascending: true })
+          .order('position', { ascending: true, nullsFirst: false });
+      } else {
+        batchQuery = batchQuery
+          .order('priority_level', { ascending: true })
+          .order('position', { ascending: true, nullsFirst: false });
+      }
+      
+      batchQuery = batchQuery.range(from, to);
 
       const { data, error } = await batchQuery;
       

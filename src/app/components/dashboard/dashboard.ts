@@ -197,9 +197,10 @@ export class Dashboard {
         if (!assignedUser || assignedUser.nucleus === user.nucleus) return false;
       }
 
-      // Date Filter - Use normalized comparison to handle different formats (DD/MM/YYYY vs YYYY-MM-DD)
+      // Date Filter - Use entryDate for Pending/All, completionDate for Devolvidos
       if (startDate || endDate) {
-        const pDate = this.normalizeDateForComparison(p.entryDate);
+        const processDate = status === 'Devolvidos' ? p.completionDate : p.entryDate;
+        const pDate = this.normalizeDateForComparison(processDate || '');
         const sDate = startDate ? this.normalizeDateForComparison(startDate) : null;
         const eDate = endDate ? this.normalizeDateForComparison(endDate) : null;
 
