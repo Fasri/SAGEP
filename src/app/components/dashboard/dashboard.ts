@@ -194,7 +194,10 @@ export class Dashboard {
       // External Accountants Filter
       if (externalAccountantsOnly && user) {
         const assignedUser = allUsers.find(u => u.id === p.assignedToId);
-        if (!assignedUser || assignedUser.nucleus === user.nucleus) return false;
+        const targetNucleus = nucleusFilter !== 'Todos' ? nucleusFilter : user.nucleus;
+        const normalizedTarget = targetNucleus?.trim().toUpperCase() || '';
+        const assignedUserNuc = assignedUser?.nucleus?.trim().toUpperCase() || '';
+        if (!assignedUser || assignedUserNuc === normalizedTarget) return false;
       }
 
       // Date Filter - Use entryDate for Pending/All, completionDate for Devolvidos
@@ -268,8 +271,13 @@ export class Dashboard {
         console.log('Dashboard: loadServerData with appliedFilters:', filters);
         
         const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
+        const targetNucleus = filters.nucleus !== 'Todos' ? filters.nucleus : user.nucleus;
+        const normalizedTarget = targetNucleus?.trim().toUpperCase() || '';
         const externalIds = this.users()
-          .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
+          .filter(u => {
+            const uNuc = u.nucleus?.trim().toUpperCase() || '';
+            return uNuc !== normalizedTarget && validRoles.includes(u.role);
+          })
           .map(u => u.id);
 
         const result = await this.store.fetchPaginatedProcesses({
@@ -300,6 +308,8 @@ export class Dashboard {
         this.store.updateGlobalStats();
       } catch (e) {
         console.error('Dashboard: Error loading server data:', e);
+        const msg = e instanceof Error ? e.message : String(e);
+        alert(`Ocorreu um erro ao buscar os processos: ${msg}\n\nPor favor, tente novamente.`);
       } finally {
         this.isLoading.set(false);
       }
@@ -584,8 +594,13 @@ export class Dashboard {
     try {
       const filters = this.appliedFilters();
       const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
+      const targetNucleus = filters.nucleus !== 'Todos' ? filters.nucleus : user.nucleus;
+      const normalizedTarget = targetNucleus?.trim().toUpperCase() || '';
       const externalIds = this.users()
-        .filter(u => u.nucleus !== user.nucleus && validRoles.includes(u.role))
+        .filter(u => {
+          const uNuc = u.nucleus?.trim().toUpperCase() || '';
+          return uNuc !== normalizedTarget && validRoles.includes(u.role);
+        })
         .map(u => u.id);
 
       const allProcesses = await this.store.fetchAllFilteredProcesses({

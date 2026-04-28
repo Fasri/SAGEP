@@ -1,0 +1,71 @@
+﻿[
+    {
+        "QUERY PLAN":  "Hash Left Join  (cost=13733.06..26428.73 rows=4635 width=211) (actual time=2528.504..2779.606 rows=8697 loops=1)"
+    },
+    {
+        "QUERY PLAN":  "  Hash Cond: (p.id = rp.id)"
+    },
+    {
+        "QUERY PLAN":  "  -\u003e  Seq Scan on processes p  (cost=0.00..12654.00 rows=4635 width=199) (actual time=4.179..250.858 rows=8697 loops=1)"
+    },
+    {
+        "QUERY PLAN":  "        Filter: (status ~~* \u0027Pendente%\u0027::text)"
+    },
+    {
+        "QUERY PLAN":  "        Rows Removed by Filter: 184983"
+    },
+    {
+        "QUERY PLAN":  "  -\u003e  Hash  (cost=13675.12..13675.12 rows=4635 width=36) (actual time=2524.261..2524.264 rows=8697 loops=1)"
+    },
+    {
+        "QUERY PLAN":  "        Buckets: 16384 (originally 8192)  Batches: 1 (originally 1)  Memory Usage: 682kB"
+    },
+    {
+        "QUERY PLAN":  "        -\u003e  Subquery Scan on rp  (cost=13021.40..13675.12 rows=4635 width=36) (actual time=2510.428..2522.162 rows=8697 loops=1)"
+    },
+    {
+        "QUERY PLAN":  "              -\u003e  WindowAgg  (cost=13021.40..13628.77 rows=4635 width=48) (actual time=2510.426..2521.207 rows=8697 loops=1)"
+    },
+    {
+        "QUERY PLAN":  "                    -\u003e  Incremental Sort  (cost=13021.30..13431.79 rows=4635 width=55) (actual time=2510.421..2517.732 rows=8697 loops=1)"
+    },
+    {
+        "QUERY PLAN":  "                          Sort Key: processes.nucleus, processes.entry_date, processes.id"
+    },
+    {
+        "QUERY PLAN":  "                          Presorted Key: processes.nucleus"
+    },
+    {
+        "QUERY PLAN":  "                          Full-sort Groups: 14  Sort Method: quicksort  Average Memory: 29kB  Peak Memory: 29kB"
+    },
+    {
+        "QUERY PLAN":  "                          Pre-sorted Groups: 13  Sort Method: quicksort  Average Memory: 161kB  Peak Memory: 161kB"
+    },
+    {
+        "QUERY PLAN":  "                          -\u003e  WindowAgg  (cost=12994.20..13179.57 rows=4635 width=55) (actual time=2508.936..2513.165 rows=8697 loops=1)"
+    },
+    {
+        "QUERY PLAN":  "                                -\u003e  Sort  (cost=12994.17..13005.76 rows=4635 width=47) (actual time=2508.927..2509.683 rows=8697 loops=1)"
+    },
+    {
+        "QUERY PLAN":  "                                      Sort Key: processes.nucleus, (CASE WHEN ((processes.priority ~~* \u0027%SUPER%\u0027::text) OR (processes.priority ~~* \u0027%LEGAL%\u0027::text) OR (processes.priority ~~ \u00271-%\u0027::text) OR (processes.priority ~~ \u00272-PRIORIDADE%\u0027::text)) THEN true ELSE false END), (CASE WHEN (processes.priority ~~* \u0027%SUPER%\u0027::text) THEN 1 ELSE 2 END), processes.entry_date, processes.id"
+    },
+    {
+        "QUERY PLAN":  "                                      Sort Method: quicksort  Memory: 972kB"
+    },
+    {
+        "QUERY PLAN":  "                                      -\u003e  Seq Scan on processes  (cost=0.00..12711.94 rows=4635 width=47) (actual time=0.088..2491.191 rows=8697 loops=1)"
+    },
+    {
+        "QUERY PLAN":  "                                            Filter: (status ~~* \u0027Pendente\u0027::text)"
+    },
+    {
+        "QUERY PLAN":  "                                            Rows Removed by Filter: 184983"
+    },
+    {
+        "QUERY PLAN":  "Planning Time: 48.559 ms"
+    },
+    {
+        "QUERY PLAN":  "Execution Time: 2782.341 ms"
+    }
+]
