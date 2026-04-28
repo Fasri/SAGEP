@@ -80,6 +80,10 @@ export class StoreService {
     await this.processService.assignProcess(processId, userId);
   }
 
+  async deleteProcess(processId: string) {
+    await this.processService.deleteProcess(processId);
+  }
+
   async fetchPaginatedProcesses(options: any) {
     return await this.processService.fetchPaginatedProcesses(options);
   }

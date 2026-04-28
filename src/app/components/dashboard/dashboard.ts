@@ -478,6 +478,24 @@ export class Dashboard {
     return privilegedRoles.includes(user.role);
   }
 
+  canDeleteProcess(): boolean {
+    const user = this.currentUser();
+    if (!user) return false;
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
+    return privilegedRoles.includes(user.role);
+  }
+
+  async deleteProcess(process: Process) {
+    if (confirm(`Tem certeza que deseja excluir o processo ${process.number}? Esta ação não pode ser desfeita.`)) {
+      try {
+        await this.store.deleteProcess(process.id);
+        this.loadServerData();
+      } catch (error: any) {
+        alert(error.message);
+      }
+    }
+  }
+
   async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'priority', event: Event) {
     const input = event.target as HTMLInputElement | HTMLSelectElement;
     

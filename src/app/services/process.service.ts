@@ -187,6 +187,27 @@ export class ProcessService {
     }
   }
 
+  async deleteProcess(processId: string) {
+    const client = this.supabaseService.getClient();
+    if (!client) throw new Error('Sistema offline.');
+
+    const processToDelete = this.processes().find(p => p.id === processId);
+
+    const { error } = await client.from('processes').delete().eq('id', processId);
+    if (error) {
+      this.supabaseService.handleError(error, 'deleteProcess');
+      throw new Error(`Erro ao excluir processo: ${error.message}`);
+    }
+
+    this.processes.update(prev => prev.filter(p => p.id !== processId));
+    this.updateGlobalStats();
+    await client.rpc('update_process_positions'); // Re-rank other processes
+    
+    if (processToDelete) {
+      this.auditService.addAuditLog(`Excluiu processo ${processToDelete.number}`, { processNumber: processToDelete.number, processId });
+    }
+  }
+
   async fetchPaginatedProcesses(options: any) {
     const client = this.supabaseService.getClient();
     if (!client) return { processes: [], totalCount: 0 };

@@ -211,6 +211,11 @@
                   <button (click)="copyProcessNumber(process.number)" title="Copiar Número do Processo" class="text-slate-400 hover:text-primary transition-colors cursor-pointer flex items-center justify-center">
                     <span class="material-symbols-outlined text-[14px]">content_copy</span>
                   </button>
+                  @if (canDeleteProcess()) {
+                    <button (click)="deleteProcess(process)" title="Excluir Processo" class="text-rose-400 hover:text-rose-600 transition-colors cursor-pointer flex items-center justify-center">
+                      <span class="material-symbols-outlined text-[14px]">delete</span>
+                    </button>
+                  }
                   <span>{{ process.number }}</span>
                 </div>
               </td>
