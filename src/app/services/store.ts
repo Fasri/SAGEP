@@ -104,8 +104,12 @@ export class StoreService {
     this.processService.updateGlobalStats();
   }
 
-  async autoAssignProcesses(nucleusName: string, selectedUserIds?: string[]) {
-    return await this.processService.autoAssignProcesses(nucleusName, selectedUserIds);
+  async getUnassignedCount(nucleusName: string, isAutoinspecao: boolean = false) {
+    return await this.processService.getUnassignedCount(nucleusName, isAutoinspecao);
+  }
+
+  async autoAssignProcesses(nucleusName: string, selectedUserIds?: string[], isAutoinspecao: boolean = false, limit?: number) {
+    return await this.processService.autoAssignProcesses(nucleusName, selectedUserIds, isAutoinspecao, limit);
   }
 
   async addProcess(process: Omit<Process, 'id' | 'position' | 'priorityPosition'>) {

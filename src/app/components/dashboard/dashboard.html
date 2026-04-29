@@ -7,9 +7,9 @@
         <p class="text-slate-500">SAGEP – Sistema de Acompanhamento e Gestão de Processos</p>
         <div class="flex flex-col gap-0.5 mt-1">
           @if (lastEtlUpdate()) {
-            <p class="text-[10px] text-slate-400 flex items-center gap-1">
-              <span class="material-symbols-outlined text-[12px]">auto_mode</span>
-              Última carga automática (ETL): {{ lastEtlUpdate() | date:'dd/MM/yyyy HH:mm' }}
+            <p class="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5 mt-0.5">
+              <span class="material-symbols-outlined text-[14px] animate-pulse">sync</span>
+              Última Atualização do Sistema Automático (ETL): {{ lastEtlUpdate() | date:'dd/MM/yyyy HH:mm':'UTC-3' }}
             </p>
           }
         </div>
@@ -395,9 +395,42 @@
         </div>
         
         <div class="p-6">
-          <p class="text-sm text-slate-600 mb-4">Selecione os contadores que participarão desta distribuição automática. Se de férias ou licença, não podem ser atribuídos processos. Processos de Super prioridade não entram nesta atribuição.</p>
+          <div class="mb-4 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-emerald-800">Pendentes Sem Atribuição:</span>
+              <span class="text-lg font-bold text-emerald-900">{{ unassignedCount() }}</span>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-4 mb-6">
+            <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition-all">
+              <input type="checkbox" 
+                     [checked]="isAutoinspecao()" 
+                     (change)="isAutoinspecao.set(!isAutoinspecao()); updateAutoAssignCount()"
+                     class="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+              <div>
+                <span class="text-sm font-bold text-slate-700 block">Autoinspeção</span>
+                <span class="text-xs text-slate-500">Apenas processos com esta prioridade</span>
+              </div>
+            </label>
+
+            <div>
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block ml-1">Atribuição Parcial (Opcional)</label>
+              <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-sm">list_alt</span>
+                <input type="number" 
+                       [value]="assignLimit()"
+                       (input)="$any($event.target).value ? assignLimit.set(+$any($event.target).value) : assignLimit.set(null)"
+                       placeholder="Ex: 200 (atribuirá os mais antigos)"
+                       class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1 ml-1 italic">Deixe vazio para distribuir todos os processos.</p>
+            </div>
+          </div>
+
+          <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Selecionar Contadores</p>
           
-          <div class="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+          <div class="space-y-2 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
             @for (user of usersInNucleusForAutoAssign(); track user.id) {
               <div class="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all cursor-pointer group outline-none focus:ring-2 focus:ring-primary/20"
                    tabindex="0"
@@ -445,3 +478,49 @@
     </div>
   }
 </main>
+
+<!-- Notificações Toast -->
+@if (errorNotification()) {
+  <div class="fixed bottom-6 right-6 z-[200] max-w-sm bg-red-600 text-white px-5 py-4 rounded-2xl shadow-2xl flex items-start gap-3 animate-in slide-in-from-bottom-4 duration-300">
+    <span class="material-symbols-outlined mt-0.5 shrink-0">error</span>
+    <span class="text-sm font-medium">{{ errorNotification() }}</span>
+    <button (click)="errorNotification.set(null)" class="ml-auto text-white/70 hover:text-white cursor-pointer shrink-0">
+      <span class="material-symbols-outlined text-sm">close</span>
+    </button>
+  </div>
+}
+@if (successNotification()) {
+  <div class="fixed bottom-6 right-6 z-[200] max-w-sm bg-emerald-600 text-white px-5 py-4 rounded-2xl shadow-2xl flex items-start gap-3 animate-in slide-in-from-bottom-4 duration-300">
+    <span class="material-symbols-outlined mt-0.5 shrink-0">check_circle</span>
+    <span class="text-sm font-medium">{{ successNotification() }}</span>
+  </div>
+}
+
+<!-- Modal de Confirmação de Exclusão -->
+@if (confirmDeleteProcess()) {
+  <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+      <div class="p-6 flex flex-col items-center gap-4 text-center">
+        <div class="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center">
+          <span class="material-symbols-outlined text-red-600 text-2xl">delete_forever</span>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-slate-900">Excluir Processo?</h3>
+          <p class="text-sm text-slate-500 mt-1">
+            Esta ação é <strong>irreversível</strong>. O processo
+            <code class="font-mono bg-slate-100 px-1 rounded text-xs">{{ confirmDeleteProcess()?.number }}</code>
+            será removido permanentemente.
+          </p>
+        </div>
+        <div class="flex gap-3 w-full pt-2">
+          <button (click)="cancelDelete()" class="flex-1 px-4 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer">
+            Cancelar
+          </button>
+          <button (click)="confirmDelete()" class="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all shadow-lg shadow-red-200 cursor-pointer">
+            Sim, Excluir
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

@@ -1,10 +1,10 @@
-import {ChangeDetectionStrategy, Component, signal, computed, inject, effect, HostListener, untracked} from '@angular/core';
+import {ChangeDetectionStrategy, Component, signal, computed, inject, effect, HostListener, untracked, afterNextRender} from '@angular/core';
 import {toSignal} from '@angular/core/rxjs-interop';
 import {CommonModule} from '@angular/common';
 import {ReactiveFormsModule, FormGroup, FormControl} from '@angular/forms';
 import {MatIconModule} from '@angular/material/icon';
 import {StoreService} from '../../services/store';
-import {Process, Role} from '../../types';
+import {Process, Role, PaginationOptions} from '../../types';
 import * as XLSX from 'xlsx';
 
 @Component({
@@ -114,6 +114,9 @@ export class Dashboard {
   totalFilteredCount = signal(0);
   serverProcesses = signal<Process[]>([]);
   hasLoadedServerData = signal(false);
+  unassignedCount = signal<number>(0);
+  isAutoinspecao = signal<boolean>(false);
+  assignLimit = signal<number | null>(null);
 
   appliedFilters = signal({
     searchTerm: '',
@@ -127,22 +130,15 @@ export class Dashboard {
   });
 
   stats = computed(() => {
-    const serverStats = this.store.globalStats();
-    console.log('Dashboard: Stats computed with:', serverStats);
-    
-    const pendentes = serverStats.pendentes;
-    const concluidos = serverStats.concluidos;
-    const devolvidos = serverStats.devolvidos;
-    
-    const avgTime = concluidos > 0 ? '3.8 dias' : '0 dias';
-    const metaRealizada = 0;
+    const { pendentes, concluidos, devolvidos } = this.store.globalStats();
+    const total = pendentes + concluidos + devolvidos;
+    const metaRealizada = total > 0 ? Math.round((concluidos / total) * 100) : 0;
 
     return [
-      { label: 'Processos Pendentes', value: pendentes.toLocaleString('pt-BR'), icon: 'pending_actions', trend: '', trendUp: true, color: 'amber' },
-      { label: 'Processos Concluídos', value: concluidos.toLocaleString('pt-BR'), icon: 'task_alt', trend: '', trendUp: true, color: 'green' },
-      { label: 'Tempo Médio', value: avgTime, icon: 'schedule', subtext: 'Média de processamento atual', color: 'primary' },
-      { label: 'Devolvidos', value: devolvidos.toLocaleString('pt-BR'), icon: 'flag', subtext: 'Sem possibilidade de cálculo', color: 'slate' },
-      { label: 'Meta Realizada', value: `${metaRealizada}%`, icon: 'analytics', subtext: 'Progresso global de metas', color: 'blue' },
+      { label: 'Processos Pendentes', value: pendentes.toLocaleString('pt-BR'), icon: 'pending_actions', color: 'amber' },
+      { label: 'Processos Concluídos', value: concluidos.toLocaleString('pt-BR'), icon: 'task_alt', color: 'green' },
+      { label: 'Devolvidos', value: devolvidos.toLocaleString('pt-BR'), icon: 'flag', color: 'slate' },
+      { label: 'Meta Realizada', value: `${metaRealizada}%`, icon: 'analytics', color: 'blue' },
     ];
   });
 
@@ -155,10 +151,15 @@ export class Dashboard {
   });
 
   private getPriorityLevel(priority: string): number {
-    if (!priority) return 2;
-    const p = priority.toUpperCase();
-    if (p.includes('SUPER')) return 1;
-    return 2;
+    if (!priority) return 3;
+    const p = priority.toUpperCase().trim();
+    if (p.includes('SUPER'))                      return 1; // Super: topo absoluto
+    if (!p.includes('SEM') && !p.startsWith('2-SEM')) return 2; // Legal, Ordem Superior, 1-*, 2-Prioridade*
+    return 3;                                                // Sem prioridade
+  }
+
+  private isPriorityProcess(priority: string): boolean {
+    return this.getPriorityLevel(priority) < 3;
   }
 
   filteredProcesses = computed(() => {
@@ -226,36 +227,50 @@ export class Dashboard {
     // 3. Entry Date
     return filtered.sort((a, b) => {
       if (status === 'Devolvidos') {
-        const dateA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
-        const dateB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
-        if (dateA !== dateB) return dateB - dateA;
+        // Devolvidos: mais recente primeiro
+        const cA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
+        const cB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
+        if (cA !== cB) return cB - cA;
+        return a.position - b.position;
       }
 
+      // Ordem visual:
+      // 1. Super prioridade (level 1) → topo
+      // 2. Demais prioridades (level 2: Legal, Ordem Superior, etc.)
+      // 3. Sem prioridade (level 3) → final
+      // Dentro de cada grupo: entrada mais antiga primeiro
       const levelA = this.getPriorityLevel(a.priority);
       const levelB = this.getPriorityLevel(b.priority);
-      
       if (levelA !== levelB) return levelA - levelB;
-      
-      if (a.position !== b.position) return a.position - b.position;
-      
-      return new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime();
+
+      // Dentro do mesmo nível: mais antigo primeiro (Posição Geral crescente)
+      const entryA = new Date(a.entryDate).getTime();
+      const entryB = new Date(b.entryDate).getTime();
+      return entryA - entryB;
     });
   });
 
-  // This effect will trigger whenever filters or page change
-    constructor() {
-      // Initial load - use untracked to prevent this effect from 
-      // becoming a dependency of the filter signals themselves.
-      // We only want it to run when the user is first loaded.
-      effect(() => {
-        const user = this.currentUser();
-        if (user) {
-          untracked(() => {
-            this.applyFilters();
-          });
-        }
-      }, { allowSignalWrites: true });
-    }
+  // Notification/error state for replacing native alert/confirm
+  errorNotification = signal<string | null>(null);
+  successNotification = signal<string | null>(null);
+  confirmDeleteProcess = signal<Process | null>(null);
+
+  private showError(msg: string) {
+    this.errorNotification.set(msg);
+    setTimeout(() => this.errorNotification.set(null), 6000);
+  }
+
+  private showSuccess(msg: string) {
+    this.successNotification.set(msg);
+    setTimeout(() => this.successNotification.set(null), 4000);
+  }
+
+  constructor() {
+    afterNextRender(() => {
+      const user = this.currentUser();
+      if (user) this.applyFilters();
+    });
+  }
 
     private currentRequestId = 0;
 
@@ -486,14 +501,23 @@ export class Dashboard {
   }
 
   async deleteProcess(process: Process) {
-    if (confirm(`Tem certeza que deseja excluir o processo ${process.number}? Esta ação não pode ser desfeita.`)) {
-      try {
-        await this.store.deleteProcess(process.id);
-        this.loadServerData();
-      } catch (error: any) {
-        alert(error.message);
-      }
+    this.confirmDeleteProcess.set(process);
+  }
+
+  async confirmDelete() {
+    const process = this.confirmDeleteProcess();
+    if (!process) return;
+    this.confirmDeleteProcess.set(null);
+    try {
+      await this.store.deleteProcess(process.id);
+      this.loadServerData();
+    } catch (error: unknown) {
+      this.showError(error instanceof Error ? error.message : 'Erro ao excluir processo.');
     }
+  }
+
+  cancelDelete() {
+    this.confirmDeleteProcess.set(null);
   }
 
   async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'priority', event: Event) {
@@ -607,8 +631,8 @@ export class Dashboard {
   async exportToExcel() {
     const user = this.currentUser();
     if (!user) return;
-
     this.isLoading.set(true);
+    const requestId = ++this.currentRequestId;
     try {
       const filters = this.appliedFilters();
       const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
@@ -621,7 +645,9 @@ export class Dashboard {
         })
         .map(u => u.id);
 
-      const allProcesses = await this.store.fetchAllFilteredProcesses({
+      const result = await this.store.fetchPaginatedProcesses({
+        page: this.currentPage(),
+        pageSize: this.pageSize,
         searchTerm: filters.searchTerm,
         statusFilter: filters.status,
         startDate: filters.startDate,
@@ -631,14 +657,9 @@ export class Dashboard {
         onlyAssignedToMe: filters.onlyAssignedToMe,
         unassignedOnly: filters.unassignedOnly,
         externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
-      });
+      } as PaginationOptions);
 
-      if (allProcesses.length === 0) {
-        alert('Nenhum processo encontrado para exportar com os filtros atuais.');
-        return;
-      }
-
-      const data = allProcesses.map(p => ({
+      const data = (result?.processes || []).map((p: Process) => ({
         'Posição Geral': p.position,
         'Posição Prioridade': p.priorityPosition || '-',
         'Número do Processo': p.number,
@@ -657,12 +678,11 @@ export class Dashboard {
       const worksheet = XLSX.utils.json_to_sheet(data);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Processos');
-      
       const date = new Date().toISOString().split('T')[0];
       XLSX.writeFile(workbook, `processos_contadoria_${date}.xlsx`);
     } catch (error) {
       console.error('Dashboard: Error exporting to Excel:', error);
-      alert('Ocorreu um erro ao exportar os dados. Tente novamente.');
+      this.showError('Ocorreu um erro ao exportar os dados. Tente novamente.');
     } finally {
       this.isLoading.set(false);
     }
@@ -755,7 +775,25 @@ export class Dashboard {
     const activeUsers = this.users().filter(u => u.nucleus === nucleus && u.active);
     this.selectedAutoAssignUserIds.set(activeUsers.map(u => u.id));
     
+    // Reset flags
+    this.isAutoinspecao.set(false);
+    this.assignLimit.set(null);
+    
+    // Fetch unassigned count
+    this.unassignedCount.set(await this.store.getUnassignedCount(nucleus, false));
+    
     this.isConfirmingAutoAssign.set(true);
+  }
+
+  async updateAutoAssignCount() {
+    let nucleus = this.nucleusFilter();
+    if (nucleus === 'Todos') {
+      const user = this.currentUser();
+      if (user?.nucleus && user.nucleus !== 'Administração') nucleus = user.nucleus;
+    }
+    if (nucleus !== 'Todos') {
+      this.unassignedCount.set(await this.store.getUnassignedCount(nucleus, this.isAutoinspecao()));
+    }
   }
 
   toggleUserSelection(userId: string) {
@@ -787,7 +825,8 @@ export class Dashboard {
     this.autoAssignMessage.set('Iniciando atribuição automática...');
 
     try {
-      const count = await this.store.autoAssignProcesses(nucleus, selectedIds);
+      const limit = this.assignLimit() || undefined;
+      const count = await this.store.autoAssignProcesses(nucleus, selectedIds, this.isAutoinspecao(), limit);
       this.autoAssignMessage.set(`${count} processos foram atribuídos com sucesso no núcleo ${nucleus}.`);
       this.loadServerData();
     } catch (error: unknown) {

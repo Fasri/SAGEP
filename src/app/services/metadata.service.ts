@@ -17,37 +17,29 @@ export class MetadataService {
     if (!client) return;
 
     try {
-      const { data: nucleos } = await client.from('nucleos').select('*');
-      if (nucleos && nucleos.length > 0) {
-        this.nucleos.set(nucleos.map(n => ({
-          id: n.id,
-          nome: n.nome,
-          descricao: n.descricao,
-          lastAssignedUserId: n.last_assigned_user_id
+      const [{ data: nucleos }, { data: prioridades }, { data: statusTipos }] = await Promise.all([
+        client.from('nucleos').select('*'),
+        client.from('prioridades').select('*'),
+        client.from('status').select('*'),
+      ]);
+
+      const needsSeed = !nucleos?.length || !prioridades?.length || !statusTipos?.length;
+      if (needsSeed) await this.seedDatabase();
+
+      const finalNucleos = nucleos?.length ? nucleos : (await client.from('nucleos').select('*')).data;
+      const finalPrioridades = prioridades?.length ? prioridades : (await client.from('prioridades').select('*')).data;
+      const finalStatus = statusTipos?.length ? statusTipos : (await client.from('status').select('*')).data;
+
+      if (finalNucleos) {
+        this.nucleos.set(finalNucleos.map((n: Record<string, unknown>) => ({
+          id: String(n['id']),
+          nome: String(n['nome']),
+          descricao: String(n['descricao'] || ''),
+          lastAssignedUserId: n['last_assigned_user_id'] ? String(n['last_assigned_user_id']) : null
         })));
-      } else {
-        await this.seedDatabase();
-        const { data: n } = await client.from('nucleos').select('*');
-        if (n) this.nucleos.set(n);
       }
-
-      const { data: prioridades } = await client.from('prioridades').select('*');
-      if (prioridades && prioridades.length > 0) {
-        this.prioridades.set(prioridades);
-      } else {
-        await this.seedDatabase();
-        const { data: p } = await client.from('prioridades').select('*');
-        if (p) this.prioridades.set(p);
-      }
-
-      const { data: statusTipos } = await client.from('status').select('*');
-      if (statusTipos && statusTipos.length > 0) {
-        this.statusTipos.set(statusTipos);
-      } else {
-        await this.seedDatabase();
-        const { data: s } = await client.from('status').select('*');
-        if (s) this.statusTipos.set(s);
-      }
+      if (finalPrioridades) this.prioridades.set(finalPrioridades as any);
+      if (finalStatus) this.statusTipos.set(finalStatus as any);
     } catch (error) {
       console.error('MetadataService: Error loading metadata:', error);
     }

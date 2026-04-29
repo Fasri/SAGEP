@@ -41,14 +41,14 @@ export interface Process {
   entryDate: string; // Format: YYYY-MM-DD
   court: string;
   nucleus: string;
-  priority: string; // Changed to string to support dynamic priorities
-  status: string;   // Changed to string to support dynamic status
+  priority: string;
+  status: string;
   assignedToId: string | null;
-  assignmentDate?: string | null; // When assigned
-  completionDate?: string | null; // When status changed to something other than 'Pendente'
+  assignmentDate?: string | null;
+  completionDate?: string | null;
   valorCustas?: number;
   observacao?: string;
-  createdAt?: string; // Data de upload/criação
+  createdAt?: string;
 }
 
 export interface AuditLog {
@@ -59,4 +59,26 @@ export interface AuditLog {
   createdAt: string;
   processNumber?: string;
   details?: Record<string, unknown>;
+}
+
+export interface PaginationOptions {
+  page: number;
+  pageSize: number;
+  user: User;
+  searchTerm?: string;
+  statusFilter?: 'Pendente' | 'Todos' | 'Devolvidos';
+  nucleusFilter?: string;
+  startDate?: string;
+  endDate?: string;
+  onlyAssignedToMe?: boolean;
+  unassignedOnly?: boolean;
+  accountantFilter?: string;
+  externalAccountantIds?: string[];
+}
+
+export interface ReportFilters {
+  user: User;
+  nucleus?: string;
+  startDate?: string;
+  endDate?: string;
 }

@@ -24,20 +24,15 @@ export class AuthService {
 
   async loadUsers(normalizeNucleus: (n: string) => string) {
     const client = this.supabaseService.getClient();
-    if (!client) {
-      console.warn('AuthService: Supabase not configured. Using mock data only.');
-      return;
-    }
+    if (!client) return;
 
     try {
-      console.log('AuthService: Fetching users from Supabase...');
       const { data: users, error: usersError } = await client.from('users').select('*');
       if (usersError) {
         console.error('AuthService: Error fetching users:', usersError);
         this.supabaseService.isSupabaseConnected.set(false);
       } else if (users) {
         this.supabaseService.isSupabaseConnected.set(true);
-        console.log(`AuthService: Loaded ${users.length} users from Supabase.`);
         this.users.set(users.map((u: Record<string, unknown>) => ({
           id: String(u['id']),
           matricula: String(u['matricula']),
@@ -75,7 +70,6 @@ export class AuthService {
   }
 
   async addUser(user: Omit<User, 'id'>, auditLogFn: (action: string, details: Record<string, unknown>) => void) {
-    console.log('AuthService: Adding user...', user);
     const client = this.supabaseService.getClient();
     if (client) {
       const { data, error } = await client.from('users').insert([{
@@ -96,7 +90,6 @@ export class AuthService {
         const newId = 'u' + (this.users().length + 1);
         this.users.update(prev => [...prev, { ...user, id: newId }]);
       } else if (data && data[0]) {
-        console.log('AuthService: User added successfully to Supabase:', data[0]);
         const newUser = {
           ...user,
           id: data[0].id,
@@ -108,7 +101,6 @@ export class AuthService {
         auditLogFn(`Adicionou novo usuário ${user.name}`, { user });
       }
     } else {
-      console.warn('AuthService: Supabase not configured. Adding user locally only.');
       const newId = 'u' + (this.users().length + 1);
       this.users.update(prev => [...prev, { ...user, id: newId }]);
       auditLogFn(`Adicionou novo usuário ${user.name} (Local)`, { user });
@@ -116,20 +108,12 @@ export class AuthService {
   }
 
   async updateUser(updatedUser: User, auditLogFn: (action: string, details: Record<string, unknown>) => void) {
-    console.log('AuthService: Updating user...', updatedUser);
     this.users.update(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-    
-    if (this.currentUser()?.id === updatedUser.id) {
-      this.currentUser.set(updatedUser);
-    }
+    if (this.currentUser()?.id === updatedUser.id) this.currentUser.set(updatedUser);
 
     const client = this.supabaseService.getClient();
     if (client) {
-      if (updatedUser.id.startsWith('u')) {
-        console.warn('AuthService: Cannot update mock user in Supabase. ID:', updatedUser.id);
-        return;
-      }
-
+      if (updatedUser.id.startsWith('u')) return;
       const { error } = await client.from('users').update({
         matricula: updatedUser.matricula,
         name: updatedUser.name,
@@ -146,7 +130,6 @@ export class AuthService {
       if (error) {
         this.supabaseService.handleError(error, 'updateUser');
       } else {
-        console.log('AuthService: User updated successfully in Supabase.');
         auditLogFn(`Atualizou dados do usuário ${updatedUser.name}`, { updatedUser });
       }
     } else {
@@ -155,22 +138,16 @@ export class AuthService {
   }
 
   async deleteUser(userId: string, auditLogFn: (action: string, details: Record<string, unknown>) => void) {
-    console.log('AuthService: Deleting user...', userId);
     const userToDelete = this.users().find(u => u.id === userId);
     this.users.update(prev => prev.filter(u => u.id !== userId));
 
     const client = this.supabaseService.getClient();
     if (client) {
-      if (userId.startsWith('u')) {
-        console.warn('AuthService: Cannot delete mock user from Supabase. ID:', userId);
-        return;
-      }
-
+      if (userId.startsWith('u')) return;
       const { error } = await client.from('users').delete().eq('id', userId);
       if (error) {
         this.supabaseService.handleError(error, 'deleteUser');
       } else {
-        console.log('AuthService: User deleted successfully from Supabase.');
         auditLogFn(`Removeu usuário ${userToDelete?.name}`, { userId });
       }
     } else {

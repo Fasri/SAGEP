@@ -1,10 +1,9 @@
 import { Injectable, signal, effect } from '@angular/core';
-import { Process, User } from '../types';
+import { Process, PaginationOptions, ReportFilters } from '../types';
 import { SupabaseService } from './supabase.service';
 import { AuthService } from './auth.service';
 import { MetadataService } from './metadata.service';
 import { AuditService } from './audit.service';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 declare const SUPABASE_URL: string | undefined;
 declare const SUPABASE_ANON_KEY: string | undefined;
@@ -38,8 +37,28 @@ export class ProcessService {
       const user = this.authService.currentUser();
       if (user) {
         this.updateGlobalStats();
+        this.fetchLastEtlUpdate();
       }
     });
+  }
+
+  private mapProcess(p: Record<string, unknown>): Process {
+    return {
+      id: String(p['id'] || ''),
+      position: Number(p['position'] || 0),
+      priorityPosition: p['priority_position'] ? Number(p['priority_position']) : null,
+      number: String(p['number'] || ''),
+      entryDate: String(p['entry_date'] || '').split('T')[0],
+      court: String(p['court'] || ''),
+      nucleus: String(p['nucleus'] || 'GERAL'),
+      priority: this.metadataService.normalizePriority(String(p['priority'] || '2-Sem prioridade')),
+      status: this.metadataService.normalizeStatus(String(p['status'] || 'Pendente')),
+      assignedToId: p['assigned_to_id'] ? String(p['assigned_to_id']) : null,
+      assignmentDate: p['assignment_date'] ? String(p['assignment_date']) : null,
+      completionDate: p['completion_date'] ? String(p['completion_date']) : null,
+      valorCustas: p['valor_custas'] ? Number(p['valor_custas']) : 0,
+      observacao: p['observacao'] ? String(p['observacao']) : ''
+    };
   }
 
   async loadInitialProcesses() {
@@ -47,33 +66,16 @@ export class ProcessService {
     if (!client) return;
 
     try {
-      console.log('ProcessService: Fetching processes from Supabase (limited to 5000)...');
       const { data: processes, error: processesError } = await client.from('vw_processes')
         .select('*')
         .order('priority', { ascending: true })
         .order('position', { ascending: true })
         .limit(5000);
-      
+
       if (processesError) {
         console.error('ProcessService: Error fetching processes:', processesError);
       } else if (processes && processes.length > 0) {
-        console.log(`ProcessService: Loaded ${processes.length} processes from Supabase.`);
-        this.processes.set(processes.map((p: Record<string, unknown>) => ({
-          id: String(p['id'] || ''),
-          position: Number(p['position'] || 0),
-          priorityPosition: p['priority_position'] ? Number(p['priority_position']) : null,
-          number: String(p['number'] || ''),
-          entryDate: String(p['entry_date'] || '').split('T')[0],
-          court: String(p['court'] || ''),
-          nucleus: String(p['nucleus'] || 'GERAL'),
-          priority: this.metadataService.normalizePriority(String(p['priority'] || '2-Sem prioridade')),
-          status: this.metadataService.normalizeStatus(String(p['status'] || 'Pendente')),
-          assignedToId: p['assigned_to_id'] ? String(p['assigned_to_id']) : null,
-          assignmentDate: p['assignment_date'] ? String(p['assignment_date']) : null,
-          completionDate: p['completion_date'] ? String(p['completion_date']) : null,
-          valorCustas: p['valor_custas'] ? Number(p['valor_custas']) : 0,
-          observacao: p['observacao'] ? String(p['observacao']) : ''
-        })));
+        this.processes.set(processes.map((p: Record<string, unknown>) => this.mapProcess(p)));
       }
     } catch (e) {
       console.error('ProcessService: Unexpected error loading processes:', e);
@@ -208,57 +210,68 @@ export class ProcessService {
     }
   }
 
-  async fetchPaginatedProcesses(options: any) {
-    const client = this.supabaseService.getClient();
-    if (!client) return { processes: [], totalCount: 0 };
-
-    let query = client.from('processes').select('*', { count: 'estimated' });
-
+  private applyFiltersToQuery(query: any, options: PaginationOptions): any {
     if (options.user.role === 'Contador Judicial') {
-      query = query.eq('assigned_to_id', options.user.id);
-    } else if (options.user.role !== 'Administrador' && options.user.role !== 'Coordenador' && options.user.role !== 'Supervisor') {
-      query = query.or(`nucleus.eq."${options.user.nucleus}",assigned_to_id.eq.${options.user.id}`);
+      query = (query as any).eq('assigned_to_id', options.user.id);
+    } else if (!['Administrador', 'Coordenador', 'Supervisor'].includes(options.user.role)) {
+      query = (query as any).or(`nucleus.eq."${options.user.nucleus}",assigned_to_id.eq.${options.user.id}`);
     }
 
-    if (options.nucleusFilter && options.nucleusFilter !== 'Todos') query = query.eq('nucleus', options.nucleusFilter);
-    if (options.onlyAssignedToMe) query = query.eq('assigned_to_id', options.user.id);
-    if (options.unassignedOnly) query = query.is('assigned_to_id', null);
-    if (options.accountantFilter && options.accountantFilter !== 'Todos') query = query.eq('assigned_to_id', options.accountantFilter);
-    
+    if (options.nucleusFilter && options.nucleusFilter !== 'Todos') query = (query as any).eq('nucleus', options.nucleusFilter);
+    if (options.onlyAssignedToMe) query = (query as any).eq('assigned_to_id', options.user.id);
+    if (options.unassignedOnly) query = (query as any).is('assigned_to_id', null);
+    if (options.accountantFilter && options.accountantFilter !== 'Todos') query = (query as any).eq('assigned_to_id', options.accountantFilter);
+
     if (options.externalAccountantIds) {
       if (options.externalAccountantIds.length > 0) {
-        query = query.in('assigned_to_id', options.externalAccountantIds);
+        query = (query as any).in('assigned_to_id', options.externalAccountantIds);
       } else {
-        query = query.eq('assigned_to_id', '00000000-0000-0000-0000-000000000000'); // Return empty
+        query = (query as any).eq('assigned_to_id', '00000000-0000-0000-0000-000000000000');
       }
     }
-    
+
     if (options.statusFilter && options.statusFilter !== 'Todos') {
-      if (options.statusFilter === 'Devolvidos') query = query.not('status', 'ilike', 'Pendente%');
-      else query = query.ilike('status', options.statusFilter === 'Pendente' ? 'Pendente%' : `%${options.statusFilter}%`);
+      if (options.statusFilter === 'Devolvidos') query = (query as any).not('status', 'ilike', 'Pendente%');
+      else query = (query as any).ilike('status', options.statusFilter === 'Pendente' ? 'Pendente%' : `%${options.statusFilter}%`);
     }
 
     if (options.searchTerm) {
       const term = `%${options.searchTerm}%`;
-      const matchingUserIds = this.authService.users().filter(u => u.name.toLowerCase().includes(options.searchTerm.toLowerCase())).map(u => u.id);
+      const matchingUserIds = this.authService.users()
+        .filter(u => u.name.toLowerCase().includes(options.searchTerm!.toLowerCase()))
+        .map(u => u.id);
       let orClause = `number.ilike."${term}",court.ilike."${term}",nucleus.ilike."${term}"`;
       if (matchingUserIds.length > 0) orClause += `,assigned_to_id.in.(${matchingUserIds.join(',')})`;
-      query = query.or(orClause);
+      query = (query as any).or(orClause);
     }
 
     const dateField = options.statusFilter === 'Devolvidos' ? 'completion_date' : 'entry_date';
-    if (options.startDate) query = query.gte(dateField, options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`);
-    if (options.endDate) query = query.lte(dateField, options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`);
+    if (options.startDate) query = (query as any).gte(dateField, options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`);
+    if (options.endDate) query = (query as any).lte(dateField, options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`);
+
+    if (options.statusFilter === 'Devolvidos') {
+      query = (query as any).order('completion_date', { ascending: false, nullsFirst: false });
+    } else {
+      // Ordem: Super primeiro (priority_level=1), depois demais prioridades (level=2), depois regulares (level=3)
+      // Dentro de cada grupo: entrada mais antiga primeiro (position = chegada cronológica por núcleo)
+      query = (query as any)
+        .order('priority_level', { ascending: true, nullsFirst: false })
+        .order('entry_date', { ascending: true, nullsFirst: false });
+    }
+
+    return query;
+  }
+
+  async fetchPaginatedProcesses(options: PaginationOptions) {
+    const client = this.supabaseService.getClient();
+    if (!client) return { processes: [], totalCount: 0 };
+
+    let query = client.from('processes').select('*', { count: 'estimated' }) as any;
+    query = this.applyFiltersToQuery(query, options);
 
     const from = (options.page - 1) * options.pageSize;
     const to = from + options.pageSize - 1;
     query = query.range(from, to);
-
-    if (options.statusFilter === 'Devolvidos') {
-      query = query.order('completion_date', { ascending: false, nullsFirst: false });
-    } else {
-      query = query.order('priority_level', { ascending: true }).order('position', { ascending: true, nullsFirst: false });
-    }
 
     const { data, count, error } = await query;
     if (error) {
@@ -266,23 +279,13 @@ export class ProcessService {
       throw new Error(`Erro ao buscar processos: ${error.message}`);
     }
 
-    const mapped = (data || []).map((p: any) => ({
-      id: String(p['id']), position: Number(p['position']), priorityPosition: p['priority_position'] ? Number(p['priority_position']) : null,
-      number: String(p['number']), entryDate: String(p['entry_date'] || '').split('T')[0], court: String(p['court']),
-      nucleus: String(p['nucleus']), priority: this.metadataService.normalizePriority(String(p['priority'])),
-      status: this.metadataService.normalizeStatus(String(p['status'])), assignedToId: p['assigned_to_id'] ? String(p['assigned_to_id']) : null,
-      assignmentDate: p['assignment_date'] ? String(p['assignment_date']) : null, completionDate: p['completion_date'] ? String(p['completion_date']) : null,
-      valorCustas: p['valor_custas'] ? Number(p['valor_custas']) : 0, observacao: p['observacao'] ? String(p['observacao']) : ''
-    }));
-
-    return { processes: mapped, totalCount: count || 0 };
+    return { processes: (data || []).map((p: Record<string, unknown>) => this.mapProcess(p)), totalCount: count || 0 };
   }
-
-  async fetchAllFilteredProcesses(options: any): Promise<Process[]> {
+  async fetchAllFilteredProcesses(options: PaginationOptions): Promise<Process[]> {
     const client = this.supabaseService.getClient();
     if (!client) return [];
 
-    let allData: any[] = [];
+    let allData: Record<string, unknown>[] = [];
     let page = 0;
     const pageSize = 1000;
     let hasMore = true;
@@ -290,64 +293,11 @@ export class ProcessService {
     while (hasMore) {
       const from = page * pageSize;
       const to = from + pageSize - 1;
-      let batchQuery = client.from('processes').select('*');
-
-      if (options.user.role === 'Administrador' || options.user.role === 'Coordenador' || options.user.role === 'Supervisor') {
-        // No restriction
-      } else if (options.user.role === 'Contador Judicial') {
-        batchQuery = batchQuery.eq('assigned_to_id', options.user.id);
-      } else {
-        const nucleus = options.user.nucleus || '';
-        batchQuery = batchQuery.or(`nucleus.eq."${nucleus}",assigned_to_id.eq.${options.user.id}`);
-      }
-
-      if (options.nucleusFilter && options.nucleusFilter !== 'Todos') batchQuery = batchQuery.eq('nucleus', options.nucleusFilter);
-      if (options.onlyAssignedToMe) batchQuery = batchQuery.eq('assigned_to_id', options.user.id);
-      if (options.unassignedOnly) batchQuery = batchQuery.is('assigned_to_id', null);
-      if (options.accountantFilter && options.accountantFilter !== 'Todos') batchQuery = batchQuery.eq('assigned_to_id', options.accountantFilter);
-      if (options.externalAccountantIds && options.externalAccountantIds.length > 0) {
-        batchQuery = batchQuery.in('assigned_to_id', options.externalAccountantIds);
-      } else if (options.externalAccountantIds && options.externalAccountantIds.length === 0) {
-        batchQuery = batchQuery.eq('assigned_to_id', '00000000-0000-0000-0000-000000000000');
-      }
-
-      if (options.statusFilter && options.statusFilter !== 'Todos') {
-        if (options.statusFilter === 'Devolvidos') {
-          batchQuery = batchQuery.not('status', 'ilike', 'Pendente%');
-        } else {
-          batchQuery = batchQuery.ilike('status', options.statusFilter === 'Pendente' ? 'Pendente%' : `%${options.statusFilter}%`);
-        }
-      }
-
-      if (options.searchTerm) {
-        const term = `%${options.searchTerm}%`;
-        const matchingUserIds = this.authService.users()
-          .filter(u => u.name.toLowerCase().includes(options.searchTerm.toLowerCase()))
-          .map(u => u.id);
-        let orClause = `number.ilike."${term}",court.ilike."${term}",nucleus.ilike."${term}"`;
-        if (matchingUserIds.length > 0) orClause += `,assigned_to_id.in.(${matchingUserIds.join(',')})`;
-        batchQuery = batchQuery.or(orClause);
-      }
-
-      const dateField = options.statusFilter === 'Devolvidos' ? 'completion_date' : 'entry_date';
-      if (options.startDate) {
-        const start = options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`;
-        batchQuery = batchQuery.gte(dateField, start);
-      }
-      if (options.endDate) {
-        const end = options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`;
-        batchQuery = batchQuery.lte(dateField, end);
-      }
-
-      if (options.statusFilter === 'Devolvidos') {
-        batchQuery = batchQuery.order('completion_date', { ascending: false, nullsFirst: false }).order('priority_level', { ascending: true }).order('position', { ascending: true, nullsFirst: false });
-      } else {
-        batchQuery = batchQuery.order('priority_level', { ascending: true }).order('position', { ascending: true, nullsFirst: false });
-      }
-      
+      let batchQuery = this.applyFiltersToQuery(client.from('processes').select('*') as any, options);
       batchQuery = batchQuery.range(from, to);
+
       const { data, error } = await batchQuery;
-      
+
       if (error) {
         console.error('ProcessService: Error fetching batch of processes:', error);
         hasMore = false;
@@ -357,24 +307,14 @@ export class ProcessService {
         if (data.length < pageSize) hasMore = false;
         else {
           page++;
-          if (page > 200) {
-            console.warn('ProcessService: Reached safety limit of 200k records in export.');
-            hasMore = false;
-          }
+          if (page > 200) hasMore = false;
         }
       } else {
         hasMore = false;
       }
     }
 
-    return allData.map((p: any) => ({
-      id: String(p['id']), position: Number(p['position']), priorityPosition: p['priority_position'] ? Number(p['priority_position']) : null,
-      number: String(p['number']), entryDate: String(p['entry_date'] || '').split('T')[0], court: String(p['court']),
-      nucleus: String(p['nucleus']), priority: this.metadataService.normalizePriority(String(p['priority'])),
-      status: this.metadataService.normalizeStatus(String(p['status'])), assignedToId: p['assigned_to_id'] ? String(p['assigned_to_id']) : null,
-      assignmentDate: p['assignment_date'] ? String(p['assignment_date']) : null, completionDate: p['completion_date'] ? String(p['completion_date']) : null,
-      valorCustas: p['valor_custas'] ? Number(p['valor_custas']) : 0, observacao: p['observacao'] ? String(p['observacao']) : ''
-    }));
+    return allData.map(p => this.mapProcess(p));
   }
 
   async addProcess(process: Omit<Process, 'id' | 'position' | 'priorityPosition'>) {
@@ -575,14 +515,38 @@ export class ProcessService {
 
     for (const p of pendingInDb) {
       const identifier = `${p.number}|${p.entryDate}|${this.metadataService.normalizeNucleus(p.nucleus)}`;
-      if (!fileProcessIdentifiers.has(identifier)) inconsistencies.push(`${p.number} (${p.entryDate}) [${p.nucleus}] - Pendente no sistema, mas ausente no arquivo.`);
+      if (!fileProcessIdentifiers.has(identifier)) {
+        inconsistencies.push(`${p.number} (${p.entryDate}) [${p.nucleus}] - Pendente no sistema, mas ausente no arquivo.`);
+      }
     }
 
     this.auditService.addAuditLog(`Importou processos do storage`, { success: importedCount.success, skipped: importedCount.skipped, inconsistencies: inconsistencies.length });
     return { success: importedCount.success, skipped: importedCount.skipped, inconsistencies };
   }
 
-  async autoAssignProcesses(nucleusName: string, selectedUserIds?: string[]) {
+  async getUnassignedCount(nucleusName: string, isAutoinspecao: boolean = false): Promise<number> {
+    const client = this.supabaseService.getClient();
+    if (!client) return 0;
+
+    let query = client.from('processes').select('*', { count: 'exact', head: true })
+      .eq('nucleus', nucleusName)
+      .eq('status', 'Pendente')
+      .is('assigned_to_id', null)
+      .not('priority', 'ilike', '%SUPER%');
+
+    if (isAutoinspecao) {
+      query = query.ilike('priority', '%Autoinspeção%');
+    }
+
+    const { count, error } = await query;
+    if (error) {
+      console.error('Error fetching unassigned count:', error);
+      return 0;
+    }
+    return count || 0;
+  }
+
+  async autoAssignProcesses(nucleusName: string, selectedUserIds?: string[], isAutoinspecao: boolean = false, limit?: number) {
     const client = this.supabaseService.getClient();
     if (!client) return;
 
@@ -596,10 +560,22 @@ export class ProcessService {
 
     if (usersInNucleus.length === 0) throw new Error(`Nenhum usuário ativo selecionado encontrado no núcleo "${nucleusName}".`);
 
-    const { data: unassignedProcessesData, error: procError } = await client
+    let query = client
       .from('processes').select('id, number, position, priority')
       .eq('nucleus', nucleusName).eq('status', 'Pendente').is('assigned_to_id', null)
-      .not('priority', 'ilike', '%SUPER%').order('position', { ascending: true });
+      .not('priority', 'ilike', '%SUPER%');
+
+    if (isAutoinspecao) {
+      query = query.ilike('priority', '%Autoinspeção%');
+    }
+
+    query = query.order('position', { ascending: true });
+
+    if (limit && limit > 0) {
+      query = query.limit(limit);
+    }
+
+    const { data: unassignedProcessesData, error: procError } = await query;
 
     if (procError) throw new Error(`Erro ao buscar processos: ${procError.message}`);
 
@@ -659,11 +635,11 @@ export class ProcessService {
     return data?.entry_date || null;
   }
 
-  async fetchReportData(filters: any) {
+  async fetchReportData(filters: ReportFilters) {
     const client = this.supabaseService.getClient();
     if (!client) return { userStats: [], pendingCount: 0, unassignedCount: 0 };
 
-    let query = client.from('processes').select('assigned_to_id, status, entry_date');
+    let query = client.from('processes').select('assigned_to_id, status, entry_date') as any;
     if (filters.user.role === 'Chefe' || filters.user.role === 'Gerente') query = query.eq('nucleus', filters.user.nucleus);
     else if (filters.nucleus && filters.nucleus !== 'Todos') query = query.eq('nucleus', filters.nucleus);
 
@@ -674,7 +650,7 @@ export class ProcessService {
     const statsMap = new Map<string, number>();
     let pendingCount = 0, unassignedCount = 0;
 
-    (data || []).forEach((p: any) => {
+    (data || []).forEach((p: Record<string, unknown>) => {
       if (p['status'] === 'Pendente') pendingCount++;
       if (!p['assigned_to_id']) unassignedCount++;
       if (p['assigned_to_id']) {
@@ -716,7 +692,14 @@ export class ProcessService {
   async fetchLastEtlUpdate() {
     const client = this.supabaseService.getClient();
     if (!client) return;
-    const { data } = await client.from('audit_logs').select('created_at').eq('user_id', '7a78bb7f-42d4-4ea0-9100-54faff68b72e').order('created_at', { ascending: false }).limit(1).maybeSingle();
+    // Identifica o último registro de carga automática do ETL pela action
+    const { data } = await client
+      .from('audit_logs')
+      .select('created_at')
+      .or('action.ilike.%ETL%,action.ilike.%Importou%')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
     if (data) this.lastEtlUpdate.set(new Date(data.created_at));
   }
 }
