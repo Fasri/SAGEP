@@ -696,7 +696,7 @@ export class ProcessService {
     const { data } = await client
       .from('audit_logs')
       .select('created_at')
-      .or('action.ilike.%ETL%,action.ilike.%Importou%')
+      .or('action.ilike.%ETL%,action.ilike.%Importou%,action.ilike.%Sincroniza%')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();

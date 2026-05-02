@@ -9,7 +9,7 @@
           @if (lastEtlUpdate()) {
             <p class="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5 mt-0.5">
               <span class="material-symbols-outlined text-[14px] animate-pulse">sync</span>
-              Última Atualização do Sistema Automático (ETL): {{ lastEtlUpdate() | date:'dd/MM/yyyy HH:mm':'UTC-3' }}
+              Última Atualização: {{ lastEtlUpdate() | date:'dd/MM/yyyy HH:mm' }}
             </p>
           }
         </div>
