@@ -49,6 +49,7 @@ export interface Process {
   valorCustas?: number;
   observacao?: string;
   createdAt?: string;
+  priorityLevel?: number;
 }
 
 export interface AuditLog {
