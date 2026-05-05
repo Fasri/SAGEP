@@ -316,7 +316,14 @@
               </td>
               <td class="px-1 py-5">
                 <div class="text-[10px] text-slate-500 font-medium text-center">
-                  {{ process.completionDate ? (process.completionDate | date:'dd/MM/yyyy') : '-' }}
+                  @if (canEditCompletionDate()) {
+                    <input type="date" 
+                           [value]="process.completionDate"
+                           (change)="updateFields(process, 'completionDate', $event)"
+                           class="bg-slate-50 border-none rounded px-1 py-0.5 text-[10px] focus:ring-1 focus:ring-primary outline-none">
+                  } @else {
+                    {{ process.completionDate ? (process.completionDate | date:'dd/MM/yyyy') : '-' }}
+                  }
                 </div>
               </td>
               <td class="px-1 py-5">

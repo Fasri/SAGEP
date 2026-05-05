@@ -82,7 +82,7 @@ export class ProcessService {
     }
   }
 
-  async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao' | 'priority'>>) {
+  async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao' | 'priority' | 'completionDate' | 'assignmentDate'>>) {
     let oldProcess = this.processes().find(p => p.id === processId);
     const client = this.supabaseService.getClient();
     
@@ -116,6 +116,8 @@ export class ProcessService {
       if (fields.valorCustas !== undefined) updateData['valor_custas'] = fields.valorCustas;
       if (fields.observacao !== undefined) updateData['observacao'] = fields.observacao;
       if (fields.priority !== undefined) updateData['priority'] = fields.priority;
+      if (fields.completionDate !== undefined) updateData['completion_date'] = fields.completionDate;
+      if (fields.assignmentDate !== undefined) updateData['assignment_date'] = fields.assignmentDate;
 
       const { error } = await client.from('processes').update(updateData).eq('id', processId);
       if (error) {

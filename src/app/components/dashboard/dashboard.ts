@@ -499,11 +499,18 @@ export class Dashboard {
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
     return privilegedRoles.includes(user.role);
   }
-
+ 
+  canEditCompletionDate(): boolean {
+    const user = this.currentUser();
+    if (!user) return false;
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
+    return privilegedRoles.includes(user.role);
+  }
+ 
   async deleteProcess(process: Process) {
     this.confirmDeleteProcess.set(process);
   }
-
+ 
   async confirmDelete() {
     const process = this.confirmDeleteProcess();
     if (!process) return;
@@ -515,12 +522,12 @@ export class Dashboard {
       this.showError(error instanceof Error ? error.message : 'Erro ao excluir processo.');
     }
   }
-
+ 
   cancelDelete() {
     this.confirmDeleteProcess.set(null);
   }
-
-  async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'priority', event: Event) {
+ 
+  async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'priority' | 'completionDate' | 'assignmentDate', event: Event) {
     const input = event.target as HTMLInputElement | HTMLSelectElement;
     
     if (field === 'valorCustas') {
