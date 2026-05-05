@@ -110,40 +110,40 @@ Os processos possuem um nível de prioridade que determina a ordem de atendiment
 
 > ⚠️ A prioridade **não altera** a Posição Geral do processo. Apenas define onde ele aparece na lista visual.
 
-### 5.3 Regras de Posição
+### 5.3 Regras de Posição (V2)
 
-#### 5.3.1 Posição Geral (`position`)
+#### 5.3.1 Níveis de Prioridade (priority_level)
 
-- Calculada **por núcleo** (cada núcleo tem sua própria sequência)
-- Reflete a **ordem cronológica de chegada** (`entry_date` ASC, `id` ASC como desempate)
-- **Não é afetada pela prioridade**
-- Exemplo:
-  ```
-  Núcleo 1CC:
-    Pos. 1 → Processo A (27/04, Sem prioridade)  ← chegou 1º
-    Pos. 2 → Processo B (28/04, Prioridade legal) ← chegou 2º
-    Pos. 3 → Processo C (28/04, Super prioridade) ← chegou 3º (mesmo dia, inserido depois)
-  ```
+Para fins de ordenação visual e agrupamento no Dashboard, os processos são divididos em **2 Níveis**:
+*   **Nível 1 (Super Prioridade)**: Processos que contenham "SUPER" na prioridade. Sempre aparecem no topo da lista.
+*   **Nível 2 (Geral)**: Todos os demais processos (Prioridade Legal, Ordem Superior, Sem Prioridade). Aparecem abaixo do Nível 1, ordenados estritamente por ordem de chegada.
 
-#### 5.3.2 Posição Prioridade (`priority_position`)
+#### 5.3.2 Posição Geral (position)
 
-- Calculada **por núcleo**, apenas para processos prioritários (níveis 1 e 2)
-- Todos os processos prioritários (Super + Legal + Ordem) formam **um único ranking**
-- Super prioridade sempre recebe números menores que Legal/Ordem (mesmo que tenha chegado depois)
-- Processos sem prioridade recebem `NULL` (exibido como `—` na tela)
-- Exemplo (continuando acima):
-  ```
-  Pos. Prioridade 1 → Processo C (Super, 28/04) ← Super vence Legal no ranking de prioridade
-  Pos. Prioridade 2 → Processo B (Legal, 28/04)  ← Legal fica depois do Super
-  Processo A → NULL (sem prioridade)
-  ```
+- Calculada **por núcleo** (cada núcleo tem sua própria sequência).
+- Reflete a **ordem cronológica absoluta de chegada** (`entry_date::date` ASC, `created_at` ASC, `id` ASC).
+- É um número sequencial (1º, 2º, 3º...) que nunca se repete no mesmo núcleo.
+- **Não é afetada pela prioridade.**
 
-#### 5.3.3 Ordem Visual na Tela
+#### 5.3.3 Posição Prioridade (priority_position)
 
-A lista exibe os processos na seguinte ordem (independente da Posição Geral):
-1. **Super prioridade** (entry_date ASC dentro do grupo)
-2. **Demais prioridades** (entry_date ASC dentro do grupo)
-3. **Sem prioridade** (entry_date ASC)
+- Indica o ranking relativo dentro do grupo de processos prioritários:
+    - **Para Super Prioridade**: Ranking (1, 2, 3...) apenas entre os processos Super do mesmo núcleo.
+    - **Para Prioridade Legal/Ordem**: Ranking (1, 2, 3...) apenas entre os processos Legal/Ordem do mesmo núcleo.
+    - **Para Sem Prioridade**: Fica vazio (`—`).
+- Os rankings de Super e Legal são independentes (ambos podem ter um "1º" no seu respectivo grupo).
+
+#### 5.3.4 Ordem Visual na Tela
+
+A lista exibe os processos na seguinte ordem obrigatória:
+1.  `priority_level` (Nível 1 primeiro, depois Nível 2).
+2.  `position` (Fila única de chegada cronológica).
+
+Isso garante que o Super esteja sempre no topo, e que no grupo geral, a fila seja respeitada por quem chegou primeiro, independentemente de ter "Prioridade Legal" ou não.
+
+#### 5.3.5 Recálculo Automático de Posições
+
+As posições são recalculadas automaticamente via função SQL `update_process_positions()` que atualiza os processos com status `Pendente` sempre que houver alteração de status, exclusão, mudança de prioridade ou importação.
 
 #### 5.3.4 Recálculo Automático de Posições
 

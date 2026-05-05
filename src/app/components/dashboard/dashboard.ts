@@ -151,10 +151,11 @@ export class Dashboard {
   });
 
   private getPriorityLevel(priority: string): number {
-    if (!priority) return 2;
+    if (!priority) return 3;
     const p = priority.toUpperCase().trim();
-    if (p.includes('SUPER')) return 1; // Super: topo absoluto
-    return 2;                          // Tudo o que não for Super é nível 2
+    if (p.includes('SUPER'))                      return 1; // Super: topo absoluto
+    if (!p.includes('SEM') && !p.startsWith('2-SEM')) return 2; // Legal, Ordem Superior, 1-*, 2-Prioridade*
+    return 3;                                                // Sem prioridade
   }
 
   private isPriorityProcess(priority: string): boolean {
@@ -238,12 +239,14 @@ export class Dashboard {
       // 2. Demais prioridades (level 2: Legal, Ordem Superior, etc.)
       // 3. Sem prioridade (level 3) → final
       // Dentro de cada grupo: entrada mais antiga primeiro
-      const levelA = a.priorityLevel || this.getPriorityLevel(a.priority);
-      const levelB = b.priorityLevel || this.getPriorityLevel(b.priority);
+      const levelA = this.getPriorityLevel(a.priority);
+      const levelB = this.getPriorityLevel(b.priority);
       if (levelA !== levelB) return levelA - levelB;
 
-      // Desempate: Usar a posição física absoluta do banco
-      return a.position - b.position;
+      // Dentro do mesmo nível: mais antigo primeiro (Posição Geral crescente)
+      const entryA = new Date(a.entryDate).getTime();
+      const entryB = new Date(b.entryDate).getTime();
+      return entryA - entryB;
     });
   });
 
@@ -642,7 +645,9 @@ export class Dashboard {
         })
         .map(u => u.id);
 
-      const processes = await this.store.fetchAllFilteredProcesses({
+      const result = await this.store.fetchPaginatedProcesses({
+        page: this.currentPage(),
+        pageSize: this.pageSize,
         searchTerm: filters.searchTerm,
         statusFilter: filters.status,
         startDate: filters.startDate,
@@ -652,9 +657,9 @@ export class Dashboard {
         onlyAssignedToMe: filters.onlyAssignedToMe,
         unassignedOnly: filters.unassignedOnly,
         externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
-      });
+      } as PaginationOptions);
 
-      const data = (processes || []).map((p: Process) => ({
+      const data = (result?.processes || []).map((p: Process) => ({
         'Posição Geral': p.position,
         'Posição Prioridade': p.priorityPosition || '-',
         'Número do Processo': p.number,

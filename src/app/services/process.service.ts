@@ -57,8 +57,7 @@ export class ProcessService {
       assignmentDate: p['assignment_date'] ? String(p['assignment_date']) : null,
       completionDate: p['completion_date'] ? String(p['completion_date']) : null,
       valorCustas: p['valor_custas'] ? Number(p['valor_custas']) : 0,
-      observacao: p['observacao'] ? String(p['observacao']) : '',
-      priorityLevel: p['priority_level'] ? Number(p['priority_level']) : 2
+      observacao: p['observacao'] ? String(p['observacao']) : ''
     };
   }
 
@@ -70,8 +69,7 @@ export class ProcessService {
       const { data: processes, error: processesError } = await client.from('processes')
         .select('*')
         .order('priority_level', { ascending: true })
-        .order('entry_date', { ascending: true })
-        .order('created_at', { ascending: true })
+        .order('position', { ascending: true })
         .limit(5000);
 
       if (processesError) {
@@ -87,7 +85,7 @@ export class ProcessService {
   async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao' | 'priority'>>) {
     let oldProcess = this.processes().find(p => p.id === processId);
     const client = this.supabaseService.getClient();
-
+    
     if (!oldProcess && client) {
       const { data } = await client.from('processes').select('*').eq('id', processId).maybeSingle();
       if (data) {
@@ -117,12 +115,7 @@ export class ProcessService {
       const updateData: Record<string, string | number | null> = {};
       if (fields.valorCustas !== undefined) updateData['valor_custas'] = fields.valorCustas;
       if (fields.observacao !== undefined) updateData['observacao'] = fields.observacao;
-      if (fields.priority !== undefined) {
-        updateData['priority'] = fields.priority;
-        const p = fields.priority.toLowerCase();
-        if (p.includes('super')) updateData['priority_level'] = 1;
-        else updateData['priority_level'] = 2;
-      }
+      if (fields.priority !== undefined) updateData['priority'] = fields.priority;
 
       const { error } = await client.from('processes').update(updateData).eq('id', processId);
       if (error) {
@@ -131,10 +124,10 @@ export class ProcessService {
         if (fields.priority !== undefined) {
           await client.rpc('update_process_positions');
         }
-        this.auditService.addAuditLog(`Atualizou campos do processo ${oldProcess?.number || processId}`, {
-          fields,
+        this.auditService.addAuditLog(`Atualizou campos do processo ${oldProcess?.number || processId}`, { 
+          fields, 
           oldValues: oldProcess,
-          processNumber: oldProcess?.number
+          processNumber: oldProcess?.number 
         });
         this.updateGlobalStats();
       }
@@ -146,7 +139,7 @@ export class ProcessService {
   async updateProcessStatus(processId: string, newStatus: string) {
     const today = new Date().toLocaleDateString('en-CA');
     const completionDate = newStatus !== 'Pendente' ? today : null;
-
+    
     let processToUpdate = this.processes().find(p => p.id === processId);
     const client = this.supabaseService.getClient();
 
@@ -154,10 +147,10 @@ export class ProcessService {
       const { data } = await client.from('processes').select('*').eq('id', processId).maybeSingle();
       if (data) {
         processToUpdate = {
-          id: data.id, position: data.position, priorityPosition: data.priority_position, number: data.number,
-          entryDate: data.entry_date, court: data.court, nucleus: data.nucleus, priority: data.priority,
-          status: data.status, assignedToId: data.assigned_to_id, assignmentDate: data.assignment_date,
-          completionDate: data.completion_date, valorCustas: data.valor_custas, observacao: data.observacao
+           id: data.id, position: data.position, priorityPosition: data.priority_position, number: data.number,
+           entryDate: data.entry_date, court: data.court, nucleus: data.nucleus, priority: data.priority,
+           status: data.status, assignedToId: data.assigned_to_id, assignmentDate: data.assignment_date,
+           completionDate: data.completion_date, valorCustas: data.valor_custas, observacao: data.observacao
         };
       }
     }
@@ -211,7 +204,7 @@ export class ProcessService {
     this.processes.update(prev => prev.filter(p => p.id !== processId));
     this.updateGlobalStats();
     await client.rpc('update_process_positions'); // Re-rank other processes
-
+    
     if (processToDelete) {
       this.auditService.addAuditLog(`Excluiu processo ${processToDelete.number}`, { processNumber: processToDelete.number, processId });
     }
@@ -263,8 +256,7 @@ export class ProcessService {
       // Dentro de cada grupo: entrada mais antiga primeiro (position = chegada cronológica por núcleo)
       query = (query as any)
         .order('priority_level', { ascending: true })
-        .order('entry_date', { ascending: true })
-        .order('created_at', { ascending: true });
+        .order('position', { ascending: true });
     }
 
     return query;
@@ -330,7 +322,7 @@ export class ProcessService {
     if (!client || !this.supabaseService.isSupabaseConnected()) {
       throw new Error('O sistema está offline ou sem conexão com o banco de dados. Tente novamente em instantes.');
     }
-
+    
     const normalizedNucleus = this.metadataService.normalizeNucleus(process.nucleus);
     const normalizedPriority = this.metadataService.normalizePriority(process.priority);
     const normalizedStatus = this.metadataService.normalizeStatus(process.status);
@@ -338,12 +330,12 @@ export class ProcessService {
     await this.metadataService.ensureNucleusExists(normalizedNucleus);
     await this.metadataService.ensurePriorityExists(normalizedPriority);
     await this.metadataService.ensureStatusExists(normalizedStatus);
-
+    
     const today = new Date().toLocaleDateString('en-CA');
     const assignmentDate = process.assignedToId ? today : null;
     const completionDate = normalizedStatus !== 'Pendente' ? today : null;
     const createdAt = process.createdAt || today;
-
+    
     try {
       const { data: maxPosData } = await client.from('processes').select('position').order('position', { ascending: false }).limit(1).maybeSingle();
       const nextPosition = (maxPosData?.position || 0) + 1;
@@ -360,8 +352,7 @@ export class ProcessService {
         nucleus: normalizedNucleus, priority: normalizedPriority, status: normalizedStatus,
         assigned_to_id: process.assignedToId, assignment_date: assignmentDate,
         completion_date: completionDate, valor_custas: process.valorCustas || 0,
-        observacao: this.metadataService.fixEncoding(process.observacao || ''), created_at: createdAt,
-        priority_level: normalizedPriority.toLowerCase().includes('super') ? 1 : 2
+        observacao: this.metadataService.fixEncoding(process.observacao || ''), created_at: createdAt
       }]).select();
 
       if (error) {
@@ -381,7 +372,6 @@ export class ProcessService {
           processNumber: process.number, entryDate: process.entryDate, nucleus: normalizedNucleus,
           priority: normalizedPriority, status: normalizedStatus, assignedToId: process.assignedToId
         };
-        await client.rpc('update_process_positions');
         this.auditService.addAuditLog(`Inseriu novo processo ${process.number}`, logDetails);
         this.updateGlobalStats();
       }
@@ -421,13 +411,13 @@ export class ProcessService {
 
     const { data: existingData } = await client.from('processes').select('number, entry_date, nucleus, status, position');
     const existingSet = new Set((existingData || []).map(p => `${p.number}|${p.entry_date}|${this.metadataService.normalizeNucleus(p.nucleus)}`));
-
+    
     const pendingInDb = this.processes().filter(p => p.status === 'Pendente');
 
     const importedCount = { success: 0, skipped: 0 };
     const inconsistencies: string[] = [];
     const fileProcessIdentifiers = new Set<string>();
-
+    
     const parseDate = (val: unknown) => {
       if (!val) return null;
       if (typeof val === 'number') {
@@ -453,7 +443,7 @@ export class ProcessService {
     const { data: maxPosData } = await client.from('processes').select('position').order('position', { ascending: false }).limit(1).maybeSingle();
     let nextPosition = (maxPosData?.position || 0) + 1;
     const processesToInsert: Record<string, unknown>[] = [];
-
+    
     const userMap: Record<string, string> = {};
     this.authService.users().forEach(u => userMap[u.name.toLowerCase()] = u.id);
 
@@ -475,7 +465,7 @@ export class ProcessService {
       const entryDate = parseDate(getVal(['Data de Remessa', 'data_remessa', 'entrada', 'Entrada', 'Data de Entrada', 'Data Entrada', 'remessa', 'entryDate', 'entry_date', 'data', 'Dt. Entrada']));
       const nucleusRaw = String(getVal(['nucleo', 'Núcleo', 'Nucleo', 'nucleus']) || '1ª CC').trim();
       const normalizedNucleus = this.metadataService.normalizeNucleus(nucleusRaw);
-
+      
       if (!number || !entryDate) continue;
 
       const identifier = `${number}|${entryDate}|${normalizedNucleus}`;
@@ -506,8 +496,7 @@ export class ProcessService {
         priority: normalizedPriority, status: normalizedStatus, assigned_to_id: assignedToId,
         assignment_date: assignmentDate || (normalizedStatus !== 'Pendente' ? today : null),
         completion_date: completionDate || (normalizedStatus !== 'Pendente' ? today : null),
-        valor_custas: valorCustas, observacao, created_at: today,
-        priority_level: normalizedPriority.toLowerCase().includes('super') ? 1 : 2
+        valor_custas: valorCustas, observacao, created_at: today
       });
 
       existingSet.add(identifier);
@@ -629,7 +618,7 @@ export class ProcessService {
     }
 
     this.autoAssignProgress.set(null);
-
+    
     const { data: nucleosData } = await client.from('nucleos').select('*');
     if (nucleosData) {
       this.metadataService.nucleos.set(nucleosData.map(n => ({ id: n.id, nome: n.nome, descricao: n.descricao, lastAssignedUserId: n.last_assigned_user_id })));

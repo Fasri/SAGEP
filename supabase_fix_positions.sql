@@ -1,62 +1,51 @@
 -- ============================================================
--- SAGEP: Correção de Estrutura e Posicionamento (CAST EXPLÍCITO)
+-- SAGEP: Função update_process_positions (VERSÃO CORRIGIDA)
+--
+-- REGRAS:
+--   position          → chegada cronológica dentro do NÚCLEO
+--                       (NÃO é afetada por prioridade)
+--
+--   priority_position → rank dentro do grupo de prioridade no núcleo
+--                       Super prioridade:   rank entre supers do núcleo
+--                       Demais prioridades: rank entre legais/ordens do núcleo
+--                       Sem prioridade:     NULL
 -- ============================================================
 
--- 1. Converter priority_level para INTEGER se necessário
-DO $$ 
-BEGIN 
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'processes' 
-        AND column_name = 'priority_level' 
-        AND is_generated = 'ALWAYS'
-    ) THEN
-        ALTER TABLE processes DROP COLUMN priority_level;
-        ALTER TABLE processes ADD COLUMN priority_level INTEGER;
-    END IF;
-END $$;
-
-ALTER TABLE processes ADD COLUMN IF NOT EXISTS priority_level INTEGER;
-
--- 2. Função com ORDER BY reforçado (Cast para DATE)
 CREATE OR REPLACE FUNCTION update_process_positions()
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  -- Atualiza níveis
-  UPDATE processes
-  SET priority_level = 
-    CASE
-      WHEN priority ILIKE '%super%' THEN 1
-      ELSE 2
-    END
-  WHERE status ILIKE '%pendente%';
-
-  -- Recalcula posições usando cast explícito de data para evitar ordenação de texto
   WITH ranked AS (
     SELECT
-      id,
+      p.id,
+
+      -- Posição Geral: puramente cronológica dentro do núcleo
       ROW_NUMBER() OVER (
-        PARTITION BY nucleus
-        ORDER BY 
-          (entry_date::date) ASC, 
-          (created_at::timestamp) ASC, 
-          id ASC
+        PARTITION BY p.nucleus
+        ORDER BY p.entry_date ASC, p.created_at ASC
       ) AS new_position,
+
+      -- Posição Prioridade: rank dentro do grupo no núcleo
       CASE
-        WHEN priority_level = 1 THEN
+        WHEN p.priority ILIKE '%super%' THEN
           ROW_NUMBER() OVER (
-            PARTITION BY nucleus, priority_level
-            ORDER BY 
-              (entry_date::date) ASC, 
-              (created_at::timestamp) ASC, 
-              id ASC
+            PARTITION BY p.nucleus, 'super'::text
+            ORDER BY p.entry_date ASC, p.created_at ASC
+          )
+        WHEN p.priority NOT ILIKE '%sem%'
+          AND p.priority NOT ILIKE '2-sem%'
+          AND p.priority IS NOT NULL
+          AND p.priority <> '' THEN
+          ROW_NUMBER() OVER (
+            PARTITION BY p.nucleus, 'other'::text
+            ORDER BY p.entry_date ASC, p.created_at ASC
           )
         ELSE NULL
       END AS new_priority_position
-    FROM processes
-    WHERE status ILIKE '%pendente%'
+
+    FROM processes p
+    WHERE p.status ILIKE '%pendente%'
   )
   UPDATE processes p
   SET
@@ -67,4 +56,4 @@ BEGIN
 END;
 $$;
 
-SELECT update_process_positions();
+-- Após aplicar: SELECT update_process_positions();

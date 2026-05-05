@@ -50,3 +50,4 @@ Thumbs.db
 /.agent
 /dist
 /node_modules
+/scratch
