@@ -220,6 +220,8 @@ export class ProcessService {
     }
 
     if (options.nucleusFilter && options.nucleusFilter !== 'Todos') query = (query as any).eq('nucleus', options.nucleusFilter);
+    if (options.priorityFilter && options.priorityFilter !== 'Todos') query = (query as any).eq('priority', options.priorityFilter);
+    if (options.statusDetailFilter && options.statusDetailFilter !== 'Todos') query = (query as any).eq('status', options.statusDetailFilter);
     if (options.onlyAssignedToMe) query = (query as any).eq('assigned_to_id', options.user.id);
     if (options.unassignedOnly) query = (query as any).is('assigned_to_id', null);
     if (options.accountantFilter && options.accountantFilter !== 'Todos') query = (query as any).eq('assigned_to_id', options.accountantFilter);

@@ -68,6 +68,8 @@ export interface PaginationOptions {
   searchTerm?: string;
   statusFilter?: 'Pendente' | 'Todos' | 'Devolvidos';
   nucleusFilter?: string;
+  priorityFilter?: string;
+  statusDetailFilter?: string;
   startDate?: string;
   endDate?: string;
   onlyAssignedToMe?: boolean;

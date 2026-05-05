@@ -38,6 +38,8 @@ export class Dashboard {
   
   filterForm = new FormGroup({
     searchTerm: new FormControl(''),
+    priorityFilter: new FormControl('Todos'),
+    statusDetailFilter: new FormControl('Todos'),
     startDate: new FormControl(this.getDefaultStartDate()),
     endDate: new FormControl(this.getDefaultEndDate())
   });
@@ -124,6 +126,8 @@ export class Dashboard {
     endDate: this.getDefaultEndDate(),
     status: 'Pendente' as 'Pendente' | 'Todos' | 'Devolvidos',
     nucleus: 'Todos',
+    priority: 'Todos',
+    statusDetail: 'Todos',
     onlyAssignedToMe: false,
     unassignedOnly: false,
     externalAccountantsOnly: false
@@ -300,6 +304,8 @@ export class Dashboard {
           pageSize: this.pageSize,
           searchTerm: filters.searchTerm,
           statusFilter: filters.status,
+          priorityFilter: filters.priority,
+          statusDetailFilter: filters.statusDetail,
           startDate: filters.startDate,
           endDate: filters.endDate,
           user: user,
@@ -385,6 +391,8 @@ export class Dashboard {
   clearFilters() {
     this.filterForm.patchValue({
       searchTerm: '',
+      priorityFilter: 'Todos',
+      statusDetailFilter: 'Todos',
       startDate: this.getDefaultStartDate(),
       endDate: this.getDefaultEndDate()
     });
@@ -407,6 +415,8 @@ export class Dashboard {
       endDate: endDate || this.getDefaultEndDate(),
       status: this.statusFilter(),
       nucleus: this.nucleusFilter(),
+      priority: this.filterForm.value.priorityFilter || 'Todos',
+      statusDetail: this.filterForm.value.statusDetailFilter || 'Todos',
       onlyAssignedToMe: this.onlyAssignedToMe(),
       unassignedOnly: this.unassignedOnly(),
       externalAccountantsOnly: this.externalAccountantsOnly()
