@@ -341,8 +341,7 @@ export class ProcessService {
     const createdAt = process.createdAt || today;
     
     try {
-      const { data: maxPosData } = await client.from('processes').select('position').order('position', { ascending: false }).limit(1).maybeSingle();
-      const nextPosition = (maxPosData?.position || 0) + 1;
+      // O cálculo da posição agora é feito automaticamente via Trigger no banco de dados
 
       const { data: existing, error: checkError } = await client.from('processes').select('id')
         .eq('number', process.number).eq('entry_date', process.entryDate).eq('nucleus', normalizedNucleus).maybeSingle();
@@ -351,7 +350,8 @@ export class ProcessService {
       if (existing) throw new Error(`Já existe um processo cadastrado com o número ${process.number}, data ${process.entryDate} e núcleo ${normalizedNucleus}.`);
 
       const { data, error } = await client.from('processes').insert([{
-        position: nextPosition, number: this.metadataService.fixEncoding(process.number),
+        position: 0, // A trigger trg_recalculate_positions cuidará do valor correto
+        number: this.metadataService.fixEncoding(process.number),
         entry_date: process.entryDate, court: this.metadataService.fixEncoding(process.court),
         nucleus: normalizedNucleus, priority: normalizedPriority, status: normalizedStatus,
         assigned_to_id: process.assignedToId, assignment_date: assignmentDate,
@@ -444,8 +444,7 @@ export class ProcessService {
     };
 
     const today = new Date().toLocaleDateString('en-CA');
-    const { data: maxPosData } = await client.from('processes').select('position').order('position', { ascending: false }).limit(1).maybeSingle();
-    let nextPosition = (maxPosData?.position || 0) + 1;
+    // A posição será calculada automaticamente pelo banco de dados (Trigger)
     const processesToInsert: Record<string, unknown>[] = [];
     
     const userMap: Record<string, string> = {};
@@ -496,7 +495,8 @@ export class ProcessService {
       if (accountantName) assignedToId = userMap[accountantName.toLowerCase()] || null;
 
       processesToInsert.push({
-        position: nextPosition++, number, entry_date: entryDate, court, nucleus: normalizedNucleus,
+        position: 0, // A trigger trg_recalculate_positions cuidará do valor correto
+        number, entry_date: entryDate, court, nucleus: normalizedNucleus,
         priority: normalizedPriority, status: normalizedStatus, assigned_to_id: assignedToId,
         assignment_date: assignmentDate || (normalizedStatus !== 'Pendente' ? today : null),
         completion_date: completionDate || (normalizedStatus !== 'Pendente' ? today : null),

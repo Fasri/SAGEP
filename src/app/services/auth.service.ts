@@ -44,6 +44,7 @@ export class AuthService {
           metaPercentage: Number(u['meta_percentage']),
           birthDate: String(u['birth_date']),
           active: Boolean(u['active']),
+          lastSeen: u['last_seen'] ? String(u['last_seen']) : undefined,
           password: String(u['password'] || '123456')
         })));
       }
@@ -60,9 +61,22 @@ export class AuthService {
     );
     if (user && user.password === password) {
       this.currentUser.set(user);
+      this.updateLastSeen(); // Atualiza atividade ao logar
       return true;
     }
     return false;
+  }
+
+  async updateLastSeen() {
+    const user = this.currentUser();
+    const client = this.supabaseService.getClient();
+    if (user && client && !user.id.startsWith('u')) {
+      const now = new Date().toISOString();
+      const { error } = await client.from('users').update({ last_seen: now }).eq('id', user.id);
+      if (!error) {
+        this.users.update(prev => prev.map(u => u.id === user.id ? { ...u, lastSeen: now } : u));
+      }
+    }
   }
 
   logout() {

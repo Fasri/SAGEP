@@ -12,6 +12,24 @@
               Última Atualização: {{ lastEtlUpdate() | date:'dd/MM/yyyy HH:mm' }}
             </p>
           }
+          
+          @if (onlineUsers().length > 0 && ['Administrador', 'Coordenador', 'Supervisor'].includes(currentUser()?.role || '')) {
+            <div class="flex items-center gap-2 mt-1.5 animate-in fade-in slide-in-from-left-2">
+              <div class="flex -space-x-1.5">
+                @for (user of onlineUsers().slice(0, 5); track user.id) {
+                  <div [title]="user.name + ' (Ativo agora)'" 
+                       class="w-6 h-6 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-600 cursor-help ring-1 ring-emerald-400/50">
+                    {{ user.name.substring(0, 1) }}
+                  </div>
+                }
+              </div>
+              @if (onlineUsers().length > 5) {
+                <span class="text-[10px] text-slate-400 font-bold tracking-tight">+{{ onlineUsers().length - 5 }} ONLINE</span>
+              } @else {
+                <span class="text-[10px] text-emerald-600 font-bold tracking-tight uppercase">{{ onlineUsers().length }} {{ onlineUsers().length === 1 ? 'ativo' : 'ativos' }}</span>
+              }
+            </div>
+          }
         </div>
       </div>
       <div class="flex items-center gap-3">

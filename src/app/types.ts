@@ -11,6 +11,7 @@ export interface User {
   metaPercentage: number;
   birthDate: string;
   active: boolean;
+  lastSeen?: string;
   password?: string;
 }
 

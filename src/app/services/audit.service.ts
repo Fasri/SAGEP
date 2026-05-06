@@ -18,6 +18,8 @@ export class AuditService {
     const user = this.authService.currentUser();
     if (!user) return;
 
+    this.authService.updateLastSeen(); // Atualiza timestamp de atividade
+
     let extractedProcessNumber = processNumber;
     if (!extractedProcessNumber && details) {
       extractedProcessNumber = (details['processNumber'] as string) || (details['number'] as string);

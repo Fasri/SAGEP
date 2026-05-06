@@ -52,12 +52,12 @@ export class Dashboard {
   // We only mark them as duplicates if they are both visible in the current view (paginated)
   // to avoid confusion when a duplicate exists on another page.
   duplicateProcessIds = computed(() => {
-    const all = this.paginatedProcesses();
+    const all = this.processes(); // Verificação global independente de filtros ou paginação
     const groups = new Map<string, Process[]>();
     
     all.forEach(p => {
-      const num = p.number.trim();
-      const nuc = p.nucleus.trim();
+      const num = p.number?.trim();
+      const nuc = p.nucleus?.trim();
       if (!num) return;
       
       const key = `${num}|${nuc}`;
@@ -70,12 +70,10 @@ export class Dashboard {
     const duplicateIds = new Set<string>();
     
     groups.forEach((groupProcesses) => {
-      // Check if we have at least two DIFFERENT processes (different IDs)
-      const distinctIds = new Set(groupProcesses.map(p => p.id));
-      
-      if (distinctIds.size > 1) {
-        // Check if they have different entry dates (re-entry criteria)
-        const dates = new Set(groupProcesses.map(p => p.entryDate.trim()));
+      // Se houver mais de um processo para o mesmo número/núcleo
+      if (groupProcesses.length > 1) {
+        // Verifica se as datas de entrada são diferentes (critério de re-ingresso)
+        const dates = new Set(groupProcesses.map(p => p.entryDate?.trim()));
         if (dates.size > 1) {
           groupProcesses.forEach(p => duplicateIds.add(p.id));
         }
@@ -152,6 +150,12 @@ export class Dashboard {
     let nucleus = this.nucleusFilter();
     if (nucleus === 'Todos') nucleus = user.nucleus;
     return this.users().filter(u => u.nucleus === nucleus && u.active);
+  });
+
+  onlineUsers = computed(() => {
+    const all = this.users();
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    return all.filter(u => u.lastSeen && new Date(u.lastSeen) > fifteenMinutesAgo);
   });
 
   private getPriorityLevel(priority: string): number {
@@ -662,11 +666,11 @@ export class Dashboard {
         })
         .map(u => u.id);
 
-      const result = await this.store.fetchPaginatedProcesses({
-        page: this.currentPage(),
-        pageSize: this.pageSize,
+      const processes = await this.store.fetchAllFilteredProcesses({
         searchTerm: filters.searchTerm,
         statusFilter: filters.status,
+        priorityFilter: filters.priority,
+        statusDetailFilter: filters.statusDetail,
         startDate: filters.startDate,
         endDate: filters.endDate,
         user: user,
@@ -676,7 +680,7 @@ export class Dashboard {
         externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
       } as PaginationOptions);
 
-      const data = (result?.processes || []).map((p: Process) => ({
+      const data = (processes || []).map((p: Process) => ({
         'Posição Geral': p.position,
         'Posição Prioridade': p.priorityPosition || '-',
         'Número do Processo': p.number,
