@@ -377,16 +377,16 @@ Calcula dinamicamente, em tempo real:
 
 ---
 
-## 10. Glossário
+## 11. Performance e Escalabilidade (Otimização Free Tier)
 
-| Termo | Definição |
-|---|---|
-| **Processo** | Ação judicial encaminhada à Contadoria para elaboração de cálculo |
-| **Núcleo** | Unidade organizacional da Contadoria (ex: 1ª CC, 2ª CC) |
-| **Remessa** | Data em que o processo chegou à Contadoria |
-| **Cumprimento** | Status do processo no fluxo da Contadoria |
-| **Posição Geral** | Número de chegada cronológica do processo no núcleo |
-| **Posição Prioridade** | Rank do processo dentro do grupo de prioritários do núcleo |
-| **Round-Robin** | Algoritmo de distribuição sequencial e rotativa entre contadores |
-| **ETL** | Processo automatizado de extração, transformação e carga de dados |
-| **Super prioridade** | Processo com determinação judicial urgente (ex: liminar, mandado) |
+Visando suportar 70 usuários simultâneos sem exceder os limites do plano gratuito do Supabase, foram implementadas as seguintes estratégias:
+
+### 11.1 Backend (PostgreSQL Otimizado)
+- **Redução de I/O**: A função `update_process_positions` utiliza filtros booleanos para evitar a atualização de 192.000+ linhas concluídas a cada transação.
+- **Escalabilidade Horizontal**: O recalculo segmentado por núcleo permite que múltiplos chefes de núcleos diferentes trabalhem ao mesmo tempo sem causar *locks* globais na tabela de processos.
+- **Timeout Prevention**: A redução da carga de processamento eliminou os erros de *statement timeout* (código 57014) observados em tabelas de grande porte.
+
+### 11.2 Frontend (User Experience & Concurrency)
+- **Atualizações Otimistas (Optimistic UI)**: A interface do Dashboard reage instantaneamente aos comandos do usuário (mudar status, prioridade ou atribuição) antes mesmo da confirmação do servidor.
+- **Controle de Concorrência**: Implementado um delay estratégico (Debounce) de 500ms entre a escrita no banco e o recarregamento da lista (`loadServerData`), permitindo que os gatilhos do banco finalizem o processamento de forma consistente.
+- **Redução de Overhead**: Removida a redundância de chamadas RPC via código TypeScript, centralizando a lógica de integridade de dados exclusivamente em triggers do banco de dados.

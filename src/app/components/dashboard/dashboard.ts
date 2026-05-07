@@ -48,41 +48,6 @@ export class Dashboard {
     initialValue: this.filterForm.value
   });
 
-  // Identify processes with same number and nucleus but different dates
-  // We only mark them as duplicates if they are both visible in the current view (paginated)
-  // to avoid confusion when a duplicate exists on another page.
-  duplicateProcessIds = computed(() => {
-    const all = this.processes(); // Verificação global independente de filtros ou paginação
-    const groups = new Map<string, Process[]>();
-    
-    all.forEach(p => {
-      const num = p.number?.trim();
-      const nuc = p.nucleus?.trim();
-      if (!num) return;
-      
-      const key = `${num}|${nuc}`;
-      if (!groups.has(key)) {
-        groups.set(key, []);
-      }
-      groups.get(key)!.push(p);
-    });
-
-    const duplicateIds = new Set<string>();
-    
-    groups.forEach((groupProcesses) => {
-      // Se houver mais de um processo para o mesmo número/núcleo
-      if (groupProcesses.length > 1) {
-        // Verifica se as datas de entrada são diferentes (critério de re-ingresso)
-        const dates = new Set(groupProcesses.map(p => p.entryDate?.trim()));
-        if (dates.size > 1) {
-          groupProcesses.forEach(p => duplicateIds.add(p.id));
-        }
-      }
-    });
-
-    return duplicateIds;
-  });
-
   // Processes visible to the current user based on their role
   visibleProcesses = computed(() => {
     const user = this.currentUser();

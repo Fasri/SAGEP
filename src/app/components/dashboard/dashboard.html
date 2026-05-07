@@ -245,14 +245,14 @@
         </thead>
         <tbody class="divide-y divide-slate-50" [class.opacity-50]="isLoading()">
           @for (process of paginatedProcesses(); track process.id) {
-            <tr class="hover:bg-slate-50 transition-colors">
+            <tr class="hover:bg-slate-50 transition-colors" [class.bg-orange-50]="process.isReturn">
               <td class="px-1 py-5 text-center font-bold text-slate-700 text-xs">{{ process.position }}º</td>
               <td class="px-1 py-5 text-center font-bold text-orange-500 text-xs">
                 {{ process.priorityPosition ? process.priorityPosition + 'º' : '-' }}
               </td>
               <td class="px-1 py-5 font-mono font-medium text-xs whitespace-nowrap"
-                  [class.text-orange-500]="duplicateProcessIds().has(process.id)"
-                  [class.text-slate-900]="!duplicateProcessIds().has(process.id)">
+                  [class.text-orange-600]="process.isReturn"
+                  [class.text-slate-900]="!process.isReturn">
                 <div class="flex items-center gap-1.5">
                   <button (click)="copyProcessNumber(process.number)" title="Copiar Número do Processo" class="text-slate-400 hover:text-primary transition-colors cursor-pointer flex items-center justify-center">
                     <span class="material-symbols-outlined text-[14px]">content_copy</span>

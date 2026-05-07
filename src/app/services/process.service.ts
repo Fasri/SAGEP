@@ -57,7 +57,8 @@ export class ProcessService {
       assignmentDate: p['assignment_date'] ? String(p['assignment_date']) : null,
       completionDate: p['completion_date'] ? String(p['completion_date']) : null,
       valorCustas: p['valor_custas'] ? Number(p['valor_custas']) : 0,
-      observacao: p['observacao'] ? String(p['observacao']) : ''
+      observacao: p['observacao'] ? String(p['observacao']) : '',
+      isReturn: !!p['is_return']
     };
   }
 

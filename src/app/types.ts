@@ -49,6 +49,7 @@ export interface Process {
   completionDate?: string | null;
   valorCustas?: number;
   observacao?: string;
+  isReturn?: boolean;
   createdAt?: string;
 }
 
