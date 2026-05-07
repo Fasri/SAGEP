@@ -486,18 +486,45 @@ export class Dashboard {
   }
 
   async updateStatus(process: Process, newStatus: string) {
-    await this.store.updateProcessStatus(process.id, newStatus as Process['status']);
-    this.loadServerData();
+    // Update local state first (Optimistic)
+    this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, status: newStatus } : p));
+    this.openStatusDropdownId.set(null); // Fecha o dropdown imediatamente
+    
+    try {
+      await this.store.updateProcessStatus(process.id, newStatus as Process['status']);
+      // Pequeno delay para garantir que o trigger do banco terminou o recalculo
+      setTimeout(() => this.loadServerData(), 500);
+    } catch (e) {
+      console.error('Dashboard: Erro ao atualizar status:', e);
+      this.loadServerData(); // Força recarga em caso de erro
+    }
   }
 
   async updatePriority(process: Process, newPriority: string) {
-    await this.store.updateProcessFields(process.id, { priority: newPriority });
-    this.loadServerData();
+    // Update local state first (Optimistic)
+    this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, priority: newPriority } : p));
+    this.openPriorityDropdownId.set(null); // Fecha o dropdown
+    
+    try {
+      await this.store.updateProcessFields(process.id, { priority: newPriority });
+      setTimeout(() => this.loadServerData(), 500);
+    } catch (e) {
+      console.error('Dashboard: Erro ao atualizar prioridade:', e);
+      this.loadServerData();
+    }
   }
 
   async assignProcess(process: Process, userId: string) {
-    await this.store.assignProcess(process.id, userId);
-    this.loadServerData();
+    // Update local state first (Optimistic)
+    this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, assignedToId: userId } : p));
+    
+    try {
+      await this.store.assignProcess(process.id, userId);
+      setTimeout(() => this.loadServerData(), 500);
+    } catch (e) {
+      console.error('Dashboard: Erro ao atribuir processo:', e);
+      this.loadServerData();
+    }
   }
 
   canEditPriority(): boolean {
