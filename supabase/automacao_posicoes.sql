@@ -16,7 +16,8 @@ BEGIN
   SET 
     position = 0,
     priority_position = NULL
-  WHERE status NOT ILIKE '%pendente%';
+  WHERE status NOT ILIKE '%pendente%'
+    AND (position <> 0 OR priority_position IS NOT NULL); -- Otimização para evitar timeouts
 
   -- Passo B: Recalcular posições de todos os processos PENDENTES
   -- A ordem é baseada na data de entrada e data de criação (chegada cronológica)

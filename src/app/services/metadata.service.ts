@@ -81,7 +81,6 @@ export class MetadataService {
       { nome: 'Devolvido: Beneficiário da Justiça Gratuita', descricao: '' },
       { nome: 'Devolvido: ausência de certidão de trânsito em julgado', descricao: '' },
       { nome: 'Devolvido: ausência de parâmetros', descricao: '' },
-      { nome: 'Cálculo realizado', descricao: '' },
       { nome: 'Cálculo atualizado do calculista', descricao: '' },
       { nome: 'Devolvido: ausência de documentos para os cálculos', descricao: '' },
       { nome: 'Devolvido: perícia', descricao: '' },
@@ -102,21 +101,24 @@ export class MetadataService {
       for (const item of defaultNucleos) {
         const { data } = await client.from('nucleos').select('id').eq('nome', item.nome).maybeSingle();
         if (!data) {
-          await client.from('nucleos').insert([item]);
+          const { error } = await client.from('nucleos').insert([item]);
+          if (error) console.error(`MetadataService: Error seeding nucleus ${item.nome}:`, error.message);
         }
       }
       
       for (const item of defaultPrioridades) {
         const { data } = await client.from('prioridades').select('id').eq('nome', item.nome).maybeSingle();
         if (!data) {
-          await client.from('prioridades').insert([item]);
+          const { error } = await client.from('prioridades').insert([item]);
+          if (error) console.error(`MetadataService: Error seeding priority ${item.nome}:`, error.message);
         }
       }
       
       for (const item of defaultStatus) {
         const { data } = await client.from('status').select('id').eq('nome', item.nome).maybeSingle();
         if (!data) {
-          await client.from('status').insert([item]);
+          const { error } = await client.from('status').insert([item]);
+          if (error) console.error(`MetadataService: Error seeding status ${item.nome}:`, error.message);
         }
       }
       

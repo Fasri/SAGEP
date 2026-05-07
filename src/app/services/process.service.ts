@@ -160,16 +160,37 @@ export class ProcessService {
     let assignmentDate = processToUpdate?.assignmentDate;
     if (newStatus !== 'Pendente' && !assignmentDate) assignmentDate = today;
 
-    this.processes.update(prev => prev.map(p => p.id === processId ? { ...p, status: newStatus, completionDate, assignmentDate } : p));
+    // Normalizar o status antes de salvar
+    const normalizedStatus = this.metadataService.normalizeStatus(newStatus);
+
+    this.processes.update(prev => prev.map(p => p.id === processId ? { ...p, status: normalizedStatus, completionDate, assignmentDate } : p));
 
     if (client) {
-      await this.metadataService.ensureStatusExists(newStatus);
-      const { error } = await client.from('processes').update({ status: newStatus, completion_date: completionDate, assignment_date: assignmentDate }).eq('id', processId);
-      if (!error) {
-        await client.rpc('update_process_positions');
-        this.auditService.addAuditLog(`Alterou status do processo ${processToUpdate?.number || processId} para ${newStatus}`, { oldStatus: processToUpdate?.status, newStatus, processNumber: processToUpdate?.number });
+      await this.metadataService.ensureStatusExists(normalizedStatus);
+      const { error } = await client.from('processes').update({ 
+        status: normalizedStatus, 
+        completion_date: completionDate, 
+        assignment_date: assignmentDate 
+      }).eq('id', processId);
+      
+      if (error) {
+        this.supabaseService.handleError(error, 'updateProcessStatus');
+        // Reverter o estado local em caso de erro (opcional, mas recomendado)
+        this.loadInitialProcesses(); 
+      } else {
+        this.auditService.addAuditLog(`Alterou status do processo ${processToUpdate?.number || processId} para ${normalizedStatus}`, { 
+          oldStatus: processToUpdate?.status, 
+          newStatus: normalizedStatus, 
+          processNumber: processToUpdate?.number 
+        });
         this.updateGlobalStats();
       }
+    } else {
+      this.auditService.addAuditLog(`Alterou status do processo ${processToUpdate?.number || processId} para ${normalizedStatus} (Local)`, { 
+        oldStatus: processToUpdate?.status, 
+        newStatus: normalizedStatus, 
+        processNumber: processToUpdate?.number 
+      });
     }
   }
 
