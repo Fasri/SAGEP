@@ -93,7 +93,8 @@ export class Dashboard {
     statusDetail: 'Todos',
     onlyAssignedToMe: false,
     unassignedOnly: false,
-    externalAccountantsOnly: false
+    externalAccountantsOnly: false,
+    onlyReturns: false
   });
 
   stats = computed(() => {
@@ -281,6 +282,7 @@ export class Dashboard {
           nucleusFilter: filters.nucleus,
           onlyAssignedToMe: filters.onlyAssignedToMe,
           unassignedOnly: filters.unassignedOnly,
+          onlyReturns: filters.onlyReturns,
           externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
         });
 
@@ -388,7 +390,8 @@ export class Dashboard {
       statusDetail: this.filterForm.value.statusDetailFilter || 'Todos',
       onlyAssignedToMe: this.onlyAssignedToMe(),
       unassignedOnly: this.unassignedOnly(),
-      externalAccountantsOnly: this.externalAccountantsOnly()
+      externalAccountantsOnly: this.externalAccountantsOnly(),
+      onlyReturns: this.onlyReturns()
     });
 
     this.currentPage.set(1);
@@ -406,6 +409,7 @@ export class Dashboard {
     if (newValue) {
       this.unassignedOnly.set(false);
       this.onlyAssignedToMe.set(false);
+      this.onlyReturns.set(false);
     }
     this.externalAccountantsOnly.set(newValue);
     this.applyFilters();
@@ -416,6 +420,7 @@ export class Dashboard {
     if (newValue) {
       this.onlyAssignedToMe.set(false);
       this.externalAccountantsOnly.set(false);
+      this.onlyReturns.set(false);
     }
     this.unassignedOnly.set(newValue);
     this.applyFilters();
@@ -426,8 +431,21 @@ export class Dashboard {
     if (newValue) {
       this.unassignedOnly.set(false);
       this.externalAccountantsOnly.set(false);
+      this.onlyReturns.set(false);
     }
     this.onlyAssignedToMe.set(newValue);
+    this.applyFilters();
+  }
+
+  onlyReturns = signal<boolean>(false);
+  toggleOnlyReturns() {
+    const newValue = !this.onlyReturns();
+    if (newValue) {
+      this.unassignedOnly.set(false);
+      this.onlyAssignedToMe.set(false);
+      this.externalAccountantsOnly.set(false);
+    }
+    this.onlyReturns.set(newValue);
     this.applyFilters();
   }
 

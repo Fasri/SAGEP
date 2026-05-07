@@ -247,6 +247,7 @@ export class ProcessService {
     if (options.onlyAssignedToMe) query = (query as any).eq('assigned_to_id', options.user.id);
     if (options.unassignedOnly) query = (query as any).is('assigned_to_id', null);
     if (options.accountantFilter && options.accountantFilter !== 'Todos') query = (query as any).eq('assigned_to_id', options.accountantFilter);
+    if (options.onlyReturns) query = (query as any).eq('is_return', true);
 
     if (options.externalAccountantIds) {
       if (options.externalAccountantIds.length > 0) {

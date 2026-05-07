@@ -78,6 +78,7 @@ export interface PaginationOptions {
   unassignedOnly?: boolean;
   accountantFilter?: string;
   externalAccountantIds?: string[];
+  onlyReturns?: boolean;
 }
 
 export interface ReportFilters {
