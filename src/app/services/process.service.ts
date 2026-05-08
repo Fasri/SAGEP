@@ -559,6 +559,7 @@ export class ProcessService {
       .eq('nucleus', nucleusName)
       .eq('status', 'Pendente')
       .is('assigned_to_id', null)
+      .eq('is_return', false)
       .not('priority', 'ilike', '%SUPER%');
 
     if (isAutoinspecao) {
@@ -590,6 +591,7 @@ export class ProcessService {
     let query = client
       .from('processes').select('id, number, position, priority')
       .eq('nucleus', nucleusName).eq('status', 'Pendente').is('assigned_to_id', null)
+      .eq('is_return', false)
       .not('priority', 'ilike', '%SUPER%');
 
     if (isAutoinspecao) {

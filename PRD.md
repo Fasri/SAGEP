@@ -141,19 +141,12 @@ A lista exibe os processos na seguinte ordem obrigatória:
 
 Isso garante que o Super esteja sempre no topo, e que no grupo geral, a fila seja respeitada por quem chegou primeiro, independentemente de ter "Prioridade Legal" ou não.
 
-#### 5.3.5 Recálculo Automático de Posições
+#### 5.3.4 Recalculo Inteligente de Posições
 
-As posições são recalculadas automaticamente via função SQL `update_process_positions()` que atualiza os processos com status `Pendente` sempre que houver alteração de status, exclusão, mudança de prioridade ou importação.
-
-#### 5.3.4 Recálculo Automático de Posições
-
-As posições são recalculadas automaticamente sempre que:
-- Um processo tem seu **status alterado** (ex: Pendente → Cálculo Realizado)
-- Um processo é **excluído**
-- A **prioridade** de um processo é alterada
-- Uma **importação** é concluída
-
-O recálculo é feito via função SQL `update_process_positions()` que atualiza apenas os processos com status `Pendente`.
+Para garantir a performance com alto volume de dados (200k+ registros) e 70 usuários simultâneos, o recálculo segue uma lógica de **mínimo esforço**:
+- **Escopo por Núcleo**: O sistema recalcula apenas as posições do núcleo afetado pela mudança, ignorando os demais núcleos.
+- **Filtro de Delta**: Ao zerar posições de processos concluídos, o banco ignora os milhares de registros já processados, focando apenas no registro que acabou de mudar de status.
+- **Trigger Otimizado**: O trigger `trg_recalculate_positions` opera no modo `FOR EACH ROW` para identificar o núcleo exato e disparar o recalculo apenas onde necessário.
 
 ### 5.4 Status (Cumprimento)
 
@@ -240,6 +233,7 @@ Na tabela do dashboard, os usuários autorizados podem editar diretamente:
 | Atribuídos a mim | Filtra processos atribuídos ao usuário logado |
 | Não Atribuídos | Filtra processos sem contador responsável |
 | Contadores Externos | Filtra processos atribuídos a contadores de outros núcleos |
+| **Processos Retornados** | Filtra processos que já passaram pelo mesmo núcleo anteriormente |
 
 ### 5.9 Exportação para Excel
 
@@ -255,6 +249,39 @@ Toda ação relevante é registrada com: usuário, ação, data/hora e detalhes.
 - Inserção, atualização de status, atribuição e exclusão de processos
 - Importações (sucesso, ignorados, inconsistências)
 - Atribuição automática (quantos processos distribuídos)
+
+### 5.11 Processos de Retorno
+
+O sistema identifica automaticamente processos que retornaram à Contadoria para o mesmo núcleo.
+
+#### 5.11.1 Regra de Identificação
+Um processo é marcado como **Retorno** (`is_return = true`) se:
+1.  Já existe outro registro no banco com o **mesmo número**.
+2.  O registro existente pertence ao **mesmo núcleo**.
+3.  A **data de remessa** (`entry_date`) é diferente.
+
+#### 5.11.2 Comportamento Visual e Funcional
+- **Realce**: No Dashboard, os processos de retorno são destacados com um fundo laranja suave (`bg-orange-50`) e o número do processo em laranja forte.
+- **Automação**: A identificação é feita via trigger no banco de dados, garantindo que mesmo importações externas (ETL/Excel) sejam classificadas corretamente.
+- **Filtro Combinado**: O filtro de processos retornados pode ser usado simultaneamente com outros filtros (ex: ver retornos não atribuídos).
+- **Exclusão da Distribuição Automática**: Processos de retorno não entram no sorteio automático e exigem atribuição manual.
+
+### 5.12 Atribuição Automática (Round-Robin)
+
+O sistema possui uma ferramenta de distribuição em lote para equilibrar a carga de trabalho entre os contadores do núcleo.
+
+#### 5.12.1 Funcionamento
+- Utiliza o algoritmo **Round-Robin** para garantir que cada contador receba a mesma quantidade de processos de forma sequencial.
+- O sistema memoriza o último contador que recebeu um processo no núcleo para continuar a distribuição exatamente de onde parou na próxima execução.
+
+#### 5.12.2 Restrições de Distribuição (Segurança)
+Para garantir a qualidade e a priorização correta, os seguintes processos **não são distribuídos automaticamente**:
+1.  **Super Prioridades**: Devido à urgência e complexidade, devem ser atribuídos manualmente pelo gestor.
+2.  **Processos de Retorno**: Como já passaram pelo núcleo, devem ser analisados pelo gestor para decidir se voltam para o mesmo contador original ou para um novo.
+
+#### 5.12.3 Confirmação e Transparência
+- O modal de confirmação exibe um aviso explícito sobre estas exclusões (Retornos e Super Prioridades).
+- O contador de "Pendentes Sem Atribuição" no modal reflete apenas o saldo real de processos que serão distribuídos.
 
 ---
 
@@ -390,3 +417,20 @@ Visando suportar 70 usuários simultâneos sem exceder os limites do plano gratu
 - **Atualizações Otimistas (Optimistic UI)**: A interface do Dashboard reage instantaneamente aos comandos do usuário (mudar status, prioridade ou atribuição) antes mesmo da confirmação do servidor.
 - **Controle de Concorrência**: Implementado um delay estratégico (Debounce) de 500ms entre a escrita no banco e o recarregamento da lista (`loadServerData`), permitindo que os gatilhos do banco finalizem o processamento de forma consistente.
 - **Redução de Overhead**: Removida a redundância de chamadas RPC via código TypeScript, centralizando a lógica de integridade de dados exclusivamente em triggers do banco de dados.
+
+---
+
+## 10. Glossário
+
+| Termo | Definição |
+|---|---|
+| **Processo** | Ação judicial encaminhada à Contadoria para elaboração de cálculo |
+| **Núcleo** | Unidade organizacional da Contadoria (ex: 1ª CC, 2ª CC) |
+| **Remessa** | Data em que o processo chegou à Contadoria |
+| **Cumprimento** | Status do processo no fluxo da Contadoria |
+| **Posição Geral** | Número de chegada cronológica do processo no núcleo |
+| **Posição Prioridade** | Rank do processo dentro do grupo de prioritários do núcleo |
+| **Round-Robin** | Algoritmo de distribuição sequencial e rotativa entre contadores |
+| **ETL** | Processo automatizado de extração, transformação e carga de dados |
+| **Super prioridade** | Processo com determinação judicial urgente (ex: liminar, mandado) |
+| **Processo de Retorno** | Processo que retorna ao mesmo núcleo com data de remessa diferente |

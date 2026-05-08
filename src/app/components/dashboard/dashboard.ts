@@ -409,7 +409,6 @@ export class Dashboard {
     if (newValue) {
       this.unassignedOnly.set(false);
       this.onlyAssignedToMe.set(false);
-      this.onlyReturns.set(false);
     }
     this.externalAccountantsOnly.set(newValue);
     this.applyFilters();
@@ -420,7 +419,6 @@ export class Dashboard {
     if (newValue) {
       this.onlyAssignedToMe.set(false);
       this.externalAccountantsOnly.set(false);
-      this.onlyReturns.set(false);
     }
     this.unassignedOnly.set(newValue);
     this.applyFilters();
@@ -431,7 +429,6 @@ export class Dashboard {
     if (newValue) {
       this.unassignedOnly.set(false);
       this.externalAccountantsOnly.set(false);
-      this.onlyReturns.set(false);
     }
     this.onlyAssignedToMe.set(newValue);
     this.applyFilters();
@@ -440,11 +437,6 @@ export class Dashboard {
   onlyReturns = signal<boolean>(false);
   toggleOnlyReturns() {
     const newValue = !this.onlyReturns();
-    if (newValue) {
-      this.unassignedOnly.set(false);
-      this.onlyAssignedToMe.set(false);
-      this.externalAccountantsOnly.set(false);
-    }
     this.onlyReturns.set(newValue);
     this.applyFilters();
   }
