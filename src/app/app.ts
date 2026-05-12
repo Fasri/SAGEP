@@ -25,9 +25,20 @@ export class App {
   loginError = signal<string | null>(null);
   showDropdown = signal(false);
   
+  showLinksDropdown = signal(false);
+  
   showChangePasswordModal = signal(false);
   changePasswordError = signal<string | null>(null);
   changePasswordSuccess = signal(false);
+
+  toggleLinksDropdown(event: Event) {
+    event.stopPropagation();
+    this.showLinksDropdown.set(!this.showLinksDropdown());
+  }
+
+  closeLinksDropdown() {
+    this.showLinksDropdown.set(false);
+  }
 
   isDefaultPassword = computed(() => {
     const user = this.currentUser();
