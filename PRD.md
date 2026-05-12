@@ -159,6 +159,14 @@ Os status representam o estado atual do processo no fluxo de trabalho:
 | **Devolvido sem Cálculo** | Processo devolvido | Listado em "Devolvidos"; ordenado por data de cumprimento decrescente |
 | *(outros)* | Status customizáveis | Configuráveis no banco via tabela `status` |
 
+### 5.4.1 Tempo na Contadoria
+
+O sistema calcula automaticamente o tempo de permanência do processo na contadoria (em dias corridos):
+- **Processo Pendente**: `Data Atual` - `Data de Remessa`
+- **Processo Concluído/Devolvido**: `Data de Cumprimento` - `Data de Remessa`
+
+Essa métrica é recalculada diariamente para pendentes e fixada após a conclusão.
+
 > Ao mudar o status para **não-Pendente**, o sistema registra automaticamente a `completion_date` com a data atual.
 
 ### 5.5 Atribuição de Processos

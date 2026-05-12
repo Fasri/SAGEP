@@ -94,7 +94,8 @@ export class Dashboard {
     onlyAssignedToMe: false,
     unassignedOnly: false,
     externalAccountantsOnly: false,
-    onlyReturns: false
+    onlyReturns: false,
+    over30DaysOnly: false
   });
 
   stats = computed(() => {
@@ -127,9 +128,13 @@ export class Dashboard {
   private getPriorityLevel(priority: string): number {
     if (!priority) return 3;
     const p = priority.toUpperCase().trim();
-    if (p.includes('SUPER'))                      return 1; // Super: topo absoluto
-    if (!p.includes('SEM') && !p.startsWith('2-SEM')) return 2; // Legal, Ordem Superior, 1-*, 2-Prioridade*
-    return 3;                                                // Sem prioridade
+    if (p.includes('SUPER')) return 1;
+    
+    const isPriorityTerm = p.includes('LEGAL') || p.includes('ORDEM') || p.startsWith('1-') || p.startsWith('2-');
+    const isSemPrioridade = p.includes('SEM');
+    
+    if (isPriorityTerm && !isSemPrioridade) return 2;
+    return 3;
   }
 
   private isPriorityProcess(priority: string): boolean {
@@ -148,8 +153,16 @@ export class Dashboard {
     const allUsers = this.users();
     const startDate = filters.startDate;
     const endDate = filters.endDate;
+    const onlyReturns = filters.onlyReturns;
+    const over30DaysOnly = filters.over30DaysOnly;
     
     const filtered = this.visibleProcesses().filter(p => {
+      // 30+ Days Filter
+      if (over30DaysOnly && (p.tempoNaContadoria === null || (p.tempoNaContadoria || 0) < 30)) return false;
+
+      // Returns Filter
+      if (onlyReturns && !p.isReturn) return false;
+
       // Status Filter
       if (status === 'Pendente' && p.status !== 'Pendente') return false;
 
@@ -283,6 +296,7 @@ export class Dashboard {
           onlyAssignedToMe: filters.onlyAssignedToMe,
           unassignedOnly: filters.unassignedOnly,
           onlyReturns: filters.onlyReturns,
+          over30DaysOnly: filters.over30DaysOnly,
           externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
         });
 
@@ -372,6 +386,8 @@ export class Dashboard {
     this.onlyAssignedToMe.set(false);
     this.unassignedOnly.set(false);
     this.externalAccountantsOnly.set(false);
+    this.onlyReturns.set(false);
+    this.over30DaysOnly.set(false);
     this.applyFilters();
   }
 
@@ -391,7 +407,8 @@ export class Dashboard {
       onlyAssignedToMe: this.onlyAssignedToMe(),
       unassignedOnly: this.unassignedOnly(),
       externalAccountantsOnly: this.externalAccountantsOnly(),
-      onlyReturns: this.onlyReturns()
+      onlyReturns: this.onlyReturns(),
+      over30DaysOnly: this.over30DaysOnly()
     });
 
     this.currentPage.set(1);
@@ -438,6 +455,16 @@ export class Dashboard {
   toggleOnlyReturns() {
     const newValue = !this.onlyReturns();
     this.onlyReturns.set(newValue);
+    this.applyFilters();
+  }
+ 
+  over30DaysOnly = signal<boolean>(false);
+  toggleOver30DaysOnly() {
+    const newValue = !this.over30DaysOnly();
+    this.over30DaysOnly.set(newValue);
+    if (newValue) {
+      this.statusFilter.set('Pendente'); // Forçar pendentes para este filtro
+    }
     this.applyFilters();
   }
 
@@ -679,6 +706,8 @@ export class Dashboard {
         nucleusFilter: filters.nucleus,
         onlyAssignedToMe: filters.onlyAssignedToMe,
         unassignedOnly: filters.unassignedOnly,
+        onlyReturns: filters.onlyReturns,
+        over30DaysOnly: filters.over30DaysOnly,
         externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
       } as PaginationOptions);
 
@@ -688,6 +717,7 @@ export class Dashboard {
         'Número do Processo': p.number,
         'Data de Remessa': p.entryDate,
         'Vara': p.court,
+        'Tempo (dias)': p.tempoNaContadoria,
         'Núcleo': p.nucleus,
         'Prioridade': p.priority,
         'Cumprimento': p.status,

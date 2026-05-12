@@ -226,6 +226,16 @@
               <span class="material-symbols-outlined text-sm">replay</span>
               Processos Retornados
             </button>
+ 
+            <button (click)="toggleOver30DaysOnly()" 
+                    [class.bg-red-700]="over30DaysOnly()"
+                    [class.text-white]="over30DaysOnly()"
+                    [class.bg-slate-100]="!over30DaysOnly()"
+                    [class.text-slate-600]="!over30DaysOnly()"
+                    class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm">
+              <span class="material-symbols-outlined text-sm">event_busy</span>
+              Processos 30+
+            </button>
           }
         </div>
       </div>
@@ -243,6 +253,7 @@
             <th class="px-1 py-4 text-[10px]">Número do Processo</th>
             <th class="px-1 py-4 text-[10px]">Vara</th>
             <th class="px-1 py-4 text-[10px]">Data de Remessa</th>
+            <th class="px-1 py-4 text-[10px]">Tempo</th>
             <th class="px-1 py-4 text-[10px]">Núcleo</th>
             <th class="px-1 py-4 text-[10px]">Prioridade</th>
             <th class="px-1 py-4 text-[10px]">Atribuído a</th>
@@ -277,6 +288,11 @@
               </td>
               <td class="px-1 py-5 text-xs text-slate-600">{{ process.court }}</td>
               <td class="px-1 py-5 text-xs font-medium text-slate-600">{{ process.entryDate | date:'dd/MM/yyyy' }}</td>
+              <td class="px-1 py-5 text-xs font-bold text-slate-700 text-center">
+                <span [class.text-red-600]="(process.tempoNaContadoria || 0) > 30">
+                  {{ process.tempoNaContadoria !== null ? process.tempoNaContadoria + 'd' : '-' }}
+                </span>
+              </td>
               <td class="px-1 py-5 text-xs font-bold text-blue-600">{{ process.nucleus }}</td>
               <td class="px-1 py-5">
                 @if (canEditPriority()) {
@@ -392,7 +408,7 @@
           }
           @if (paginatedProcesses().length === 0 && !isLoading()) {
             <tr>
-              <td colspan="13" class="px-6 py-12 text-center text-slate-400">
+              <td colspan="14" class="px-6 py-12 text-center text-slate-400">
                 <span class="material-symbols-outlined text-4xl mb-2">folder_open</span>
                 <p>Nenhum processo encontrado para os critérios atuais.</p>
               </td>

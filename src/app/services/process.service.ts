@@ -58,7 +58,10 @@ export class ProcessService {
       completionDate: p['completion_date'] ? String(p['completion_date']) : null,
       valorCustas: p['valor_custas'] ? Number(p['valor_custas']) : 0,
       observacao: p['observacao'] ? String(p['observacao']) : '',
-      isReturn: !!p['is_return']
+      isReturn: !!p['is_return'],
+      tempoNaContadoria: (p['tempo_na_contadoria'] !== null && p['tempo_na_contadoria'] !== undefined) 
+        ? Number(p['tempo_na_contadoria']) 
+        : null
     };
   }
 
@@ -67,7 +70,7 @@ export class ProcessService {
     if (!client) return;
 
     try {
-      const { data: processes, error: processesError } = await client.from('processes')
+      const { data: processes, error: processesError } = await client.from('vw_processes')
         .select('*')
         .order('priority_level', { ascending: true })
         .order('position', { ascending: true })
@@ -184,6 +187,7 @@ export class ProcessService {
           newStatus: normalizedStatus, 
           processNumber: processToUpdate?.number 
         });
+        await client.rpc('update_process_positions');
         this.updateGlobalStats();
       }
     } else {
@@ -248,6 +252,9 @@ export class ProcessService {
     if (options.unassignedOnly) query = (query as any).is('assigned_to_id', null);
     if (options.accountantFilter && options.accountantFilter !== 'Todos') query = (query as any).eq('assigned_to_id', options.accountantFilter);
     if (options.onlyReturns) query = (query as any).eq('is_return', true);
+    if (options.over30DaysOnly) {
+      query = (query as any).gte('tempo_na_contadoria', 30).ilike('status', 'Pendente%');
+    }
 
     if (options.externalAccountantIds) {
       if (options.externalAccountantIds.length > 0) {
@@ -293,7 +300,7 @@ export class ProcessService {
     const client = this.supabaseService.getClient();
     if (!client) return { processes: [], totalCount: 0 };
 
-    let query = client.from('processes').select('*', { count: 'estimated' }) as any;
+    let query = client.from('vw_processes').select('*', { count: 'estimated' }) as any;
     query = this.applyFiltersToQuery(query, options);
 
     const from = (options.page - 1) * options.pageSize;
@@ -320,7 +327,7 @@ export class ProcessService {
     while (hasMore) {
       const from = page * pageSize;
       const to = from + pageSize - 1;
-      let batchQuery = this.applyFiltersToQuery(client.from('processes').select('*') as any, options);
+      let batchQuery = this.applyFiltersToQuery(client.from('vw_processes').select('*') as any, options);
       batchQuery = batchQuery.range(from, to);
 
       const { data, error } = await batchQuery;
@@ -555,7 +562,7 @@ export class ProcessService {
     const client = this.supabaseService.getClient();
     if (!client) return 0;
 
-    let query = client.from('processes').select('*', { count: 'exact', head: true })
+    let query = client.from('vw_processes').select('*', { count: 'exact', head: true })
       .eq('nucleus', nucleusName)
       .eq('status', 'Pendente')
       .is('assigned_to_id', null)
@@ -668,7 +675,7 @@ export class ProcessService {
     const client = this.supabaseService.getClient();
     if (!client) return { userStats: [], pendingCount: 0, unassignedCount: 0 };
 
-    let query = client.from('processes').select('assigned_to_id, status, entry_date') as any;
+    let query = client.from('vw_processes').select('assigned_to_id, status, entry_date') as any;
     if (filters.user.role === 'Chefe' || filters.user.role === 'Gerente') query = query.eq('nucleus', filters.user.nucleus);
     else if (filters.nucleus && filters.nucleus !== 'Todos') query = query.eq('nucleus', filters.nucleus);
 
@@ -703,7 +710,7 @@ export class ProcessService {
       if (!client || !user) return;
 
       const getCount = async (status: string | null) => {
-        let q = client.from('processes').select('*', { count: 'estimated', head: true });
+        let q = client.from('vw_processes').select('*', { count: 'estimated', head: true });
         if (status) q = q.eq('status', status);
         if (user.role === 'Chefe' || user.role === 'Gerente') q = q.eq('nucleus', user.nucleus);
         else if (user.role === 'Contador Judicial') q = q.eq('assigned_to_id', user.id);

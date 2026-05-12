@@ -50,6 +50,7 @@ export interface Process {
   valorCustas?: number;
   observacao?: string;
   isReturn?: boolean;
+  tempoNaContadoria?: number | null;
   createdAt?: string;
 }
 
@@ -79,6 +80,7 @@ export interface PaginationOptions {
   accountantFilter?: string;
   externalAccountantIds?: string[];
   onlyReturns?: boolean;
+  over30DaysOnly?: boolean;
 }
 
 export interface ReportFilters {
