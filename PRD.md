@@ -105,8 +105,7 @@ Os processos possuem um nível de prioridade que determina a ordem de atendiment
 | Nível | Nome | Exemplos | Ação |
 |---|---|---|---|
 | **1** | Super prioridade | Mandado judicial urgente, liminar | Sempre no topo da fila visual |
-| **2** | Demais prioridades | Prioridade legal, Ordem Superior, 1-* | Abaixo do Super na fila visual |
-| **3** | Sem prioridade | Processo regular | Ordem normal de chegada |
+| **2** | Geral (Legal / Sem Prioridade) | Prioridade legal, Ordem, Regular | Ordenados estritamente por data de remessa |
 
 > ⚠️ A prioridade **não altera** a Posição Geral do processo. Apenas define onde ele aparece na lista visual.
 

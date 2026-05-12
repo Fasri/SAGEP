@@ -286,7 +286,7 @@ export class ProcessService {
     if (options.statusFilter === 'Devolvidos') {
       query = (query as any).order('completion_date', { ascending: false, nullsFirst: false });
     } else {
-      // Ordem: Super primeiro (priority_level=1), depois demais prioridades (level=2), depois regulares (level=3)
+      // Ordem: Super primeiro (priority_level=1), depois demais processos (level=2: Legal e Sem Prioridade)
       // Dentro de cada grupo: entrada mais antiga primeiro (position = chegada cronológica por núcleo)
       query = (query as any)
         .order('priority_level', { ascending: true })
