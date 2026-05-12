@@ -79,16 +79,19 @@ EXECUTE FUNCTION trg_update_tempo_final();
 DROP FUNCTION IF EXISTS update_process_positions();
 DROP FUNCTION IF EXISTS update_process_positions(text);
 
-CREATE OR REPLACE FUNCTION update_process_positions()
+CREATE OR REPLACE FUNCTION update_process_positions(target_nucleus TEXT DEFAULT NULL)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  -- Limpeza preventiva: remove posições de quem não é mais pendente
+  -- 1. Limpeza preventiva apenas para o núcleo alvo (ou todos se null)
   UPDATE processes 
   SET position = NULL, priority_position = NULL 
-  WHERE status NOT ILIKE '%pendente%';
+  WHERE status NOT ILIKE '%pendente%'
+    AND (target_nucleus IS NULL OR nucleus = target_nucleus)
+    AND (position IS NOT NULL OR priority_position IS NOT NULL);
 
+  -- 2. Recálculo otimizado usando CTE
   WITH base AS (
     SELECT
       id, nucleus, entry_date, priority,
@@ -100,6 +103,7 @@ BEGIN
       END AS p_level
     FROM processes
     WHERE status ILIKE '%pendente%'
+      AND (target_nucleus IS NULL OR nucleus = target_nucleus)
   ),
 
   general_ranked AS (
@@ -113,13 +117,16 @@ BEGIN
     WHERE p_level < 3
   )
 
+  -- 3. Update apenas de quem mudou (economiza I/O e evita timeouts)
   UPDATE processes p
   SET
     position = gr.pos,
     priority_position = pr.p_pos
   FROM general_ranked gr
   LEFT JOIN priority_ranked pr ON pr.id = gr.id
-  WHERE p.id = gr.id;
+  WHERE p.id = gr.id
+    AND (target_nucleus IS NULL OR p.nucleus = target_nucleus)
+    AND (p.position IS DISTINCT FROM gr.pos OR p.priority_position IS DISTINCT FROM pr.p_pos);
 END;
 $$;
 

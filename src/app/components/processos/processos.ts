@@ -27,7 +27,7 @@ export class Processos {
   importErrors = signal<string[]>([]);
 
   processForm = new FormGroup({
-    number: new FormControl('', [Validators.required, Validators.pattern(/^\d{7}-\d{2}\.\d{4}\.8\.17\.\d{4}$/)]),
+    number: new FormControl('', [Validators.required, Validators.pattern(/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/)]),
     entryDate: new FormControl(new Date().toISOString().split('T')[0], Validators.required),
     court: new FormControl('', Validators.required),
     nucleus: new FormControl('1ª CC', Validators.required),

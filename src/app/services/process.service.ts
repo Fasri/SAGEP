@@ -128,7 +128,7 @@ export class ProcessService {
         this.supabaseService.handleError(error, 'updateProcessFields');
       } else {
         if (fields.priority !== undefined) {
-          await client.rpc('update_process_positions');
+          await client.rpc('update_process_positions', { target_nucleus: oldProcess?.nucleus });
         }
         this.auditService.addAuditLog(`Atualizou campos do processo ${oldProcess?.number || processId}`, { 
           fields, 
@@ -187,7 +187,7 @@ export class ProcessService {
           newStatus: normalizedStatus, 
           processNumber: processToUpdate?.number 
         });
-        await client.rpc('update_process_positions');
+        await client.rpc('update_process_positions', { target_nucleus: processToUpdate?.nucleus });
         this.updateGlobalStats();
       }
     } else {
@@ -231,7 +231,7 @@ export class ProcessService {
 
     this.processes.update(prev => prev.filter(p => p.id !== processId));
     this.updateGlobalStats();
-    await client.rpc('update_process_positions'); // Re-rank other processes
+    await client.rpc('update_process_positions', { target_nucleus: processToDelete?.nucleus }); // Re-rank other processes
     
     if (processToDelete) {
       this.auditService.addAuditLog(`Excluiu processo ${processToDelete.number}`, { processNumber: processToDelete.number, processId });
