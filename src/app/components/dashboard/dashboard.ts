@@ -33,7 +33,9 @@ export class Dashboard {
   currentPage = signal(1);
   pageSize = 20;
   
-  nucleos = this.store.nucleos;
+  nucleos = computed(() => {
+    return [...this.store.nucleos()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  });
   prioridades = this.store.prioridades;
   
   filterForm = new FormGroup({
@@ -116,7 +118,9 @@ export class Dashboard {
     if (!user) return [];
     let nucleus = this.nucleusFilter();
     if (nucleus === 'Todos') nucleus = user.nucleus;
-    return this.users().filter(u => u.nucleus === nucleus && u.active);
+    return this.users()
+      .filter(u => u.nucleus === nucleus && u.active)
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   });
 
   onlineUsers = computed(() => {
@@ -770,14 +774,17 @@ export class Dashboard {
     const user = this.currentUser();
     if (!user) return [];
 
+    let assignable = [];
     // Supervisor, Coordenador, Chefe, Gerente and Admin can assign to anyone (except Admins)
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
     if (privilegedRoles.includes(user.role)) {
-      return this.users().filter(u => u.role !== 'Administrador');
+      assignable = this.users().filter(u => u.role !== 'Administrador');
+    } else {
+      // Default fallback (though they shouldn't see the select if they can't assign)
+      assignable = this.users().filter(u => u.nucleus === nucleus && u.role !== 'Administrador');
     }
 
-    // Default fallback (though they shouldn't see the select if they can't assign)
-    return this.users().filter(u => u.nucleus === nucleus && u.role !== 'Administrador');
+    return assignable.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }
 
   canAssign(): boolean {
