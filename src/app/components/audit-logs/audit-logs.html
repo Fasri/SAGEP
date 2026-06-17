@@ -30,10 +30,14 @@
         <label for="endDate" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Data Final</label>
         <input id="endDate" type="date" formControlName="endDate" class="w-full bg-slate-50 border-slate-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-primary focus:border-primary transition-all" />
       </div>
-      <div>
-        <button type="submit" class="w-full bg-primary text-white font-bold py-2.5 px-6 rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-sm shadow-primary/20">
-          <span class="material-symbols-outlined">filter_list</span>
-          Aplicar Filtros
+      <div class="flex gap-2">
+        <button type="submit" class="flex-1 bg-primary text-white font-bold py-2.5 px-3 rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-primary/20 cursor-pointer">
+          <span class="material-symbols-outlined text-lg">filter_list</span>
+          Filtrar
+        </button>
+        <button type="button" (click)="clearFilters()" class="flex-1 bg-slate-100 text-slate-600 font-semibold py-2.5 px-3 rounded-xl hover:bg-slate-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <span class="material-symbols-outlined text-lg">clear_all</span>
+          Limpar
         </button>
       </div>
     </form>
@@ -89,7 +93,7 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="4" class="px-6 py-12 text-center">
+              <td colspan="5" class="px-6 py-12 text-center">
                 <div class="flex flex-col items-center gap-2 text-slate-400">
                   <span class="material-symbols-outlined text-4xl">history</span>
                   <p>Nenhum log de auditoria encontrado.</p>

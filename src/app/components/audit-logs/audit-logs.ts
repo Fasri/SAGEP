@@ -39,18 +39,30 @@ export class AuditLogs implements OnInit {
 
     return logs.filter(log => {
       const matchesUser = !userId || log.userId === userId;
-      const logDate = new Date(log.createdAt).toISOString().split('T')[0];
-      const matchesStart = !startDate || logDate >= startDate;
-      const matchesEnd = !endDate || logDate <= endDate;
+      
+      // Ajusta para a data local do log a fim de evitar discrepâncias de fuso horário (UTC vs Local)
+      let logDate = '';
+      if (log.createdAt) {
+        const d = new Date(log.createdAt);
+        if (!isNaN(d.getTime())) {
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          logDate = `${year}-${month}-${day}`;
+        }
+      }
+
+      const matchesStart = !startDate || (logDate && logDate >= startDate);
+      const matchesEnd = !endDate || (logDate && logDate <= endDate);
       
       let matchesProcess = true;
       if (processNumber) {
         const searchTerm = processNumber.toLowerCase();
+        const resolvedProcessNumber = this.getProcessNumber(log).toLowerCase();
         const detailsStr = log.details ? JSON.stringify(log.details).toLowerCase() : '';
         const actionStr = log.action.toLowerCase();
-        const logProcessNumber = log.processNumber?.toLowerCase() || '';
         
-        matchesProcess = logProcessNumber.includes(searchTerm) || 
+        matchesProcess = resolvedProcessNumber.includes(searchTerm) || 
                          detailsStr.includes(searchTerm) || 
                          actionStr.includes(searchTerm);
       }
@@ -67,6 +79,16 @@ export class AuditLogs implements OnInit {
       startDate: values.startDate || '',
       endDate: values.endDate || ''
     });
+  }
+
+  clearFilters() {
+    this.filterForm.reset({
+      userId: '',
+      processNumber: '',
+      startDate: '',
+      endDate: ''
+    });
+    this.applyFilters();
   }
 
   expandedLogs = signal<Set<string>>(new Set());
