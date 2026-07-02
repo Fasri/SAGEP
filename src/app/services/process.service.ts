@@ -657,7 +657,10 @@ export class ProcessService {
     
     const { data: nucleosData } = await client.from('nucleos').select('*');
     if (nucleosData) {
-      this.metadataService.nucleos.set(nucleosData.map(n => ({ id: n.id, nome: n.nome, descricao: n.descricao, lastAssignedUserId: n.last_assigned_user_id })));
+      this.metadataService.nucleos.set(
+        nucleosData.map(n => ({ id: n.id, nome: n.nome, descricao: n.descricao, lastAssignedUserId: n.last_assigned_user_id }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }))
+      );
     }
 
     this.auditService.addAuditLog(`Atribuição automática de ${assignedCount} processos no núcleo ${nucleusName}`);

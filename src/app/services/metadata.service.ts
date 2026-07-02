@@ -31,12 +31,14 @@ export class MetadataService {
       const finalStatus = statusTipos?.length ? statusTipos : (await client.from('status').select('*')).data;
 
       if (finalNucleos) {
-        this.nucleos.set(finalNucleos.map((n: Record<string, unknown>) => ({
-          id: String(n['id']),
-          nome: String(n['nome']),
-          descricao: String(n['descricao'] || ''),
-          lastAssignedUserId: n['last_assigned_user_id'] ? String(n['last_assigned_user_id']) : null
-        })));
+        this.nucleos.set(
+          finalNucleos.map((n: Record<string, unknown>) => ({
+            id: String(n['id']),
+            nome: String(n['nome']),
+            descricao: String(n['descricao'] || ''),
+            lastAssignedUserId: n['last_assigned_user_id'] ? String(n['last_assigned_user_id']) : null
+          })).sort((a: any, b: any) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }))
+        );
       }
       if (finalPrioridades) this.prioridades.set(finalPrioridades as any);
       if (finalStatus) this.statusTipos.set(finalStatus as any);
