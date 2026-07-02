@@ -319,7 +319,7 @@ export class Dashboard {
       } catch (e) {
         console.error('Dashboard: Error loading server data:', e);
         const msg = e instanceof Error ? e.message : String(e);
-        alert(`Ocorreu um erro ao buscar os processos: ${msg}\n\nPor favor, tente novamente.`);
+        this.showError(`Ocorreu um erro ao buscar os processos: ${msg}. Por favor, tente novamente.`);
       } finally {
         this.isLoading.set(false);
       }

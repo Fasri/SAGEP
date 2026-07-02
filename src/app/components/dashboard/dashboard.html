@@ -243,7 +243,14 @@
   </div>
 
   <!-- Table Section -->
-  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden relative">
+    <!-- Infinite Loading Bar -->
+    @if (isLoading()) {
+      <div class="absolute top-0 left-0 right-0 h-1 bg-slate-100 overflow-hidden z-10">
+        <div class="h-full bg-primary loading-bar-active w-full"></div>
+      </div>
+    }
+
     <div class="overflow-x-auto">
       <table class="w-full text-left border-collapse">
         <thead>
@@ -403,6 +410,16 @@
                        (change)="updateFields(process, 'observacao', $event)"
                        placeholder="Nota..."
                        class="w-32 bg-slate-50 border-none rounded-lg px-2 py-1 text-xs text-slate-600 focus:ring-2 focus:ring-primary outline-none italic">
+              </td>
+            </tr>
+          }
+          @if (paginatedProcesses().length === 0 && isLoading()) {
+            <tr>
+              <td colspan="14" class="px-6 py-12 text-center text-slate-500">
+                <div class="flex flex-col items-center justify-center gap-3 animate-pulse">
+                  <span class="material-symbols-outlined text-4xl text-primary animate-spin">sync</span>
+                  <p class="font-bold text-sm">Buscando processos...</p>
+                </div>
               </td>
             </tr>
           }
