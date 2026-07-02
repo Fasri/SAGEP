@@ -300,7 +300,7 @@ export class ProcessService {
     const client = this.supabaseService.getClient();
     if (!client) return { processes: [], totalCount: 0 };
 
-    let query = client.from('vw_processes').select('*', { count: 'estimated' }) as any;
+    let query = client.from('vw_processes').select('*', { count: 'exact' }) as any;
     query = this.applyFiltersToQuery(query, options);
 
     const from = (options.page - 1) * options.pageSize;
@@ -675,18 +675,42 @@ export class ProcessService {
     const client = this.supabaseService.getClient();
     if (!client) return { userStats: [], pendingCount: 0, unassignedCount: 0 };
 
-    let query = client.from('vw_processes').select('assigned_to_id, status, entry_date') as any;
-    if (filters.user.role === 'Chefe' || filters.user.role === 'Gerente') query = query.eq('nucleus', filters.user.nucleus);
-    else if (filters.nucleus && filters.nucleus !== 'Todos') query = query.eq('nucleus', filters.nucleus);
+    let allData: Record<string, unknown>[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (filters.startDate) query = query.gte('entry_date', filters.startDate);
-    if (filters.endDate) query = query.lte('entry_date', filters.endDate);
+    while (hasMore) {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+      
+      let batchQuery = client.from('vw_processes').select('assigned_to_id, status, entry_date') as any;
+      if (filters.user.role === 'Chefe' || filters.user.role === 'Gerente') batchQuery = batchQuery.eq('nucleus', filters.user.nucleus);
+      else if (filters.nucleus && filters.nucleus !== 'Todos') batchQuery = batchQuery.eq('nucleus', filters.nucleus);
 
-    const { data } = await query;
+      if (filters.startDate) batchQuery = batchQuery.gte('entry_date', filters.startDate);
+      if (filters.endDate) batchQuery = batchQuery.lte('entry_date', filters.endDate);
+      
+      batchQuery = batchQuery.range(from, to);
+
+      const { data, error } = await batchQuery;
+
+      if (error) {
+        console.error('ProcessService: Error fetching report batch:', error);
+        hasMore = false;
+      } else if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        if (data.length < pageSize) hasMore = false;
+        else page++;
+      } else {
+        hasMore = false;
+      }
+    }
+
     const statsMap = new Map<string, number>();
     let pendingCount = 0, unassignedCount = 0;
 
-    (data || []).forEach((p: Record<string, unknown>) => {
+    allData.forEach((p: Record<string, unknown>) => {
       if (p['status'] === 'Pendente') pendingCount++;
       if (!p['assigned_to_id']) unassignedCount++;
       if (p['assigned_to_id']) {
@@ -710,7 +734,7 @@ export class ProcessService {
       if (!client || !user) return;
 
       const getCount = async (status: string | null) => {
-        let q = client.from('vw_processes').select('*', { count: 'estimated', head: true });
+        let q = client.from('vw_processes').select('*', { count: 'exact', head: true });
         if (status) q = q.eq('status', status);
         if (user.role === 'Chefe' || user.role === 'Gerente') q = q.eq('nucleus', user.nucleus);
         else if (user.role === 'Contador Judicial') q = q.eq('assigned_to_id', user.id);
