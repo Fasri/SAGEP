@@ -245,6 +245,7 @@ export class Dashboard {
   errorNotification = signal<string | null>(null);
   successNotification = signal<string | null>(null);
   confirmDeleteProcess = signal<Process | null>(null);
+  showUnassignedWarning = signal<boolean>(false);
 
   private showError(msg: string) {
     this.errorNotification.set(msg);
@@ -254,6 +255,11 @@ export class Dashboard {
   private showSuccess(msg: string) {
     this.successNotification.set(msg);
     setTimeout(() => this.successNotification.set(null), 4000);
+  }
+
+  triggerUnassignedWarning() {
+    this.showUnassignedWarning.set(true);
+    setTimeout(() => this.showUnassignedWarning.set(false), 3000);
   }
 
   constructor() {
@@ -492,6 +498,12 @@ export class Dashboard {
   }
 
   async updateStatus(process: Process, newStatus: string) {
+    if (process.status === 'Pendente' && newStatus !== 'Pendente' && !process.assignedToId) {
+      this.triggerUnassignedWarning();
+      this.openStatusDropdownId.set(null);
+      return;
+    }
+
     // Update local state first (Optimistic)
     this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, status: newStatus } : p));
     this.openStatusDropdownId.set(null); // Fecha o dropdown imediatamente

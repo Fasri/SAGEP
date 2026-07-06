@@ -629,3 +629,13 @@
     </div>
   </div>
 }
+
+<!-- Alerta de Processo Não Atribuído no Meio da Tela -->
+@if (showUnassignedWarning()) {
+  <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[250] flex items-center justify-center pointer-events-none animate-in fade-in duration-200">
+    <div class="bg-slate-900 text-white font-bold py-4 px-6 rounded-2xl shadow-2xl flex items-center gap-3 animate-in zoom-in-95 duration-200 pointer-events-auto">
+      <span class="material-symbols-outlined text-amber-500">warning</span>
+      <span class="text-base tracking-wide uppercase">processo não atribuido!</span>
+    </div>
+  </div>
+}
