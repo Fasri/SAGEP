@@ -121,7 +121,7 @@ export class StoreService {
   }
 
   // Audit
-  async fetchAuditLogs() {
-    await this.auditService.fetchAuditLogs();
+  async fetchAuditLogs(filters?: { userId?: string; processNumber?: string; startDate?: string; endDate?: string }) {
+    await this.auditService.fetchAuditLogs(filters);
   }
 }

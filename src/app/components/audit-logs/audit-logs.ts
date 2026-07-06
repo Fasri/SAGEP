@@ -71,24 +71,33 @@ export class AuditLogs implements OnInit {
     });
   });
 
-  applyFilters() {
+  async applyFilters() {
     const values = this.filterForm.value;
-    this.appliedFilters.set({
+    const filters = {
       userId: values.userId || '',
       processNumber: values.processNumber || '',
       startDate: values.startDate || '',
       endDate: values.endDate || ''
-    });
+    };
+    this.appliedFilters.set(filters);
+    await this.store.fetchAuditLogs(filters);
   }
 
-  clearFilters() {
+  async clearFilters() {
     this.filterForm.reset({
       userId: '',
       processNumber: '',
       startDate: '',
       endDate: ''
     });
-    this.applyFilters();
+    const filters = {
+      userId: '',
+      processNumber: '',
+      startDate: '',
+      endDate: ''
+    };
+    this.appliedFilters.set(filters);
+    await this.store.fetchAuditLogs(filters);
   }
 
   expandedLogs = signal<Set<string>>(new Set());

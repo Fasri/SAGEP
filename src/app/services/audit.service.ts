@@ -68,13 +68,30 @@ export class AuditService {
     }
   }
 
-  async fetchAuditLogs() {
+  async fetchAuditLogs(filters?: { userId?: string; processNumber?: string; startDate?: string; endDate?: string }) {
     const client = this.supabaseService.getClient();
     if (client) {
-      const { data, error } = await client
-        .from('audit_logs')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let query = client.from('audit_logs').select('*');
+
+      if (filters) {
+        if (filters.userId) {
+          query = query.eq('user_id', filters.userId);
+        }
+        if (filters.processNumber) {
+          const term = `%${filters.processNumber}%`;
+          query = query.or(`process_number.ilike.${term},action.ilike.${term}`);
+        }
+        if (filters.startDate) {
+          query = query.gte('created_at', `${filters.startDate}T00:00:00Z`);
+        }
+        if (filters.endDate) {
+          query = query.lte('created_at', `${filters.endDate}T23:59:59Z`);
+        }
+      }
+
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
       if (error) {
         console.error('AuditService: Error fetching audit logs from Supabase:', error);
