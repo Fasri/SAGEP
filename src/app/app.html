@@ -88,7 +88,7 @@
                 <span class="material-symbols-outlined text-lg">dashboard</span>
                 Dashboard
               </a>
-              @if (['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'].includes(currentUser()?.role || '')) {
+              @if (['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'].includes(currentUser()?.role || '')) {
                 <a routerLink="/contadores" routerLinkActive="bg-primary/5 text-primary" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2">
                   <span class="material-symbols-outlined text-lg">group</span>
                   Contadores

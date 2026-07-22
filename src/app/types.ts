@@ -1,4 +1,4 @@
-export type Role = 'Administrador' | 'Coordenador' | 'Supervisor' | 'Chefe' | 'Gerente' | 'Contador Judicial';
+export type Role = 'Administrador' | 'Coordenador' | 'Supervisor' | 'Chefe' | 'Gerente' | 'Contador Judicial' | 'Gestor CC' | 'Gestor CCJ';
 
 export interface User {
   id: string;

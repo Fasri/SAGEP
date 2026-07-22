@@ -5,7 +5,7 @@
       <p class="text-slate-600 mt-2">Cadastre novos processos no sistema ou realize importação por arquivo.</p>
     </div>
 
-    @if (currentUser()?.role === 'Coordenador' || currentUser()?.role === 'Supervisor' || currentUser()?.role === 'Administrador') {
+    @if (['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ'].includes(currentUser()?.role || '')) {
       <div class="flex flex-col items-end gap-2">
         <div class="flex gap-2">
           <button (click)="onImportRealTime()"

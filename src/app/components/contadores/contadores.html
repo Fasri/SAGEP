@@ -41,7 +41,7 @@
                 <label for="nucleus" class="block text-sm font-semibold text-slate-700 mb-1">Núcleo</label>
                 <select id="nucleus" formControlName="nucleus" class="w-full border-slate-200 rounded-lg py-2 px-3 focus:ring-primary">
                   <option value="">Selecione...</option>
-                  @for (nucleus of nuclei; track nucleus) {
+                  @for (nucleus of nuclei(); track nucleus) {
                     <option [value]="nucleus">{{ nucleus }}</option>
                   }
                 </select>
@@ -55,6 +55,8 @@
                   <option value="Supervisor">Supervisor</option>
                   <option value="Coordenador">Coordenador</option>
                   <option value="Administrador">Administrador</option>
+                  <option value="Gestor CC">Gestor CC</option>
+                  <option value="Gestor CCJ">Gestor CCJ</option>
                 </select>
               </div>
             </div>

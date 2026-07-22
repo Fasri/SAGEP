@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, signal, computed} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {ReactiveFormsModule, FormGroup, FormControl, Validators} from '@angular/forms';
 import {MatIconModule} from '@angular/material/icon';
@@ -14,8 +14,35 @@ import {read, utils, writeFile} from 'xlsx';
 export class Processos {
   private store = inject(StoreService);
   currentUser = this.store.currentUser;
-  users = this.store.users;
-  nucleos = this.store.nucleos;
+  
+  users = computed(() => {
+    const user = this.currentUser();
+    let list = [...this.store.users()];
+    if (user) {
+      if (user.role === 'Gestor CC') {
+        list = list.filter(u => u.nucleus?.trim().toUpperCase().endsWith('CC'));
+      } else if (user.role === 'Gestor CCJ') {
+        list = list.filter(u => u.nucleus?.trim().toUpperCase().endsWith('CCJ'));
+      } else if (!['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) {
+        list = list.filter(u => u.nucleus === user.nucleus);
+      }
+    }
+    return list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  });
+
+  nucleos = computed(() => {
+    const user = this.currentUser();
+    let list = [...this.store.nucleos()];
+    if (user) {
+      if (user.role === 'Gestor CC') {
+        list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CC'));
+      } else if (user.role === 'Gestor CCJ') {
+        list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CCJ'));
+      }
+    }
+    return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  });
+
   prioridades = this.store.prioridades;
   statusTipos = this.store.statusTipos;
   
@@ -37,6 +64,19 @@ export class Processos {
     valorCustas: new FormControl(0),
     observacao: new FormControl('')
   });
+
+  constructor() {
+    const user = this.currentUser();
+    if (user) {
+      if (user.role === 'Gestor CCJ') {
+        this.processForm.patchValue({ nucleus: '1ª CCJ' });
+      } else if (user.role === 'Gestor CC') {
+        this.processForm.patchValue({ nucleus: '1ª CC' });
+      } else if (user.nucleus && user.nucleus !== 'GERAL') {
+        this.processForm.patchValue({ nucleus: user.nucleus });
+      }
+    }
+  }
 
   stripPriorityPrefix(priority: string): string {
     if (!priority) return '';

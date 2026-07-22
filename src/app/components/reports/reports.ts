@@ -23,7 +23,19 @@ export class Reports implements AfterViewInit, OnInit {
   @ViewChild('chartContainer') chartContainer!: ElementRef;
 
   currentUser = this.store.currentUser;
-  nucleos = this.store.nucleos;
+  
+  nucleosList = computed(() => {
+    const user = this.currentUser();
+    let list = [...this.store.nucleos()];
+    if (user) {
+      if (user.role === 'Gestor CC') {
+        list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CC'));
+      } else if (user.role === 'Gestor CCJ') {
+        list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CCJ'));
+      }
+    }
+    return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  });
   
   isLoading = signal(false);
   isInitialized = signal(false);
@@ -38,7 +50,7 @@ export class Reports implements AfterViewInit, OnInit {
 
   canFilterNucleus = computed(() => {
     const user = this.currentUser();
-    return ['Administrador', 'Coordenador', 'Supervisor'].includes(user?.role || '');
+    return ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ'].includes(user?.role || '');
   });
 
   constructor() {

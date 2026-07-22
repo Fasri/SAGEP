@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, signal, computed, inject, effect, HostListener, untracked, afterNextRender} from '@angular/core';
+import {ChangeDetectionStrategy, Component, signal, computed, inject, HostListener, afterNextRender} from '@angular/core';
 import {toSignal} from '@angular/core/rxjs-interop';
 import {CommonModule} from '@angular/common';
 import {ReactiveFormsModule, FormGroup, FormControl} from '@angular/forms';
@@ -34,7 +34,16 @@ export class Dashboard {
   pageSize = 20;
   
   nucleos = computed(() => {
-    return [...this.store.nucleos()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    const user = this.currentUser();
+    let list = [...this.store.nucleos()];
+    if (user) {
+      if (user.role === 'Gestor CC') {
+        list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CC'));
+      } else if (user.role === 'Gestor CCJ') {
+        list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CCJ'));
+      }
+    }
+    return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   });
   prioridades = this.store.prioridades;
   
@@ -59,6 +68,10 @@ export class Dashboard {
     const res = all.filter(p => {
       if (user.role === 'Administrador' || user.role === 'Coordenador' || user.role === 'Supervisor') {
         return true;
+      } else if (user.role === 'Gestor CC') {
+        return p.nucleus?.trim().toUpperCase().endsWith('CC');
+      } else if (user.role === 'Gestor CCJ') {
+        return p.nucleus?.trim().toUpperCase().endsWith('CCJ');
       } else if (user.role === 'Contador Judicial') {
         return p.assignedToId === user.id;
       } else {
@@ -117,7 +130,11 @@ export class Dashboard {
     const user = this.currentUser();
     if (!user) return [];
     let nucleus = this.nucleusFilter();
-    if (nucleus === 'Todos') nucleus = user.nucleus;
+    if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
+      nucleus = user.nucleus;
+    } else if (nucleus === 'Todos') {
+      nucleus = user.nucleus;
+    }
     return this.users()
       .filter(u => u.nucleus === nucleus && u.active)
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
@@ -548,21 +565,21 @@ export class Dashboard {
   canEditPriority(): boolean {
     const user = this.currentUser();
     if (!user) return false;
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
     return privilegedRoles.includes(user.role);
   }
 
   canDeleteProcess(): boolean {
     const user = this.currentUser();
     if (!user) return false;
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
     return privilegedRoles.includes(user.role);
   }
  
   canEditCompletionDate(): boolean {
     const user = this.currentUser();
     if (!user) return false;
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
     return privilegedRoles.includes(user.role);
   }
  
@@ -788,9 +805,15 @@ export class Dashboard {
 
     let assignable = [];
     // Supervisor, Coordenador, Chefe, Gerente and Admin can assign to anyone (except Admins)
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
     if (privilegedRoles.includes(user.role)) {
-      assignable = this.users().filter(u => u.role !== 'Administrador');
+      if (user.role === 'Gestor CC') {
+        assignable = this.users().filter(u => u.role !== 'Administrador' && u.nucleus?.trim().toUpperCase().endsWith('CC'));
+      } else if (user.role === 'Gestor CCJ') {
+        assignable = this.users().filter(u => u.role !== 'Administrador' && u.nucleus?.trim().toUpperCase().endsWith('CCJ'));
+      } else {
+        assignable = this.users().filter(u => u.role !== 'Administrador');
+      }
     } else {
       // Default fallback (though they shouldn't see the select if they can't assign)
       assignable = this.users().filter(u => u.nucleus === nucleus && u.role !== 'Administrador');
@@ -804,7 +827,7 @@ export class Dashboard {
     if (!user) return false;
 
     // Supervisor, Coordenador, Chefe, Gerente and Admin can assign any process
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
     if (privilegedRoles.includes(user.role)) return true;
 
     return false;
@@ -815,7 +838,7 @@ export class Dashboard {
     if (!user) return false;
     
     // Admins, Coordinators, Supervisors and Managers can always change
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
     if (privilegedRoles.includes(user.role)) return true;
     
     // Contadores can change if the process is assigned to them
@@ -833,7 +856,9 @@ export class Dashboard {
 
     let nucleus = this.nucleusFilter();
     
-    if (nucleus === 'Todos') {
+    if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
+      nucleus = user.nucleus;
+    } else if (nucleus === 'Todos') {
       if (user.nucleus && user.nucleus !== 'Administração') {
         nucleus = user.nucleus;
       } else {
@@ -859,8 +884,10 @@ export class Dashboard {
 
   async updateAutoAssignCount() {
     let nucleus = this.nucleusFilter();
-    if (nucleus === 'Todos') {
-      const user = this.currentUser();
+    const user = this.currentUser();
+    if (user?.role === 'Gestor CC' || user?.role === 'Gestor CCJ') {
+      nucleus = user.nucleus;
+    } else if (nucleus === 'Todos') {
       if (user?.nucleus && user.nucleus !== 'Administração') nucleus = user.nucleus;
     }
     if (nucleus !== 'Todos') {
@@ -883,7 +910,11 @@ export class Dashboard {
     if (!user) return;
 
     let nucleus = this.nucleusFilter();
-    if (nucleus === 'Todos') nucleus = user.nucleus;
+    if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
+      nucleus = user.nucleus;
+    } else if (nucleus === 'Todos') {
+      nucleus = user.nucleus;
+    }
 
     const selectedIds = this.selectedAutoAssignUserIds();
     if (selectedIds.length === 0) {

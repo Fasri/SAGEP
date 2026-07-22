@@ -241,6 +241,12 @@ export class ProcessService {
   private applyFiltersToQuery(query: any, options: PaginationOptions): any {
     if (options.user.role === 'Contador Judicial') {
       query = (query as any).eq('assigned_to_id', options.user.id);
+    } else if (options.user.role === 'Gestor CC') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).like('nucleus', '%CC');
+    } else if (options.user.role === 'Gestor CCJ') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).like('nucleus', '%CCJ');
     } else if (!['Administrador', 'Coordenador', 'Supervisor'].includes(options.user.role)) {
       query = (query as any).or(`nucleus.eq."${options.user.nucleus}",assigned_to_id.eq.${options.user.id}`);
     }
@@ -687,9 +693,25 @@ export class ProcessService {
       const from = page * pageSize;
       const to = from + pageSize - 1;
       
-      let batchQuery = client.from('vw_processes').select('assigned_to_id, status, entry_date') as any;
-      if (filters.user.role === 'Chefe' || filters.user.role === 'Gerente') batchQuery = batchQuery.eq('nucleus', filters.user.nucleus);
-      else if (filters.nucleus && filters.nucleus !== 'Todos') batchQuery = batchQuery.eq('nucleus', filters.nucleus);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let batchQuery = client.from('vw_processes').select('assigned_to_id, status, entry_date, nucleus') as any;
+      if (filters.user.role === 'Chefe' || filters.user.role === 'Gerente') {
+        batchQuery = batchQuery.eq('nucleus', filters.user.nucleus);
+      } else if (filters.user.role === 'Gestor CC') {
+        if (filters.nucleus && filters.nucleus !== 'Todos') {
+          batchQuery = batchQuery.eq('nucleus', filters.nucleus);
+        } else {
+          batchQuery = batchQuery.like('nucleus', '%CC');
+        }
+      } else if (filters.user.role === 'Gestor CCJ') {
+        if (filters.nucleus && filters.nucleus !== 'Todos') {
+          batchQuery = batchQuery.eq('nucleus', filters.nucleus);
+        } else {
+          batchQuery = batchQuery.like('nucleus', '%CCJ');
+        }
+      } else if (filters.nucleus && filters.nucleus !== 'Todos') {
+        batchQuery = batchQuery.eq('nucleus', filters.nucleus);
+      }
 
       if (filters.startDate) batchQuery = batchQuery.gte('entry_date', filters.startDate);
       if (filters.endDate) batchQuery = batchQuery.lte('entry_date', filters.endDate);

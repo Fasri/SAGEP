@@ -13,7 +13,7 @@
             </p>
           }
           
-          @if (onlineUsers().length > 0 && ['Administrador', 'Coordenador', 'Supervisor'].includes(currentUser()?.role || '')) {
+          @if (onlineUsers().length > 0 && ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ'].includes(currentUser()?.role || '')) {
             <div class="flex items-center gap-2 mt-1.5 animate-in fade-in slide-in-from-left-2">
               <div class="flex -space-x-1.5">
                 @for (user of onlineUsers().slice(0, 5); track user.id) {
@@ -39,7 +39,7 @@
           {{ isFilterVisible() ? 'Ocultar Filtros' : 'Mostrar Filtros' }}
         </button>
 
-        @if (['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'].includes(currentUser()?.role || '')) {
+        @if (['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'].includes(currentUser()?.role || '')) {
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-2">
               <button (click)="autoAssign()" 
@@ -97,7 +97,7 @@
           </div>
         </div>
         
-        @if (['Administrador', 'Coordenador', 'Supervisor'].includes(currentUser()?.role || '')) {
+        @if (['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ'].includes(currentUser()?.role || '')) {
           <div class="flex flex-col gap-2">
             <label for="nucleusFilter" class="text-xs font-bold text-slate-500 uppercase tracking-wider">Filtrar por Núcleo</label>
             <div class="relative">

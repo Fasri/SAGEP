@@ -13,7 +13,7 @@
             <label for="nucleusFilter" class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Núcleo</label>
             <select id="nucleusFilter" formControlName="nucleus" class="bg-slate-50 border-slate-200 rounded-xl py-2 px-3 text-sm focus:ring-primary focus:border-primary transition-all">
               <option value="Todos">Todos os Núcleos</option>
-              @for (n of nucleos(); track n.id) {
+              @for (n of nucleosList(); track n.id) {
                 <option [value]="n.nome">{{ n.nome }}</option>
               }
             </select>
