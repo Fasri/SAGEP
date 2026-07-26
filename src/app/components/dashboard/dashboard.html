@@ -50,11 +50,23 @@
                    (autoAssignProgress() ? 'Atribuindo (' + autoAssignProgress()?.current + '/' + autoAssignProgress()?.total + ')...' : 'Atribuindo...') : 
                    'Atribuição Automática' }}
               </button>
+              
+              <button (click)="unassign()" 
+                      [disabled]="isUnassigning()"
+                      class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-4 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                <span class="material-symbols-outlined text-lg">{{ isUnassigning() ? 'sync' : 'group_remove' }}</span>
+                {{ isUnassigning() ? 'Retirando...' : 'Retirar Atribuição' }}
+              </button>
             </div>
             
             @if (autoAssignMessage()) {
               <div class="text-xs font-medium px-2 py-1 rounded bg-slate-100 text-slate-600 animate-in fade-in">
                 {{ autoAssignMessage() }}
+              </div>
+            }
+            @if (unassignMessage()) {
+              <div class="text-xs font-medium px-2 py-1 rounded bg-slate-100 text-slate-600 animate-in fade-in">
+                {{ unassignMessage() }}
               </div>
             }
           </div>
@@ -577,6 +589,88 @@
                   [disabled]="selectedAutoAssignUserIds().length === 0"
                   class="flex-1 px-4 py-2.5 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:shadow-none cursor-pointer">
             Confirmar e Distribuir
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Unassign Modal -->
+  @if (isConfirmingUnassign()) {
+    <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-rose-50">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
+              <span class="material-symbols-outlined">group_remove</span>
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">Retirar Atribuição</h3>
+              <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">Núcleo: {{ nucleusFilter() === 'Todos' ? currentUser()?.nucleus : nucleusFilter() }}</p>
+            </div>
+          </div>
+          <button (click)="cancelUnassign()" class="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        
+        <div class="p-6">
+          <!-- Aviso sobre regras de desatribuição -->
+          <div class="mb-4 p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-3">
+            <span class="material-symbols-outlined text-amber-600 mt-0.5">warning</span>
+            <div>
+              <p class="text-[11px] font-bold text-amber-900 uppercase tracking-tight leading-tight">Regras da Operação</p>
+              <p class="text-[10px] text-amber-800 leading-tight mt-0.5">Apenas processos com status <strong>Pendente</strong> e que <strong>não sejam retornos</strong> terão sua atribuição retirada. Processos concluídos e retornos permanecerão inalterados.</p>
+            </div>
+          </div>
+
+          <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Selecionar Contadores</p>
+          
+          <div class="space-y-2 max-h-[260px] overflow-y-auto pr-2 custom-scrollbar">
+            @for (user of usersInNucleusForAutoAssign(); track user.id) {
+              <div class="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all cursor-pointer group outline-none focus:ring-2 focus:ring-rose-500/20"
+                   tabindex="0"
+                   (click)="toggleUnassignUserSelection(user.id)"
+                   (keydown.enter)="toggleUnassignUserSelection(user.id); $event.preventDefault()"
+                   (keydown.space)="toggleUnassignUserSelection(user.id); $event.preventDefault()">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs font-bold uppercase">
+                    {{ user.name.substring(0, 2) }}
+                  </div>
+                  <div>
+                    <span class="text-sm font-semibold text-slate-700 group-hover:text-rose-600 transition-colors block">{{ user.name }}</span>
+                    <span class="text-[11px] text-slate-500 font-medium">{{ assignedCounts()[user.id] || 0 }} processos atribuídos</span>
+                  </div>
+                </div>
+                <div class="w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all"
+                     [class.bg-rose-500]="selectedUnassignUserIds().includes(user.id)"
+                     [class.border-rose-500]="selectedUnassignUserIds().includes(user.id)"
+                     [class.border-slate-200]="!selectedUnassignUserIds().includes(user.id)">
+                  @if (selectedUnassignUserIds().includes(user.id)) {
+                    <span class="material-symbols-outlined text-white text-sm font-bold">check</span>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+          
+          @if (selectedUnassignUserIds().length === 0) {
+            <div class="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-center gap-2 text-amber-700 text-xs font-medium">
+              <span class="material-symbols-outlined text-sm">info</span>
+              Selecione pelo menos um contador para continuar.
+            </div>
+          }
+        </div>
+        
+        <div class="p-6 bg-slate-50 flex items-center gap-3">
+          <button (click)="cancelUnassign()" 
+                  class="flex-1 px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer">
+            Cancelar
+          </button>
+          <button (click)="confirmUnassign()" 
+                  [disabled]="selectedUnassignUserIds().length === 0"
+                  class="flex-1 px-4 py-2.5 text-sm font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition-all shadow-lg shadow-rose-200 disabled:opacity-50 disabled:shadow-none cursor-pointer">
+            Confirmar e Retirar
           </button>
         </div>
       </div>

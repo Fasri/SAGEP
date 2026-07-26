@@ -112,6 +112,14 @@ export class StoreService {
     return await this.processService.autoAssignProcesses(nucleusName, selectedUserIds, isAutoinspecao, limit);
   }
 
+  async getAssignedCountsByUsers(nucleusName: string, userIds: string[]) {
+    return await this.processService.getAssignedCountsByUsers(nucleusName, userIds);
+  }
+
+  async unassignProcessesFromUsers(nucleusName: string, selectedUserIds: string[]) {
+    return await this.processService.unassignProcessesFromUsers(nucleusName, selectedUserIds);
+  }
+
   async addProcess(process: Omit<Process, 'id' | 'position' | 'priorityPosition'>) {
     return await this.processService.addProcess(process);
   }

@@ -787,4 +787,78 @@ export class ProcessService {
       .maybeSingle();
     if (data) this.lastEtlUpdate.set(new Date(data.created_at));
   }
+
+  async getAssignedCountsByUsers(nucleusName: string, userIds: string[]): Promise<Record<string, number>> {
+    const client = this.supabaseService.getClient();
+    if (!client || userIds.length === 0) return {};
+
+    const { data, error } = await client
+      .from('processes')
+      .select('assigned_to_id')
+      .eq('nucleus', nucleusName)
+      .eq('status', 'Pendente')
+      .eq('is_return', false)
+      .in('assigned_to_id', userIds);
+
+    if (error) {
+      console.error('ProcessService: Error fetching assigned counts:', error);
+      return {};
+    }
+
+    const counts: Record<string, number> = {};
+    userIds.forEach(id => counts[id] = 0);
+
+    data?.forEach((row: any) => {
+      const id = row.assigned_to_id;
+      if (id && counts[id] !== undefined) {
+        counts[id]++;
+      }
+    });
+
+    return counts;
+  }
+
+  async unassignProcessesFromUsers(nucleusName: string, selectedUserIds: string[]): Promise<number> {
+    const client = this.supabaseService.getClient();
+    if (!client) return 0;
+
+    if (selectedUserIds.length === 0) return 0;
+
+    const { data: processesToUnassign, error: fetchError } = await client
+      .from('processes')
+      .select('id, number')
+      .eq('nucleus', nucleusName)
+      .eq('status', 'Pendente')
+      .eq('is_return', false)
+      .in('assigned_to_id', selectedUserIds);
+
+    if (fetchError) throw new Error(`Erro ao buscar processos para desatribuição: ${fetchError.message}`);
+
+    const total = processesToUnassign?.length || 0;
+    if (!processesToUnassign || total === 0) {
+      throw new Error(`Nenhum processo pendente (não retorno) atribuído aos contadores selecionados no núcleo "${nucleusName}".`);
+    }
+
+    const processIds = processesToUnassign.map(p => p.id);
+
+    const { error: updateError } = await client
+      .from('processes')
+      .update({ assigned_to_id: null, assignment_date: null })
+      .in('id', processIds);
+
+    if (updateError) throw new Error(`Erro ao retirar atribuição dos processos: ${updateError.message}`);
+
+    this.processes.update(prev => prev.map(p => 
+      processIds.includes(p.id) ? { ...p, assignedToId: null, assignmentDate: null } : p
+    ));
+
+    for (const item of processesToUnassign) {
+      this.auditService.addAuditLog(`Retirou atribuição do processo ${item.number}`, { processNumber: item.number });
+    }
+    
+    this.auditService.addAuditLog(`Retirada de atribuição em lote de ${total} processos no núcleo ${nucleusName}`);
+    this.updateGlobalStats();
+
+    return total;
+  }
 }

@@ -98,6 +98,12 @@ export class Dashboard {
   isAutoinspecao = signal<boolean>(false);
   assignLimit = signal<number | null>(null);
 
+  isUnassigning = signal(false);
+  isConfirmingUnassign = signal(false);
+  selectedUnassignUserIds = signal<string[]>([]);
+  unassignMessage = signal<string | null>(null);
+  assignedCounts = signal<Record<string, number>>({});
+
   appliedFilters = signal({
     searchTerm: '',
     startDate: '2020-01-01',
@@ -943,6 +949,91 @@ export class Dashboard {
 
   cancelAutoAssign() {
     this.isConfirmingAutoAssign.set(false);
+  }
+
+  async unassign() {
+    const user = this.currentUser();
+    if (!user) return;
+
+    let nucleus = this.nucleusFilter();
+    
+    if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
+      nucleus = user.nucleus;
+    } else if (nucleus === 'Todos') {
+      if (user.nucleus && user.nucleus !== 'Administração') {
+        nucleus = user.nucleus;
+      } else {
+        this.unassignMessage.set('Por favor, selecione um núcleo específico no filtro antes de realizar a desatribuição.');
+        setTimeout(() => this.unassignMessage.set(null), 5000);
+        return;
+      }
+    }
+    
+    const usersInNuc = this.usersInNucleusForAutoAssign();
+    const userIds = usersInNuc.map(u => u.id);
+    
+    this.isLoading.set(true);
+    try {
+      const counts = await this.store.getAssignedCountsByUsers(nucleus, userIds);
+      this.assignedCounts.set(counts);
+      this.selectedUnassignUserIds.set([]);
+      this.isConfirmingUnassign.set(true);
+    } catch (e) {
+      console.error('Dashboard: Erro ao carregar contagem de processos dos contadores:', e);
+      this.showError('Não foi possível carregar a contagem de processos dos contadores.');
+    } finally {
+      this.isLoading.set(false);
+    }
+  }
+
+  toggleUnassignUserSelection(userId: string) {
+    this.selectedUnassignUserIds.update(ids => {
+      if (ids.includes(userId)) {
+        return ids.filter(id => id !== userId);
+      } else {
+        return [...ids, userId];
+      }
+    });
+  }
+
+  async confirmUnassign() {
+    const user = this.currentUser();
+    if (!user) return;
+
+    let nucleus = this.nucleusFilter();
+    if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
+      nucleus = user.nucleus;
+    } else if (nucleus === 'Todos') {
+      nucleus = user.nucleus;
+    }
+
+    const selectedIds = this.selectedUnassignUserIds();
+    if (selectedIds.length === 0) {
+      this.unassignMessage.set('Selecione pelo menos um contador para a desatribuição.');
+      setTimeout(() => this.unassignMessage.set(null), 3000);
+      return;
+    }
+
+    this.isConfirmingUnassign.set(false);
+    this.isUnassigning.set(true);
+    this.unassignMessage.set('Retirando atribuições...');
+
+    try {
+      const count = await this.store.unassignProcessesFromUsers(nucleus, selectedIds);
+      this.unassignMessage.set(`Atribuição de ${count} processos pendentes (não retorno) retirada com sucesso no núcleo ${nucleus}.`);
+      this.loadServerData();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.unassignMessage.set(`Erro ao retirar atribuição: ${message}`);
+    } finally {
+      this.isUnassigning.set(false);
+      setTimeout(() => this.unassignMessage.set(null), 5000);
+    }
+  }
+
+  cancelUnassign() {
+    this.isConfirmingUnassign.set(false);
+    this.selectedUnassignUserIds.set([]);
   }
 
   async copyProcessNumber(processNumber: string) {

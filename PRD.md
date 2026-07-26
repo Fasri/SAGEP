@@ -64,29 +64,33 @@ O SAGEP é uma plataforma web que centraliza o recebimento, a distribuição e o
 Administrador
     └── Coordenador
             └── Supervisor
+                    ├── Gestor CC / Gestor CCJ (Gestores de Área)
                     └── Chefe / Gerente
                                 └── Contador Judicial
 ```
 
 ### 4.2 Tabela de Permissões
 
-| Ação | Administrador | Coordenador | Supervisor | Chefe / Gerente | Contador Judicial |
-|---|:---:|:---:|:---:|:---:|:---:|
-| Ver todos os processos | ✅ | ✅ | ✅ | ✅ (próprio núcleo) | ✅ (próprios) |
-| Filtrar por núcleo | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Atribuir processos | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Alterar prioridade | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Alterar status (cumprimento) | ✅ | ✅ | ✅ | ✅ | ✅ (próprios) |
-| Excluir processo | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Importar processos (arquivo) | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Importar tempo real (Storage) | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Atribuição automática | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Gerenciar usuários | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Ver logs de auditoria | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Ação | Administrador | Coordenador | Supervisor | Gestor CC / CCJ | Chefe / Gerente | Contador Judicial |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Ver todos os processos | ✅ | ✅ | ✅ | ✅ (sua área: CC ou CCJ) | ✅ (próprio núcleo) | ✅ (próprios) |
+| Filtrar por núcleo | ✅ | ✅ | ✅ | ✅ (sua área: CC ou CCJ) | ❌ | ❌ |
+| Atribuir processos | ✅ | ✅ | ✅ | ✅ (sua área) | ✅ | ❌ |
+| Alterar prioridade | ✅ | ✅ | ✅ | ✅ (sua área) | ✅ | ❌ |
+| Alterar status (cumprimento) | ✅ | ✅ | ✅ | ✅ (sua área) | ✅ | ✅ (próprios) |
+| Excluir processo | ✅ | ✅ | ❌ | ✅ (sua área) | ❌ | ❌ |
+| Importar processos (arquivo) | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Importar tempo real (Storage) | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Atribuição automática | ✅ | ✅ | ✅ | ✅ (seu próprio núcleo) | ✅ | ❌ |
+| Retirar atribuição em lote | ✅ | ✅ | ✅ | ✅ (seu próprio núcleo) | ✅ | ❌ |
+| Gerenciar usuários | ✅ | ❌ | ❌ | ✅ (seu próprio núcleo) | ❌ | ❌ |
+| Ver logs de auditoria | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ### 4.3 Visibilidade de Processos por Papel
 
 - **Administrador / Coordenador / Supervisor:** Veem todos os processos de todos os núcleos
+- **Gestor CC:** Veem todos os processos de todas as contadorias de custas (núcleos terminados em `CC`)
+- **Gestor CCJ:** Veem todos os processos de todas as contadorias de cálculo judicial (núcleos terminados em `CCJ`)
 - **Chefe / Gerente:** Veem processos do próprio núcleo + processos atribuídos a si
 - **Contador Judicial:** Veem apenas processos atribuídos a si
 
@@ -289,6 +293,22 @@ Para garantir a qualidade e a priorização correta, os seguintes processos **n�
 #### 5.12.3 Confirmação e Transparência
 - O modal de confirmação exibe um aviso explícito sobre estas exclusões (Retornos e Super Prioridades).
 - O contador de "Pendentes Sem Atribuição" no modal reflete apenas o saldo real de processos que serão distribuídos.
+- **Gestores de Área (CC / CCJ):** Quando a atribuição automática for acionada por um `Gestor CC` ou `Gestor CCJ`, ela será executada **exclusivamente** para o seu próprio núcleo cadastrado (ex: `1ª CC` para um `Gestor CC` que pertence a este núcleo) e listará apenas contadores deste mesmo núcleo, desconsiderando a seleção de outros núcleos nos filtros globais do painel.
+
+### 5.13 Retirada de Atribuição (Desatribuição em Lote)
+
+O sistema conta com um recurso que permite aos gestores e administradores retirar em lote a atribuição de processos dos contadores do núcleo selecionado.
+
+#### 5.13.1 Regras de Negócio e Restrições
+1.  **Apenas Processos Pendentes**: A desatribuição em lote afeta unicamente os processos que possuem status de cumprimento como **Pendente**. Processos concluídos ou devolvidos não são modificados.
+2.  **Exclusão de Processos de Retorno**: Processos de retorno (`is_return = true`) não terão sua atribuição alterada e permanecerão atribuídos ao respectivo contador.
+3.  **Restrição por Núcleo**: A operação é executada com base no núcleo atualmente selecionado/filtrado no painel superior. Se o filtro estiver definido como "Todos", o gestor é orientado a selecionar um núcleo específico.
+4.  **Permissões**: Apenas os perfis autorizados a efetuar a Atribuição Automática (Administrador, Coordenador, Supervisor, Gestor CC/CCJ e Chefe/Gerente) possuem acesso a este recurso.
+
+#### 5.13.2 Visualização e Confirmação
+-   **Modal Explicativo**: Apresenta as regras da operação de retirada de atribuição e destaca em tons de alerta/remoção (vermelho/rosa).
+-   **Contagem de Processos**: Exibe a lista de contadores ativos do núcleo e a quantidade em tempo real de processos pendentes (não-retornos) atribuídos a cada um deles.
+-   **Seleção Flexível**: O gestor seleciona um ou mais contadores e, ao confirmar, o sistema remove o contador (`assigned_to_id = null` e `assignment_date = null`) de todos os processos pendentes aplicáveis, retornando-os para a fila de pendentes sem atribuição do respectivo núcleo.
 
 ---
 
