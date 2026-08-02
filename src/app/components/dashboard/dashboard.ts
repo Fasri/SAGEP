@@ -25,6 +25,16 @@ export class Dashboard {
 
   searchTerm = signal('');
   statusFilter = signal<'Pendente' | 'Todos' | 'Devolvidos'>('Pendente');
+  
+  // Sinais de múltipla escolha e visibilidade de dropdowns
+  selectedNuclei = signal<string[]>([]);
+  selectedPriorities = signal<string[]>([]);
+  selectedStatusDetails = signal<string[]>([]);
+
+  isNucleusDropdownOpen = signal(false);
+  isPriorityDropdownOpen = signal(false);
+  isStatusDropdownOpen = signal(false);
+
   nucleusFilter = signal('Todos');
   onlyAssignedToMe = signal(false);
   unassignedOnly = signal(false);
@@ -109,9 +119,9 @@ export class Dashboard {
     startDate: this.getDefaultStartDate(),
     endDate: this.getDefaultEndDate(),
     status: 'Pendente' as 'Pendente' | 'Todos' | 'Devolvidos',
-    nucleus: 'Todos',
-    priority: 'Todos',
-    statusDetail: 'Todos',
+    nucleus: 'Todos' as string | string[],
+    priority: 'Todos' as string | string[],
+    statusDetail: 'Todos' as string | string[],
     onlyAssignedToMe: false,
     unassignedOnly: false,
     externalAccountantsOnly: false,
@@ -194,10 +204,44 @@ export class Dashboard {
       if (status === 'Pendente' && p.status !== 'Pendente') return false;
 
       // Nucleus Filter
-      if (nucleusFilter !== 'Todos') {
+      if (Array.isArray(nucleusFilter)) {
+        if (nucleusFilter.length > 0) {
+          const pNucleus = p.nucleus?.trim().toUpperCase() || '';
+          const hasMatch = nucleusFilter.some(nf => nf.trim().toUpperCase() === pNucleus);
+          if (!hasMatch) return false;
+        }
+      } else if (nucleusFilter !== 'Todos') {
         const pNucleus = p.nucleus?.trim().toUpperCase() || '';
         const fNucleus = nucleusFilter.trim().toUpperCase();
         if (pNucleus !== fNucleus) return false;
+      }
+
+      // Priority Filter
+      const priorityFilter = filters.priority;
+      if (Array.isArray(priorityFilter)) {
+        if (priorityFilter.length > 0) {
+          const pPriority = p.priority?.trim().toUpperCase() || '';
+          const hasMatch = priorityFilter.some(pf => pf.trim().toUpperCase() === pPriority);
+          if (!hasMatch) return false;
+        }
+      } else if (priorityFilter !== 'Todos') {
+        const pPriority = p.priority?.trim().toUpperCase() || '';
+        const fPriority = priorityFilter.trim().toUpperCase();
+        if (pPriority !== fPriority) return false;
+      }
+
+      // Status Detail Filter
+      const statusDetailFilter = filters.statusDetail;
+      if (Array.isArray(statusDetailFilter)) {
+        if (statusDetailFilter.length > 0) {
+          const pStatusDetail = p.status?.trim().toUpperCase() || '';
+          const hasMatch = statusDetailFilter.some(sdf => sdf.trim().toUpperCase() === pStatusDetail);
+          if (!hasMatch) return false;
+        }
+      } else if (statusDetailFilter !== 'Todos') {
+        const pStatusDetail = p.status?.trim().toUpperCase() || '';
+        const fStatusDetail = statusDetailFilter.trim().toUpperCase();
+        if (pStatusDetail !== fStatusDetail) return false;
       }
 
       // Assigned To Me Filter
@@ -209,10 +253,12 @@ export class Dashboard {
       // External Accountants Filter
       if (externalAccountantsOnly && user) {
         const assignedUser = allUsers.find(u => u.id === p.assignedToId);
-        const targetNucleus = nucleusFilter !== 'Todos' ? nucleusFilter : user.nucleus;
-        const normalizedTarget = targetNucleus?.trim().toUpperCase() || '';
+        const targetNuclei = Array.isArray(nucleusFilter)
+          ? (nucleusFilter.length > 0 ? nucleusFilter : [user.nucleus || ''])
+          : [nucleusFilter !== 'Todos' ? nucleusFilter : user.nucleus || ''];
+        const normalizedTargets = targetNuclei.map(t => t.trim().toUpperCase());
         const assignedUserNuc = assignedUser?.nucleus?.trim().toUpperCase() || '';
-        if (!assignedUser || assignedUserNuc === normalizedTarget) return false;
+        if (!assignedUser || normalizedTargets.includes(assignedUserNuc)) return false;
       }
 
       // Date Filter - Use entryDate for Pending/All, completionDate for Devolvidos
@@ -285,6 +331,76 @@ export class Dashboard {
     setTimeout(() => this.showUnassignedWarning.set(false), 3000);
   }
 
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    this.isNucleusDropdownOpen.set(false);
+    this.isPriorityDropdownOpen.set(false);
+    this.isStatusDropdownOpen.set(false);
+  }
+
+  toggleNucleus(name: string) {
+    const current = this.selectedNuclei();
+    if (current.includes(name)) {
+      this.selectedNuclei.set(current.filter(n => n !== name));
+    } else {
+      this.selectedNuclei.set([...current, name]);
+    }
+    this.currentPage.set(1);
+  }
+
+  isNucleusSelected(name: string): boolean {
+    return this.selectedNuclei().includes(name);
+  }
+
+  getNucleiLabel(): string {
+    const selected = this.selectedNuclei();
+    if (selected.length === 0) return 'Todos os Núcleos';
+    if (selected.length === 1) return selected[0];
+    return `${selected.length} selecionados`;
+  }
+
+  togglePriority(name: string) {
+    const current = this.selectedPriorities();
+    if (current.includes(name)) {
+      this.selectedPriorities.set(current.filter(p => p !== name));
+    } else {
+      this.selectedPriorities.set([...current, name]);
+    }
+    this.currentPage.set(1);
+  }
+
+  isPrioritySelected(name: string): boolean {
+    return this.selectedPriorities().includes(name);
+  }
+
+  getPrioritiesLabel(): string {
+    const selected = this.selectedPriorities();
+    if (selected.length === 0) return 'Todas as Prioridades';
+    if (selected.length === 1) return selected[0];
+    return `${selected.length} selecionadas`;
+  }
+
+  toggleStatusDetail(name: string) {
+    const current = this.selectedStatusDetails();
+    if (current.includes(name)) {
+      this.selectedStatusDetails.set(current.filter(s => s !== name));
+    } else {
+      this.selectedStatusDetails.set([...current, name]);
+    }
+    this.currentPage.set(1);
+  }
+
+  isStatusDetailSelected(name: string): boolean {
+    return this.selectedStatusDetails().includes(name);
+  }
+
+  getStatusDetailsLabel(): string {
+    const selected = this.selectedStatusDetails();
+    if (selected.length === 0) return 'Todos os Status';
+    if (selected.length === 1) return selected[0];
+    return `${selected.length} selecionados`;
+  }
+
   constructor() {
     afterNextRender(() => {
       const user = this.currentUser();
@@ -306,12 +422,14 @@ export class Dashboard {
       console.log('Dashboard: loadServerData with appliedFilters:', filters);
 
       const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
-      const targetNucleus = filters.nucleus !== 'Todos' ? filters.nucleus : user.nucleus;
-      const normalizedTarget = targetNucleus?.trim().toUpperCase() || '';
+      const targetNuclei = Array.isArray(filters.nucleus)
+        ? (filters.nucleus.length > 0 ? filters.nucleus : [user.nucleus || ''])
+        : [filters.nucleus !== 'Todos' ? filters.nucleus : user.nucleus || ''];
+      const normalizedTargets = targetNuclei.map(t => t.trim().toUpperCase());
       const externalIds = this.users()
         .filter(u => {
           const uNuc = u.nucleus?.trim().toUpperCase() || '';
-          return uNuc !== normalizedTarget && validRoles.includes(u.role);
+          return !normalizedTargets.includes(uNuc) && validRoles.includes(u.role);
         })
         .map(u => u.id);
 
@@ -419,7 +537,9 @@ export class Dashboard {
       endDate: this.getDefaultEndDate()
     });
     this.nucleusFilter.set('Todos');
-    this.statusFilter.set('Pendente');
+    this.selectedNuclei.set([]);
+    this.selectedPriorities.set([]);
+    this.selectedStatusDetails.set([]);
     this.onlyAssignedToMe.set(false);
     this.unassignedOnly.set(false);
     this.externalAccountantsOnly.set(false);
@@ -438,9 +558,9 @@ export class Dashboard {
       startDate: startDate || this.getDefaultStartDate(),
       endDate: endDate || this.getDefaultEndDate(),
       status: this.statusFilter(),
-      nucleus: this.nucleusFilter(),
-      priority: this.filterForm.value.priorityFilter || 'Todos',
-      statusDetail: this.filterForm.value.statusDetailFilter || 'Todos',
+      nucleus: this.selectedNuclei().length > 0 ? this.selectedNuclei() : 'Todos',
+      priority: this.selectedPriorities().length > 0 ? this.selectedPriorities() : 'Todos',
+      statusDetail: this.selectedStatusDetails().length > 0 ? this.selectedStatusDetails() : 'Todos',
       onlyAssignedToMe: this.onlyAssignedToMe(),
       unassignedOnly: this.unassignedOnly(),
       externalAccountantsOnly: this.externalAccountantsOnly(),
@@ -729,12 +849,14 @@ export class Dashboard {
     try {
       const filters = this.appliedFilters();
       const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
-      const targetNucleus = filters.nucleus !== 'Todos' ? filters.nucleus : user.nucleus;
-      const normalizedTarget = targetNucleus?.trim().toUpperCase() || '';
+      const targetNuclei = Array.isArray(filters.nucleus)
+        ? (filters.nucleus.length > 0 ? filters.nucleus : [user.nucleus || ''])
+        : [filters.nucleus !== 'Todos' ? filters.nucleus : user.nucleus || ''];
+      const normalizedTargets = targetNuclei.map(t => t.trim().toUpperCase());
       const externalIds = this.users()
         .filter(u => {
           const uNuc = u.nucleus?.trim().toUpperCase() || '';
-          return uNuc !== normalizedTarget && validRoles.includes(u.role);
+          return !normalizedTargets.includes(uNuc) && validRoles.includes(u.role);
         })
         .map(u => u.id);
 

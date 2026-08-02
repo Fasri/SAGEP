@@ -69,9 +69,9 @@ export class MetadataService {
     ];
 
     const defaultPrioridades = [
-      { nome: '2-Sem prioridade', descricao: 'Processo comum' },
-      { nome: '2-Prioridade legal', descricao: 'Idoso, doença grave, etc' },
-      { nome: '1-Super prioridade', descricao: 'Acima de 80 anos' }
+      { nome: 'Sem prioridade', descricao: 'Processo comum' },
+      { nome: 'Prioridade Legal', descricao: 'Idoso, doença grave, etc' },
+      { nome: 'Super prioridade', descricao: 'Acima de 80 anos' }
     ];
 
     const defaultStatus = [
@@ -194,7 +194,7 @@ export class MetadataService {
   }
 
   normalizePriority(name: string): string {
-    if (!name) return '2-Sem prioridade';
+    if (!name) return 'Sem prioridade';
     const fixed = this.fixEncoding(name).trim();
     const n = fixed.toUpperCase();
     
@@ -208,15 +208,15 @@ export class MetadataService {
 
     if (n.includes('SUPER')) {
       const found = this.prioridades().find(item => item.nome.toUpperCase().includes('SUPER'));
-      return found ? found.nome : '1-Super prioridade';
+      return found ? found.nome : 'Super prioridade';
     }
     if (n.includes('LEGAL')) {
       const found = this.prioridades().find(item => item.nome.toUpperCase().includes('LEGAL'));
-      return found ? found.nome : '2-Prioridade legal';
+      return found ? found.nome : 'Prioridade Legal';
     }
     if (n.includes('SEM')) {
       const found = this.prioridades().find(item => item.nome.toUpperCase().includes('SEM'));
-      return found ? found.nome : '2-Sem prioridade';
+      return found ? found.nome : 'Sem prioridade';
     }
     
     return fixed;

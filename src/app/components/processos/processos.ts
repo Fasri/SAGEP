@@ -58,7 +58,7 @@ export class Processos {
     entryDate: new FormControl(new Date().toISOString().split('T')[0], Validators.required),
     court: new FormControl('', Validators.required),
     nucleus: new FormControl('1ª CC', Validators.required),
-    priority: new FormControl('2-Sem prioridade', Validators.required),
+    priority: new FormControl('Sem prioridade', Validators.required),
     status: new FormControl('Pendente', Validators.required),
     assignedToId: new FormControl<string | null>(null),
     valorCustas: new FormControl(0),
@@ -130,7 +130,7 @@ export class Processos {
         this.processForm.reset({
           entryDate: new Date().toISOString().split('T')[0],
           nucleus: '1ª CC',
-          priority: '2-Sem prioridade',
+          priority: 'Sem prioridade',
           assignedToId: null,
           valorCustas: 0,
           observacao: ''

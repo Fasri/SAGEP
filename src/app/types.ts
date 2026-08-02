@@ -70,9 +70,9 @@ export interface PaginationOptions {
   user: User;
   searchTerm?: string;
   statusFilter?: 'Pendente' | 'Todos' | 'Devolvidos';
-  nucleusFilter?: string;
-  priorityFilter?: string;
-  statusDetailFilter?: string;
+  nucleusFilter?: string | string[];
+  priorityFilter?: string | string[];
+  statusDetailFilter?: string | string[];
   startDate?: string;
   endDate?: string;
   onlyAssignedToMe?: boolean;

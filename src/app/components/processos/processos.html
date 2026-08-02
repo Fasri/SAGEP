@@ -66,11 +66,11 @@
             <label for="priority" class="text-sm font-bold text-slate-700">Prioridade</label>
             <select id="priority" formControlName="priority"
                     class="border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all cursor-pointer">
-              <option value="2-Sem prioridade">Sem prioridade</option>
-              <option value="2-Prioridade legal">Prioridade legal</option>
-              <option value="1-Super prioridade">Super prioridade</option>
+              <option value="Sem prioridade">Sem prioridade</option>
+              <option value="Prioridade Legal">Prioridade legal</option>
+              <option value="Super prioridade">Super prioridade</option>
               @for (p of prioridades(); track p.id) {
-                @if (!['2-Sem prioridade', '2-Prioridade legal', '1-Super prioridade'].includes(p.nome)) {
+                @if (!['2-Sem prioridade', '2-Prioridade legal', '1-Super prioridade', 'Sem prioridade', 'Prioridade Legal', 'Super prioridade'].includes(p.nome)) {
                   <option [value]="p.nome">{{ stripPriorityPrefix(p.nome) }}</option>
                 }
               }

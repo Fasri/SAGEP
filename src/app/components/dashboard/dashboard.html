@@ -110,48 +110,74 @@
         </div>
         
         @if (['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ'].includes(currentUser()?.role || '')) {
-          <div class="flex flex-col gap-2">
-            <label for="nucleusFilter" class="text-xs font-bold text-slate-500 uppercase tracking-wider">Filtrar por Núcleo</label>
+          <div class="flex flex-col gap-2 nucleus-dropdown-container relative">
+            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Filtrar por Núcleo</label>
             <div class="relative">
               <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">account_balance</span>
-              <select id="nucleusFilter" 
-                      (change)="setNucleusFilter($any($event.target).value)"
-                      class="w-full bg-slate-50 border-slate-200 rounded-xl pl-10 py-2.5 text-sm focus:ring-2 focus:ring-primary transition-all outline-none appearance-none cursor-pointer">
-                <option value="Todos">Todos os Núcleos</option>
-                @for (n of nucleos(); track n.id) {
-                  <option [value]="n.nome">{{ n.nome }}</option>
-                }
-              </select>
+              <button type="button" (click)="isNucleusDropdownOpen.set(!isNucleusDropdownOpen()); $event.stopPropagation()"
+                      class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-8 py-2.5 text-sm focus:ring-2 focus:ring-primary transition-all outline-none text-left flex items-center justify-between cursor-pointer select-none">
+                <span class="truncate">{{ getNucleiLabel() }}</span>
+                <span class="material-symbols-outlined text-slate-400 text-xs transition-transform" [class.rotate-180]="isNucleusDropdownOpen()">keyboard_arrow_down</span>
+              </button>
             </div>
+            @if (isNucleusDropdownOpen()) {
+              <div (click)="$event.stopPropagation()" class="absolute left-0 right-0 top-full z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-2 flex flex-col gap-1">
+                @for (n of nucleos(); track n.id) {
+                  <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 rounded-lg text-sm cursor-pointer select-none transition-colors">
+                    <input type="checkbox" [checked]="isNucleusSelected(n.nome)" (change)="toggleNucleus(n.nome)"
+                           class="w-4 h-4 text-primary border-slate-300 rounded focus:ring-primary cursor-pointer" />
+                    <span class="text-slate-700 font-medium">{{ n.nome }}</span>
+                  </label>
+                }
+              </div>
+            }
           </div>
         }
 
-        <div class="flex flex-col gap-2">
-          <label for="priorityFilter" class="text-xs font-bold text-slate-500 uppercase tracking-wider">Prioridade</label>
+        <div class="flex flex-col gap-2 priority-dropdown-container relative">
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Prioridade</label>
           <div class="relative">
             <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">priority_high</span>
-            <select id="priorityFilter" formControlName="priorityFilter"
-                    class="w-full bg-slate-50 border-slate-200 rounded-xl pl-10 py-2.5 text-sm focus:ring-2 focus:ring-primary transition-all outline-none appearance-none cursor-pointer">
-              <option value="Todos">Todas as Prioridades</option>
-              @for (p of prioridades(); track p.id) {
-                <option [value]="p.nome">{{ p.nome }}</option>
-              }
-            </select>
+            <button type="button" (click)="isPriorityDropdownOpen.set(!isPriorityDropdownOpen()); $event.stopPropagation()"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-8 py-2.5 text-sm focus:ring-2 focus:ring-primary transition-all outline-none text-left flex items-center justify-between cursor-pointer select-none">
+              <span class="truncate">{{ getPrioritiesLabel() }}</span>
+              <span class="material-symbols-outlined text-slate-400 text-xs transition-transform" [class.rotate-180]="isPriorityDropdownOpen()">keyboard_arrow_down</span>
+            </button>
           </div>
+          @if (isPriorityDropdownOpen()) {
+            <div (click)="$event.stopPropagation()" class="absolute left-0 right-0 top-full z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-2 flex flex-col gap-1">
+              @for (p of prioridades(); track p.id) {
+                <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 rounded-lg text-sm cursor-pointer select-none transition-colors">
+                  <input type="checkbox" [checked]="isPrioritySelected(p.nome)" (change)="togglePriority(p.nome)"
+                         class="w-4 h-4 text-primary border-slate-300 rounded focus:ring-primary cursor-pointer" />
+                  <span class="text-slate-700 font-medium">{{ p.nome }}</span>
+                </label>
+              }
+            </div>
+          }
         </div>
 
-        <div class="flex flex-col gap-2">
-          <label for="statusDetailFilter" class="text-xs font-bold text-slate-500 uppercase tracking-wider">Cumprimento</label>
+        <div class="flex flex-col gap-2 status-dropdown-container relative">
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Cumprimento</label>
           <div class="relative">
             <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">rule</span>
-            <select id="statusDetailFilter" formControlName="statusDetailFilter"
-                    class="w-full bg-slate-50 border-slate-200 rounded-xl pl-10 py-2.5 text-sm focus:ring-2 focus:ring-primary transition-all outline-none appearance-none cursor-pointer">
-              <option value="Todos">Todos os Status</option>
-              @for (s of statusTipos(); track s.id) {
-                <option [value]="s.nome">{{ s.nome }}</option>
-              }
-            </select>
+            <button type="button" (click)="isStatusDropdownOpen.set(!isStatusDropdownOpen()); $event.stopPropagation()"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-8 py-2.5 text-sm focus:ring-2 focus:ring-primary transition-all outline-none text-left flex items-center justify-between cursor-pointer select-none">
+              <span class="truncate">{{ getStatusDetailsLabel() }}</span>
+              <span class="material-symbols-outlined text-slate-400 text-xs transition-transform" [class.rotate-180]="isStatusDropdownOpen()">keyboard_arrow_down</span>
+            </button>
           </div>
+          @if (isStatusDropdownOpen()) {
+            <div (click)="$event.stopPropagation()" class="absolute left-0 right-0 top-full z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-2 flex flex-col gap-1">
+              @for (s of statusTipos(); track s.id) {
+                <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 rounded-lg text-sm cursor-pointer select-none transition-colors">
+                  <input type="checkbox" [checked]="isStatusDetailSelected(s.nome)" (change)="toggleStatusDetail(s.nome)"
+                         class="w-4 h-4 text-primary border-slate-300 rounded focus:ring-primary cursor-pointer" />
+                  <span class="text-slate-700 font-medium">{{ s.nome }}</span>
+                </label>
+              }
+            </div>
+          }
         </div>
 
         <div class="flex gap-3 md:col-span-2 lg:col-span-2 xl:col-span-1">

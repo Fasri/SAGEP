@@ -51,7 +51,7 @@ export class ProcessService {
       entryDate: String(p['entry_date'] || '').split('T')[0],
       court: String(p['court'] || ''),
       nucleus: String(p['nucleus'] || 'GERAL'),
-      priority: this.metadataService.normalizePriority(String(p['priority'] || '2-Sem prioridade')),
+      priority: this.metadataService.normalizePriority(String(p['priority'] || 'Sem prioridade')),
       status: this.metadataService.normalizeStatus(String(p['status'] || 'Pendente')),
       assignedToId: p['assigned_to_id'] ? String(p['assigned_to_id']) : null,
       assignmentDate: p['assignment_date'] ? String(p['assignment_date']) : null,
@@ -269,9 +269,27 @@ export class ProcessService {
       query = (query as any).or(`nucleus.eq."${options.user.nucleus}",assigned_to_id.eq.${options.user.id}`);
     }
 
-    if (options.nucleusFilter && options.nucleusFilter !== 'Todos') query = (query as any).eq('nucleus', options.nucleusFilter);
-    if (options.priorityFilter && options.priorityFilter !== 'Todos') query = (query as any).eq('priority', options.priorityFilter);
-    if (options.statusDetailFilter && options.statusDetailFilter !== 'Todos') query = (query as any).eq('status', options.statusDetailFilter);
+    if (options.nucleusFilter) {
+      if (Array.isArray(options.nucleusFilter)) {
+        if (options.nucleusFilter.length > 0) query = (query as any).in('nucleus', options.nucleusFilter);
+      } else if (options.nucleusFilter !== 'Todos') {
+        query = (query as any).eq('nucleus', options.nucleusFilter);
+      }
+    }
+    if (options.priorityFilter) {
+      if (Array.isArray(options.priorityFilter)) {
+        if (options.priorityFilter.length > 0) query = (query as any).in('priority', options.priorityFilter);
+      } else if (options.priorityFilter !== 'Todos') {
+        query = (query as any).eq('priority', options.priorityFilter);
+      }
+    }
+    if (options.statusDetailFilter) {
+      if (Array.isArray(options.statusDetailFilter)) {
+        if (options.statusDetailFilter.length > 0) query = (query as any).in('status', options.statusDetailFilter);
+      } else if (options.statusDetailFilter !== 'Todos') {
+        query = (query as any).eq('status', options.statusDetailFilter);
+      }
+    }
     if (options.onlyAssignedToMe) query = (query as any).eq('assigned_to_id', options.user.id);
     if (options.unassignedOnly) query = (query as any).is('assigned_to_id', null);
     if (options.accountantFilter && options.accountantFilter !== 'Todos') query = (query as any).eq('assigned_to_id', options.accountantFilter);
