@@ -1,10 +1,10 @@
-import {ChangeDetectionStrategy, Component, signal, computed, inject, HostListener, afterNextRender} from '@angular/core';
-import {toSignal} from '@angular/core/rxjs-interop';
-import {CommonModule} from '@angular/common';
-import {ReactiveFormsModule, FormGroup, FormControl} from '@angular/forms';
-import {MatIconModule} from '@angular/material/icon';
-import {StoreService} from '../../services/store';
-import {Process, Role, PaginationOptions} from '../../types';
+import { ChangeDetectionStrategy, Component, signal, computed, inject, HostListener, afterNextRender } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { CommonModule } from '@angular/common';
+import { ReactiveFormsModule, FormGroup, FormControl } from '@angular/forms';
+import { MatIconModule } from '@angular/material/icon';
+import { StoreService } from '../../services/store';
+import { Process, Role, PaginationOptions } from '../../types';
 import * as XLSX from 'xlsx';
 
 @Component({
@@ -32,7 +32,7 @@ export class Dashboard {
   isFilterVisible = signal(true);
   currentPage = signal(1);
   pageSize = 20;
-  
+
   nucleos = computed(() => {
     const user = this.currentUser();
     let list = [...this.store.nucleos()];
@@ -46,7 +46,7 @@ export class Dashboard {
     return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   });
   prioridades = this.store.prioridades;
-  
+
   filterForm = new FormGroup({
     searchTerm: new FormControl(''),
     priorityFilter: new FormControl('Todos'),
@@ -106,7 +106,7 @@ export class Dashboard {
 
   appliedFilters = signal({
     searchTerm: '',
-    startDate: '2020-01-01',
+    startDate: this.getDefaultStartDate(),
     endDate: this.getDefaultEndDate(),
     status: 'Pendente' as 'Pendente' | 'Todos' | 'Devolvidos',
     nucleus: 'Todos',
@@ -156,10 +156,10 @@ export class Dashboard {
     if (!priority) return 3;
     const p = priority.toUpperCase().trim();
     if (p.includes('SUPER')) return 1;
-    
+
     const isPriorityTerm = p.includes('LEGAL') || p.includes('ORDEM') || p.startsWith('1-') || p.startsWith('2-');
     const isSemPrioridade = p.includes('SEM');
-    
+
     if (isPriorityTerm && !isSemPrioridade) return 2;
     return 3;
   }
@@ -182,7 +182,7 @@ export class Dashboard {
     const endDate = filters.endDate;
     const onlyReturns = filters.onlyReturns;
     const over30DaysOnly = filters.over30DaysOnly;
-    
+
     const filtered = this.visibleProcesses().filter(p => {
       // 30+ Days Filter
       if (over30DaysOnly && (p.tempoNaContadoria === null || (p.tempoNaContadoria || 0) < 30)) return false;
@@ -228,11 +228,11 @@ export class Dashboard {
 
       const assignedUserName = p.assignedToId ? allUsers.find(u => u.id === p.assignedToId)?.name || '' : '';
 
-      return p.number.toLowerCase().includes(term) || 
-             p.court.toLowerCase().includes(term) ||
-             p.status.toLowerCase().includes(term) ||
-             p.nucleus.toLowerCase().includes(term) ||
-             assignedUserName.toLowerCase().includes(term);
+      return p.number.toLowerCase().includes(term) ||
+        p.court.toLowerCase().includes(term) ||
+        p.status.toLowerCase().includes(term) ||
+        p.nucleus.toLowerCase().includes(term) ||
+        assignedUserName.toLowerCase().includes(term);
     });
 
     // Robust sorting:
@@ -292,80 +292,80 @@ export class Dashboard {
     });
   }
 
-    private currentRequestId = 0;
+  private currentRequestId = 0;
 
-    // We'll use a more direct approach: update the list whenever filters change
-    async loadServerData() {
-      const user = this.currentUser();
-      if (!user) return;
+  // We'll use a more direct approach: update the list whenever filters change
+  async loadServerData() {
+    const user = this.currentUser();
+    if (!user) return;
 
-      const requestId = ++this.currentRequestId;
-      this.isLoading.set(true);
-      try {
-        const filters = this.appliedFilters();
-        console.log('Dashboard: loadServerData with appliedFilters:', filters);
-        
-        const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
-        const targetNucleus = filters.nucleus !== 'Todos' ? filters.nucleus : user.nucleus;
-        const normalizedTarget = targetNucleus?.trim().toUpperCase() || '';
-        const externalIds = this.users()
-          .filter(u => {
-            const uNuc = u.nucleus?.trim().toUpperCase() || '';
-            return uNuc !== normalizedTarget && validRoles.includes(u.role);
-          })
-          .map(u => u.id);
+    const requestId = ++this.currentRequestId;
+    this.isLoading.set(true);
+    try {
+      const filters = this.appliedFilters();
+      console.log('Dashboard: loadServerData with appliedFilters:', filters);
 
-        const result = await this.store.fetchPaginatedProcesses({
-          page: this.currentPage(),
-          pageSize: this.pageSize,
-          searchTerm: filters.searchTerm,
-          statusFilter: filters.status,
-          priorityFilter: filters.priority,
-          statusDetailFilter: filters.statusDetail,
-          startDate: filters.startDate,
-          endDate: filters.endDate,
-          user: user,
-          nucleusFilter: filters.nucleus,
-          onlyAssignedToMe: filters.onlyAssignedToMe,
-          unassignedOnly: filters.unassignedOnly,
-          onlyReturns: filters.onlyReturns,
-          over30DaysOnly: filters.over30DaysOnly,
-          externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
-        });
+      const validRoles: Role[] = ['Contador Judicial', 'Chefe', 'Gerente', 'Coordenador', 'Supervisor'];
+      const targetNucleus = filters.nucleus !== 'Todos' ? filters.nucleus : user.nucleus;
+      const normalizedTarget = targetNucleus?.trim().toUpperCase() || '';
+      const externalIds = this.users()
+        .filter(u => {
+          const uNuc = u.nucleus?.trim().toUpperCase() || '';
+          return uNuc !== normalizedTarget && validRoles.includes(u.role);
+        })
+        .map(u => u.id);
 
-        if (this.currentRequestId !== requestId) {
-          // A newer request has been made, ignore this one
-          return;
-        }
+      const result = await this.store.fetchPaginatedProcesses({
+        page: this.currentPage(),
+        pageSize: this.pageSize,
+        searchTerm: filters.searchTerm,
+        statusFilter: filters.status,
+        priorityFilter: filters.priority,
+        statusDetailFilter: filters.statusDetail,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        user: user,
+        nucleusFilter: filters.nucleus,
+        onlyAssignedToMe: filters.onlyAssignedToMe,
+        unassignedOnly: filters.unassignedOnly,
+        onlyReturns: filters.onlyReturns,
+        over30DaysOnly: filters.over30DaysOnly,
+        externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
+      });
 
-        this.serverProcesses.set(result.processes);
-        this.totalFilteredCount.set(result.totalCount);
-        this.hasLoadedServerData.set(true);
-        console.log('Dashboard: loadServerData success. Count:', result.totalCount, 'Processes:', result.processes.length);
-        
-        // Also refresh the stats cards
-        this.store.updateGlobalStats();
-      } catch (e) {
-        console.error('Dashboard: Error loading server data:', e);
-        const msg = e instanceof Error ? e.message : String(e);
-        this.showError(`Ocorreu um erro ao buscar os processos: ${msg}. Por favor, tente novamente.`);
-      } finally {
-        this.isLoading.set(false);
+      if (this.currentRequestId !== requestId) {
+        // A newer request has been made, ignore this one
+        return;
       }
+
+      this.serverProcesses.set(result.processes);
+      this.totalFilteredCount.set(result.totalCount);
+      this.hasLoadedServerData.set(true);
+      console.log('Dashboard: loadServerData success. Count:', result.totalCount, 'Processes:', result.processes.length);
+
+      // Also refresh the stats cards
+      this.store.updateGlobalStats();
+    } catch (e) {
+      console.error('Dashboard: Error loading server data:', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      this.showError(`Ocorreu um erro ao buscar os processos: ${msg}. Por favor, tente novamente.`);
+    } finally {
+      this.isLoading.set(false);
+    }
+  }
+
+  // Override the computed to use server data if available, otherwise fallback to local
+  paginatedProcesses = computed(() => {
+    if (this.hasLoadedServerData()) {
+      return this.serverProcesses();
     }
 
-    // Override the computed to use server data if available, otherwise fallback to local
-    paginatedProcesses = computed(() => {
-      if (this.hasLoadedServerData()) {
-        return this.serverProcesses();
-      }
-      
-      // Fallback to local pagination for initial load only
-      const all = this.filteredProcesses();
-      const start = (this.currentPage() - 1) * this.pageSize;
-      const end = start + this.pageSize;
-      return all.slice(start, end);
-    });
+    // Fallback to local pagination for initial load only
+    const all = this.filteredProcesses();
+    const start = (this.currentPage() - 1) * this.pageSize;
+    const end = start + this.pageSize;
+    return all.slice(start, end);
+  });
 
   totalPages = computed(() => {
     const total = Math.max(this.totalFilteredCount(), this.filteredProcesses().length);
@@ -387,16 +387,20 @@ export class Dashboard {
   }
 
   private getDefaultStartDate(): string {
-    // Default to a much earlier date to ensure mock/older data is visible
-    return '2020-01-01';
+    const now = new Date();
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(now.getDate() - 90);
+    const y = ninetyDaysAgo.getFullYear();
+    const m = String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0');
+    const d = String(ninetyDaysAgo.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   private getDefaultEndDate(): string {
     const now = new Date();
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const y = lastDay.getFullYear();
-    const m = String(lastDay.getMonth() + 1).padStart(2, '0');
-    const d = String(lastDay.getDate()).padStart(2, '0');
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
 
@@ -426,12 +430,12 @@ export class Dashboard {
 
   applyFilters() {
     const { searchTerm, startDate, endDate } = this.filterForm.value;
-    
+
     console.log('Dashboard: applyFilters called with:', { searchTerm, startDate, endDate });
-    
+
     this.appliedFilters.set({
       searchTerm: searchTerm || '',
-      startDate: startDate || '2020-01-01',
+      startDate: startDate || this.getDefaultStartDate(),
       endDate: endDate || this.getDefaultEndDate(),
       status: this.statusFilter(),
       nucleus: this.nucleusFilter(),
@@ -490,7 +494,7 @@ export class Dashboard {
     this.onlyReturns.set(newValue);
     this.applyFilters();
   }
- 
+
   over30DaysOnly = signal<boolean>(false);
   toggleOver30DaysOnly() {
     const newValue = !this.over30DaysOnly();
@@ -530,7 +534,7 @@ export class Dashboard {
     // Update local state first (Optimistic)
     this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, status: newStatus } : p));
     this.openStatusDropdownId.set(null); // Fecha o dropdown imediatamente
-    
+
     try {
       await this.store.updateProcessStatus(process.id, newStatus as Process['status']);
       // Pequeno delay para garantir que o trigger do banco terminou o recalculo
@@ -545,7 +549,7 @@ export class Dashboard {
     // Update local state first (Optimistic)
     this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, priority: newPriority } : p));
     this.openPriorityDropdownId.set(null); // Fecha o dropdown
-    
+
     try {
       await this.store.updateProcessFields(process.id, { priority: newPriority });
       setTimeout(() => this.loadServerData(), 500);
@@ -558,7 +562,7 @@ export class Dashboard {
   async assignProcess(process: Process, userId: string) {
     // Update local state first (Optimistic)
     this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, assignedToId: userId } : p));
-    
+
     try {
       await this.store.assignProcess(process.id, userId);
       setTimeout(() => this.loadServerData(), 500);
@@ -581,18 +585,18 @@ export class Dashboard {
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
     return privilegedRoles.includes(user.role);
   }
- 
+
   canEditCompletionDate(): boolean {
     const user = this.currentUser();
     if (!user) return false;
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
     return privilegedRoles.includes(user.role);
   }
- 
+
   async deleteProcess(process: Process) {
     this.confirmDeleteProcess.set(process);
   }
- 
+
   async confirmDelete() {
     const process = this.confirmDeleteProcess();
     if (!process) return;
@@ -604,21 +608,21 @@ export class Dashboard {
       this.showError(error instanceof Error ? error.message : 'Erro ao excluir processo.');
     }
   }
- 
+
   cancelDelete() {
     this.confirmDeleteProcess.set(null);
   }
- 
+
   async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'priority' | 'completionDate' | 'assignmentDate', event: Event) {
     const input = event.target as HTMLInputElement | HTMLSelectElement;
-    
+
     if (field === 'valorCustas') {
       const value = this.parseCurrency(input.value);
       await this.store.updateProcessFields(process.id, { valorCustas: value });
     } else {
       await this.store.updateProcessFields(process.id, { [field]: input.value });
     }
-    
+
     this.loadServerData();
   }
 
@@ -842,16 +846,16 @@ export class Dashboard {
   canChangeStatus(process: Process): boolean {
     const user = this.currentUser();
     if (!user) return false;
-    
+
     // Admins, Coordinators, Supervisors and Managers can always change
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
     if (privilegedRoles.includes(user.role)) return true;
-    
+
     // Contadores can change if the process is assigned to them
     if (user.role === 'Contador Judicial' && process.assignedToId === user.id) {
       return true;
     }
-    
+
     // Contadores can only change if it's still Pendente
     return process.status === 'Pendente';
   }
@@ -861,7 +865,7 @@ export class Dashboard {
     if (!user) return;
 
     let nucleus = this.nucleusFilter();
-    
+
     if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
       nucleus = user.nucleus;
     } else if (nucleus === 'Todos') {
@@ -873,18 +877,18 @@ export class Dashboard {
         return;
       }
     }
-    
+
     // Initialize selected users with all active users in the nucleus
     const activeUsers = this.users().filter(u => u.nucleus === nucleus && u.active);
     this.selectedAutoAssignUserIds.set(activeUsers.map(u => u.id));
-    
+
     // Reset flags
     this.isAutoinspecao.set(false);
     this.assignLimit.set(null);
-    
+
     // Fetch unassigned count
     this.unassignedCount.set(await this.store.getUnassignedCount(nucleus, false));
-    
+
     this.isConfirmingAutoAssign.set(true);
   }
 
@@ -956,7 +960,7 @@ export class Dashboard {
     if (!user) return;
 
     let nucleus = this.nucleusFilter();
-    
+
     if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
       nucleus = user.nucleus;
     } else if (nucleus === 'Todos') {
@@ -968,10 +972,10 @@ export class Dashboard {
         return;
       }
     }
-    
+
     const usersInNuc = this.usersInNucleusForAutoAssign();
     const userIds = usersInNuc.map(u => u.id);
-    
+
     this.isLoading.set(true);
     try {
       const counts = await this.store.getAssignedCountsByUsers(nucleus, userIds);

@@ -59,8 +59,8 @@ export class ProcessService {
       valorCustas: p['valor_custas'] ? Number(p['valor_custas']) : 0,
       observacao: p['observacao'] ? String(p['observacao']) : '',
       isReturn: !!p['is_return'],
-      tempoNaContadoria: (p['tempo_na_contadoria'] !== null && p['tempo_na_contadoria'] !== undefined) 
-        ? Number(p['tempo_na_contadoria']) 
+      tempoNaContadoria: (p['tempo_na_contadoria'] !== null && p['tempo_na_contadoria'] !== undefined)
+        ? Number(p['tempo_na_contadoria'])
         : null
     };
   }
@@ -89,7 +89,7 @@ export class ProcessService {
   async updateProcessFields(processId: string, fields: Partial<Pick<Process, 'valorCustas' | 'observacao' | 'priority' | 'completionDate' | 'assignmentDate'>>) {
     let oldProcess = this.processes().find(p => p.id === processId);
     const client = this.supabaseService.getClient();
-    
+
     if (!oldProcess && client) {
       const { data } = await client.from('processes').select('*').eq('id', processId).maybeSingle();
       if (data) {
@@ -130,10 +130,10 @@ export class ProcessService {
         if (fields.priority !== undefined) {
           await client.rpc('update_process_positions', { target_nucleus: oldProcess?.nucleus });
         }
-        this.auditService.addAuditLog(`Atualizou campos do processo ${oldProcess?.number || processId}`, { 
-          fields, 
+        this.auditService.addAuditLog(`Atualizou campos do processo ${oldProcess?.number || processId}`, {
+          fields,
           oldValues: oldProcess,
-          processNumber: oldProcess?.number 
+          processNumber: oldProcess?.number
         });
         this.updateGlobalStats();
       }
@@ -145,7 +145,7 @@ export class ProcessService {
   async updateProcessStatus(processId: string, newStatus: string) {
     const today = new Date().toLocaleDateString('en-CA');
     const completionDate = newStatus !== 'Pendente' ? today : null;
-    
+
     let processToUpdate = this.processes().find(p => p.id === processId);
     const client = this.supabaseService.getClient();
 
@@ -153,10 +153,10 @@ export class ProcessService {
       const { data } = await client.from('processes').select('*').eq('id', processId).maybeSingle();
       if (data) {
         processToUpdate = {
-           id: data.id, position: data.position, priorityPosition: data.priority_position, number: data.number,
-           entryDate: data.entry_date, court: data.court, nucleus: data.nucleus, priority: data.priority,
-           status: data.status, assignedToId: data.assigned_to_id, assignmentDate: data.assignment_date,
-           completionDate: data.completion_date, valorCustas: data.valor_custas, observacao: data.observacao
+          id: data.id, position: data.position, priorityPosition: data.priority_position, number: data.number,
+          entryDate: data.entry_date, court: data.court, nucleus: data.nucleus, priority: data.priority,
+          status: data.status, assignedToId: data.assigned_to_id, assignmentDate: data.assignment_date,
+          completionDate: data.completion_date, valorCustas: data.valor_custas, observacao: data.observacao
         };
       }
     }
@@ -171,30 +171,30 @@ export class ProcessService {
 
     if (client) {
       await this.metadataService.ensureStatusExists(normalizedStatus);
-      const { error } = await client.from('processes').update({ 
-        status: normalizedStatus, 
-        completion_date: completionDate, 
-        assignment_date: assignmentDate 
+      const { error } = await client.from('processes').update({
+        status: normalizedStatus,
+        completion_date: completionDate,
+        assignment_date: assignmentDate
       }).eq('id', processId);
-      
+
       if (error) {
         this.supabaseService.handleError(error, 'updateProcessStatus');
         // Reverter o estado local em caso de erro (opcional, mas recomendado)
-        this.loadInitialProcesses(); 
+        this.loadInitialProcesses();
       } else {
-        this.auditService.addAuditLog(`Alterou status do processo ${processToUpdate?.number || processId} para ${normalizedStatus}`, { 
-          oldStatus: processToUpdate?.status, 
-          newStatus: normalizedStatus, 
-          processNumber: processToUpdate?.number 
+        this.auditService.addAuditLog(`Alterou status do processo ${processToUpdate?.number || processId} para ${normalizedStatus}`, {
+          oldStatus: processToUpdate?.status,
+          newStatus: normalizedStatus,
+          processNumber: processToUpdate?.number
         });
         await client.rpc('update_process_positions', { target_nucleus: processToUpdate?.nucleus });
         this.updateGlobalStats();
       }
     } else {
-      this.auditService.addAuditLog(`Alterou status do processo ${processToUpdate?.number || processId} para ${normalizedStatus} (Local)`, { 
-        oldStatus: processToUpdate?.status, 
-        newStatus: normalizedStatus, 
-        processNumber: processToUpdate?.number 
+      this.auditService.addAuditLog(`Alterou status do processo ${processToUpdate?.number || processId} para ${normalizedStatus} (Local)`, {
+        oldStatus: processToUpdate?.status,
+        newStatus: normalizedStatus,
+        processNumber: processToUpdate?.number
       });
     }
   }
@@ -221,7 +221,25 @@ export class ProcessService {
     const client = this.supabaseService.getClient();
     if (!client) throw new Error('Sistema offline.');
 
-    const processToDelete = this.processes().find(p => p.id === processId);
+    // Tenta encontrar o processo localmente no sinal
+    let processToDelete = this.processes().find(p => p.id === processId);
+
+    // Se não encontrar no sinal local, busca as informações no banco antes de excluir
+    if (!processToDelete) {
+      try {
+        const { data, error: fetchError } = await client
+          .from('processes')
+          .select('*')
+          .eq('id', processId)
+          .maybeSingle();
+
+        if (!fetchError && data) {
+          processToDelete = this.mapProcess(data);
+        }
+      } catch (e) {
+        console.warn('ProcessService: Erro ao buscar processo para auditoria antes de excluir:', e);
+      }
+    }
 
     const { error } = await client.from('processes').delete().eq('id', processId);
     if (error) {
@@ -231,9 +249,9 @@ export class ProcessService {
 
     this.processes.update(prev => prev.filter(p => p.id !== processId));
     this.updateGlobalStats();
-    await client.rpc('update_process_positions', { target_nucleus: processToDelete?.nucleus }); // Re-rank other processes
-    
+
     if (processToDelete) {
+      await client.rpc('update_process_positions', { target_nucleus: processToDelete.nucleus }); // Re-rank other processes
       this.auditService.addAuditLog(`Excluiu processo ${processToDelete.number}`, { processNumber: processToDelete.number, processId });
     }
   }
@@ -306,7 +324,7 @@ export class ProcessService {
     const client = this.supabaseService.getClient();
     if (!client) return { processes: [], totalCount: 0 };
 
-    let query = client.from('vw_processes').select('*', { count: 'exact' }) as any;
+    let query = client.from('vw_processes').select('*', { count: 'exact' });
     query = this.applyFiltersToQuery(query, options);
 
     const from = (options.page - 1) * options.pageSize;
@@ -362,7 +380,7 @@ export class ProcessService {
     if (!client || !this.supabaseService.isSupabaseConnected()) {
       throw new Error('O sistema está offline ou sem conexão com o banco de dados. Tente novamente em instantes.');
     }
-    
+
     const normalizedNucleus = this.metadataService.normalizeNucleus(process.nucleus);
     const normalizedPriority = this.metadataService.normalizePriority(process.priority);
     const normalizedStatus = this.metadataService.normalizeStatus(process.status);
@@ -370,12 +388,12 @@ export class ProcessService {
     await this.metadataService.ensureNucleusExists(normalizedNucleus);
     await this.metadataService.ensurePriorityExists(normalizedPriority);
     await this.metadataService.ensureStatusExists(normalizedStatus);
-    
+
     const today = new Date().toLocaleDateString('en-CA');
     const assignmentDate = process.assignedToId ? today : null;
     const completionDate = normalizedStatus !== 'Pendente' ? today : null;
     const createdAt = process.createdAt || today;
-    
+
     try {
       // O cálculo da posição agora é feito automaticamente via Trigger no banco de dados
 
@@ -451,13 +469,13 @@ export class ProcessService {
 
     const { data: existingData } = await client.from('processes').select('number, entry_date, nucleus, status, position');
     const existingSet = new Set((existingData || []).map(p => `${p.number}|${p.entry_date}|${this.metadataService.normalizeNucleus(p.nucleus)}`));
-    
+
     const pendingInDb = this.processes().filter(p => p.status === 'Pendente');
 
     const importedCount = { success: 0, skipped: 0 };
     const inconsistencies: string[] = [];
     const fileProcessIdentifiers = new Set<string>();
-    
+
     const parseDate = (val: unknown) => {
       if (!val) return null;
       if (typeof val === 'number') {
@@ -482,7 +500,7 @@ export class ProcessService {
     const today = new Date().toLocaleDateString('en-CA');
     // A posição será calculada automaticamente pelo banco de dados (Trigger)
     const processesToInsert: Record<string, unknown>[] = [];
-    
+
     const userMap: Record<string, string> = {};
     this.authService.users().forEach(u => userMap[u.name.toLowerCase()] = u.id);
 
@@ -504,7 +522,7 @@ export class ProcessService {
       const entryDate = parseDate(getVal(['Data de Remessa', 'data_remessa', 'entrada', 'Entrada', 'Data de Entrada', 'Data Entrada', 'remessa', 'entryDate', 'entry_date', 'data', 'Dt. Entrada']));
       const nucleusRaw = String(getVal(['nucleo', 'Núcleo', 'Nucleo', 'nucleus']) || '1ª CC').trim();
       const normalizedNucleus = this.metadataService.normalizeNucleus(nucleusRaw);
-      
+
       if (!number || !entryDate) continue;
 
       const identifier = `${number}|${entryDate}|${normalizedNucleus}`;
@@ -660,7 +678,7 @@ export class ProcessService {
     }
 
     this.autoAssignProgress.set(null);
-    
+
     const { data: nucleosData } = await client.from('nucleos').select('*');
     if (nucleosData) {
       this.metadataService.nucleos.set(
@@ -692,7 +710,7 @@ export class ProcessService {
     while (hasMore) {
       const from = page * pageSize;
       const to = from + pageSize - 1;
-      
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let batchQuery = client.from('vw_processes').select('assigned_to_id, status, entry_date, nucleus') as any;
       if (filters.user.role === 'Chefe' || filters.user.role === 'Gerente') {
@@ -715,7 +733,7 @@ export class ProcessService {
 
       if (filters.startDate) batchQuery = batchQuery.gte('entry_date', filters.startDate);
       if (filters.endDate) batchQuery = batchQuery.lte('entry_date', filters.endDate);
-      
+
       batchQuery = batchQuery.range(from, to);
 
       const { data, error } = await batchQuery;
@@ -759,7 +777,7 @@ export class ProcessService {
       if (!client || !user) return;
 
       const getCount = async (status: string | null) => {
-        let q = client.from('vw_processes').select('*', { count: 'exact', head: true });
+        let q = client.from('vw_processes').select('*', { count: 'exact', head: true }) as any;
         if (status) q = q.eq('status', status);
         if (user.role === 'Chefe' || user.role === 'Gerente') q = q.eq('nucleus', user.nucleus);
         else if (user.role === 'Contador Judicial') q = q.eq('assigned_to_id', user.id);
@@ -848,14 +866,14 @@ export class ProcessService {
 
     if (updateError) throw new Error(`Erro ao retirar atribuição dos processos: ${updateError.message}`);
 
-    this.processes.update(prev => prev.map(p => 
+    this.processes.update(prev => prev.map(p =>
       processIds.includes(p.id) ? { ...p, assignedToId: null, assignmentDate: null } : p
     ));
 
     for (const item of processesToUnassign) {
       this.auditService.addAuditLog(`Retirou atribuição do processo ${item.number}`, { processNumber: item.number });
     }
-    
+
     this.auditService.addAuditLog(`Retirada de atribuição em lote de ${total} processos no núcleo ${nucleusName}`);
     this.updateGlobalStats();
 
