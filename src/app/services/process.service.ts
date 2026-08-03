@@ -127,9 +127,6 @@ export class ProcessService {
       if (error) {
         this.supabaseService.handleError(error, 'updateProcessFields');
       } else {
-        if (fields.priority !== undefined) {
-          await client.rpc('update_process_positions', { target_nucleus: oldProcess?.nucleus });
-        }
         this.auditService.addAuditLog(`Atualizou campos do processo ${oldProcess?.number || processId}`, {
           fields,
           oldValues: oldProcess,
@@ -187,7 +184,6 @@ export class ProcessService {
           newStatus: normalizedStatus,
           processNumber: processToUpdate?.number
         });
-        await client.rpc('update_process_positions', { target_nucleus: processToUpdate?.nucleus });
         this.updateGlobalStats();
       }
     } else {
@@ -251,7 +247,6 @@ export class ProcessService {
     this.updateGlobalStats();
 
     if (processToDelete) {
-      await client.rpc('update_process_positions', { target_nucleus: processToDelete.nucleus }); // Re-rank other processes
       this.auditService.addAuditLog(`Excluiu processo ${processToDelete.number}`, { processNumber: processToDelete.number, processId });
     }
   }
@@ -585,9 +580,7 @@ export class ProcessService {
       if (!insertError) importedCount.success += chunk.length;
     }
 
-    if (importedCount.success > 0 && client) {
-      await client.rpc('update_process_positions');
-    }
+    // Posicoes recalculadas automaticamente via trigger no Supabase
 
     for (const p of pendingInDb) {
       const identifier = `${p.number}|${p.entryDate}|${this.metadataService.normalizeNucleus(p.nucleus)}`;
@@ -795,7 +788,7 @@ export class ProcessService {
       if (!client || !user) return;
 
       const getCount = async (status: string | null) => {
-        let q = client.from('vw_processes').select('*', { count: 'exact', head: true }) as any;
+        let q = client.from('processes').select('*', { count: 'planned', head: true }) as any;
         if (status) q = q.eq('status', status);
         if (user.role === 'Chefe' || user.role === 'Gerente') q = q.eq('nucleus', user.nucleus);
         else if (user.role === 'Contador Judicial') q = q.eq('assigned_to_id', user.id);
