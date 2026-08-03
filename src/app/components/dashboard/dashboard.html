@@ -77,7 +77,9 @@
 
   <!-- Filters Section -->
 
-  <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-8 overflow-hidden transition-all duration-300"
+  <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-8 transition-all duration-300 relative"
+       [class.overflow-hidden]="!isFilterVisible()"
+       [class.overflow-visible]="isFilterVisible()"
        [class.max-h-0]="!isFilterVisible()"
        [class.opacity-0]="!isFilterVisible()"
        [class.mb-0]="!isFilterVisible()"
@@ -110,7 +112,7 @@
         </div>
         
         @if (['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ'].includes(currentUser()?.role || '')) {
-          <div class="flex flex-col gap-2 nucleus-dropdown-container relative">
+          <div class="flex flex-col gap-2 nucleus-dropdown-container relative z-30">
             <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Filtrar por Núcleo</label>
             <div class="relative">
               <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">account_balance</span>
@@ -121,12 +123,12 @@
               </button>
             </div>
             @if (isNucleusDropdownOpen()) {
-              <div (click)="$event.stopPropagation()" class="absolute left-0 right-0 top-full z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-2 flex flex-col gap-1">
+              <div (click)="$event.stopPropagation()" class="absolute left-0 right-0 top-full z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto p-2 flex flex-col gap-1">
                 @for (n of nucleos(); track n.id) {
                   <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 rounded-lg text-sm cursor-pointer select-none transition-colors">
                     <input type="checkbox" [checked]="isNucleusSelected(n.nome)" (change)="toggleNucleus(n.nome)"
-                           class="w-4 h-4 text-primary border-slate-300 rounded focus:ring-primary cursor-pointer" />
-                    <span class="text-slate-700 font-medium">{{ n.nome }}</span>
+                           class="w-4 h-4 text-primary border-slate-300 rounded focus:ring-primary cursor-pointer shrink-0" />
+                    <span class="text-slate-700 font-medium truncate">{{ n.nome }}</span>
                   </label>
                 }
               </div>
@@ -134,7 +136,7 @@
           </div>
         }
 
-        <div class="flex flex-col gap-2 priority-dropdown-container relative">
+        <div class="flex flex-col gap-2 priority-dropdown-container relative z-30">
           <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Prioridade</label>
           <div class="relative">
             <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">priority_high</span>
@@ -145,19 +147,19 @@
             </button>
           </div>
           @if (isPriorityDropdownOpen()) {
-            <div (click)="$event.stopPropagation()" class="absolute left-0 right-0 top-full z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-2 flex flex-col gap-1">
+            <div (click)="$event.stopPropagation()" class="absolute left-0 right-0 top-full z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto p-2 flex flex-col gap-1 min-w-[220px]">
               @for (p of prioridades(); track p.id) {
                 <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 rounded-lg text-sm cursor-pointer select-none transition-colors">
                   <input type="checkbox" [checked]="isPrioritySelected(p.nome)" (change)="togglePriority(p.nome)"
-                         class="w-4 h-4 text-primary border-slate-300 rounded focus:ring-primary cursor-pointer" />
-                  <span class="text-slate-700 font-medium">{{ p.nome }}</span>
+                         class="w-4 h-4 text-primary border-slate-300 rounded focus:ring-primary cursor-pointer shrink-0" />
+                  <span class="text-slate-700 font-medium truncate">{{ p.nome }}</span>
                 </label>
               }
             </div>
           }
         </div>
 
-        <div class="flex flex-col gap-2 status-dropdown-container relative">
+        <div class="flex flex-col gap-2 status-dropdown-container relative z-30">
           <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Cumprimento</label>
           <div class="relative">
             <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">rule</span>
@@ -168,12 +170,12 @@
             </button>
           </div>
           @if (isStatusDropdownOpen()) {
-            <div (click)="$event.stopPropagation()" class="absolute left-0 right-0 top-full z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-2 flex flex-col gap-1">
+            <div (click)="$event.stopPropagation()" class="absolute left-0 right-0 top-full z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto p-2 flex flex-col gap-1 min-w-[280px]">
               @for (s of statusTipos(); track s.id) {
                 <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 rounded-lg text-sm cursor-pointer select-none transition-colors">
                   <input type="checkbox" [checked]="isStatusDetailSelected(s.nome)" (change)="toggleStatusDetail(s.nome)"
-                         class="w-4 h-4 text-primary border-slate-300 rounded focus:ring-primary cursor-pointer" />
-                  <span class="text-slate-700 font-medium">{{ s.nome }}</span>
+                         class="w-4 h-4 text-primary border-slate-300 rounded focus:ring-primary cursor-pointer shrink-0" />
+                  <span class="text-slate-700 font-medium text-xs leading-tight">{{ s.nome }}</span>
                 </label>
               }
             </div>
