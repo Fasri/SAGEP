@@ -21,10 +21,6 @@ export class Dashboard {
   users = this.store.users;
   statusTipos = computed(() => {
     let list = [...this.store.statusTipos()];
-    list = list.filter(s => {
-      const nameClean = s.nome.trim().toLowerCase();
-      return nameClean !== 'cálculo realizado' && nameClean !== 'calculo realizado';
-    });
     return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   });
   autoAssignProgress = this.store.autoAssignProgress;
@@ -855,24 +851,25 @@ export class Dashboard {
   }
 
   getStatusClass(status: string): string {
+    const statusClean = (status || '').trim().toLowerCase();
     const greenStatuses = [
-      'Cálculo atualizado',
-      'Cálculo realizado',
-      'Devolvido: ausência de parâmetros',
-      'Devolvido: ausência de documentos para os cálculos',
-      'Devolvido: Beneficiário da Justiça Gratuita',
-      'Devolvido: Custas Satisfeitas',
-      'Devolvido: esclarecimento realizado',
-      'Partilha Realizada'
+      'cálculo atualizado',
+      'cálculo realizado',
+      'devolvido: ausência de parâmetros',
+      'devolvido: ausência de documentos para os cálculos',
+      'devolvido: beneficiário da justiça gratuita',
+      'devolvido: custas satisfeitas',
+      'devolvido: esclarecimento realizado',
+      'partilha realizada'
     ];
 
-    if (status === 'Pendente') {
+    if (statusClean === 'pendente') {
       return 'bg-red-700 text-white';
     }
-    if (status === 'Triagem do Gestor') {
+    if (statusClean === 'triagem do gestor') {
       return 'bg-amber-100 text-amber-800';
     }
-    if (greenStatuses.includes(status)) {
+    if (greenStatuses.includes(statusClean)) {
       return 'bg-green-100 text-green-800';
     }
     return 'bg-slate-100 text-slate-700';
