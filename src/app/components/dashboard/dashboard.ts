@@ -103,6 +103,49 @@ export class Dashboard {
     return res;
   });
 
+  canSeeDuplicateAlert = computed(() => {
+    const user = this.currentUser();
+    if (!user) return false;
+    const allowedRoles = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
+    return allowedRoles.includes(user.role);
+  });
+
+  duplicatePendingInfo = computed(() => {
+    if (!this.canSeeDuplicateAlert()) return { count: 0, numbers: [] as string[] };
+    const all = this.visibleProcesses();
+    const pendingList = all.filter(p => p.status?.toLowerCase().includes('pendente'));
+    
+    const countMap = new Map<string, number>();
+    pendingList.forEach(p => {
+      const num = p.number?.trim();
+      if (num) {
+        countMap.set(num, (countMap.get(num) || 0) + 1);
+      }
+    });
+
+    const duplicateNumbers: string[] = [];
+    countMap.forEach((count, num) => {
+      if (count > 1) {
+        duplicateNumbers.push(num);
+      }
+    });
+
+    return {
+      count: duplicateNumbers.length,
+      numbers: duplicateNumbers
+    };
+  });
+
+  filterDuplicateProcesses() {
+    const info = this.duplicatePendingInfo();
+    if (info.numbers.length === 0) return;
+    
+    this.isFilterVisible.set(true);
+    this.statusFilter.set('Pendente');
+    this.filterForm.patchValue({ searchTerm: info.numbers[0] });
+    this.applyFilters();
+  }
+
   // Dashboard Stats
   isLoading = signal(false);
   isAutoAssigning = signal(false);
