@@ -19,11 +19,12 @@ export class Contadores {
   nuclei = computed(() => {
     const user = this.currentUser();
     if (!user) return [];
-    let list = this.store.nucleos().map(n => n.nome);
+    const excludedNuclei = ['8ª CC', '8 CC', '8ªCC', '8CC', 'CCJ', 'CONTADORIA REMOTA', 'GERAL'];
+    let list = this.store.nucleos().filter(n => !excludedNuclei.includes(n.nome.trim().toUpperCase())).map(n => n.nome);
     if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
       list = [user.nucleus];
     }
-    return list.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    return list.sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
   });
 
   isEditing = signal(false);

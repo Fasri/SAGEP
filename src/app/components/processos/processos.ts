@@ -32,7 +32,8 @@ export class Processos {
 
   nucleos = computed(() => {
     const user = this.currentUser();
-    let list = [...this.store.nucleos()];
+    const excludedNuclei = ['8ª CC', '8 CC', '8ªCC', '8CC', 'CCJ', 'CONTADORIA REMOTA', 'GERAL'];
+    let list = this.store.nucleos().filter(n => !excludedNuclei.includes(n.nome.trim().toUpperCase()));
     if (user) {
       if (user.role === 'Gestor CC') {
         list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CC'));
@@ -40,7 +41,7 @@ export class Processos {
         list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CCJ'));
       }
     }
-    return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }));
   });
 
   prioridades = this.store.prioridades;

@@ -41,7 +41,11 @@ export class MetadataService {
         );
       }
       if (finalPrioridades) this.prioridades.set(finalPrioridades as any);
-      if (finalStatus) this.statusTipos.set(finalStatus as any);
+      if (finalStatus) {
+        this.statusTipos.set(
+          (finalStatus as any[]).sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
+        );
+      }
     } catch (error) {
       console.error('MetadataService: Error loading metadata:', error);
     }

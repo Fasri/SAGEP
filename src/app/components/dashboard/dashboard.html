@@ -283,7 +283,7 @@
   </div>
 
   <!-- Table Section -->
-  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden relative">
+  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm relative min-h-[380px]">
     <!-- Infinite Loading Bar -->
     @if (isLoading()) {
       <div class="absolute top-0 left-0 right-0 h-1 bg-slate-100 overflow-hidden z-10">
@@ -291,7 +291,7 @@
       </div>
     }
 
-    <div class="overflow-x-auto">
+    <div class="overflow-x-auto min-h-[340px] pb-24">
       <table class="w-full text-left border-collapse">
         <thead>
           <tr class="bg-white text-slate-500 uppercase font-bold tracking-wider border-b border-slate-100">
