@@ -20,8 +20,17 @@ export class Dashboard {
   processes = this.store.processes;
   users = this.store.users;
   statusTipos = computed(() => {
-    let list = [...this.store.statusTipos()];
-    return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    const list = [...this.store.statusTipos()];
+    const uniqueStatus: typeof list = [];
+    const seen = new Set<string>();
+    for (const s of list) {
+      const key = String(s.nome || '').trim().toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueStatus.push(s);
+      }
+    }
+    return uniqueStatus.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   });
   autoAssignProgress = this.store.autoAssignProgress;
   lastEtlUpdate = this.store.lastEtlUpdate;

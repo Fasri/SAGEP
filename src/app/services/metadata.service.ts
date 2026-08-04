@@ -42,8 +42,17 @@ export class MetadataService {
       }
       if (finalPrioridades) this.prioridades.set(finalPrioridades as any);
       if (finalStatus) {
+        const uniqueStatus: any[] = [];
+        const seen = new Set<string>();
+        for (const s of (finalStatus as any[])) {
+          const key = String(s['nome'] || '').trim().toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueStatus.push(s);
+          }
+        }
         this.statusTipos.set(
-          (finalStatus as any[]).sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
+          uniqueStatus.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
         );
       }
     } catch (error) {
@@ -245,7 +254,7 @@ export class MetadataService {
     const client = this.supabaseService.getClient();
     if (!statusName || !client) return;
     try {
-      const { data, error } = await client.from('status').select('id').eq('nome', statusName).maybeSingle();
+      const { data, error } = await client.from('status').select('id').ilike('nome', statusName).maybeSingle();
       if (error) {
         console.error(`MetadataService: Error checking status "${statusName}":`, error.message);
         return;
@@ -254,7 +263,20 @@ export class MetadataService {
         const { error: insertError } = await client.from('status').insert([{ nome: statusName, descricao: 'Adicionado automaticamente' }]);
         if (!insertError) {
           const { data: allStatus } = await client.from('status').select('*');
-          if (allStatus) this.statusTipos.set(allStatus);
+          if (allStatus) {
+            const uniqueStatus: any[] = [];
+            const seen = new Set<string>();
+            for (const s of (allStatus as any[])) {
+              const key = String(s['nome'] || '').trim().toLowerCase();
+              if (!seen.has(key)) {
+                seen.add(key);
+                uniqueStatus.push(s);
+              }
+            }
+            this.statusTipos.set(
+              uniqueStatus.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
+            );
+          }
         }
       }
     } catch (e) {
