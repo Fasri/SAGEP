@@ -51,8 +51,15 @@ export class Processos {
   isImporting = signal(false);
   importProgress = signal(0);
   successMessage = signal('');
-  errorMessage = signal('');
   importErrors = signal<string[]>([]);
+
+  existingDuplicatePendingWarning = computed(() => {
+    const num = this.processForm.get('number')?.value;
+    if (!num) return false;
+    const cleanNum = num.replace(/[^\w]/g, '').toLowerCase();
+    const all = this.store.processes();
+    return all.some(p => p.number?.replace(/[^\w]/g, '').toLowerCase() === cleanNum && p.status?.toLowerCase().startsWith('pendente'));
+  });
 
   processForm = new FormGroup({
     number: new FormControl('', [Validators.required, Validators.pattern(/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/)]),

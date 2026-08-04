@@ -357,6 +357,12 @@
                     </button>
                   }
                   <span>{{ process.number }}</span>
+                  @if (isDuplicatePending(process.number)) {
+                    <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px] uppercase tracking-wider border border-amber-300 shadow-xs flex items-center gap-0.5" title="Processo duplicado com status Pendente!">
+                      <span class="material-symbols-outlined text-[10px]">warning</span>
+                      Duplicado
+                    </span>
+                  }
                 </div>
               </td>
               <td class="px-1 py-5 text-xs text-slate-600">{{ process.court }}</td>

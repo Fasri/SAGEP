@@ -110,28 +110,57 @@ export class Dashboard {
 
   canSeeDuplicateAlert = computed(() => {
     const user = this.currentUser();
-    if (!user) return false;
-    const allowedRoles = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
-    return allowedRoles.includes(user.role);
+    return !!user;
   });
 
   duplicatePendingInfo = computed(() => {
     if (!this.canSeeDuplicateAlert()) return { count: 0, numbers: [] as string[] };
-    const all = this.visibleProcesses();
-    const pendingList = all.filter(p => p.status?.toLowerCase().includes('pendente'));
-    
-    const countMap = new Map<string, number>();
-    pendingList.forEach(p => {
-      const num = p.number?.trim();
-      if (num) {
-        countMap.set(num, (countMap.get(num) || 0) + 1);
+
+    // Combine processes from store and server to ensure we check all available processes
+    const storeProcs = this.store.processes();
+    const serverProcs = this.serverProcesses();
+    const allProcsMap = new Map<string, Process>();
+
+    [...storeProcs, ...serverProcs].forEach(p => {
+      if (p && p.id) allProcsMap.set(p.id, p);
+    });
+
+    const all = Array.from(allProcsMap.values());
+    const user = this.currentUser();
+    if (!user) return { count: 0, numbers: [] as string[] };
+
+    // Filter processes visible in current scope
+    const visible = all.filter(p => {
+      if (['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'].includes(user.role)) {
+        return true;
+      } else if (user.role === 'Gestor CC') {
+        return p.nucleus?.trim().toUpperCase().endsWith('CC');
+      } else if (user.role === 'Gestor CCJ') {
+        return p.nucleus?.trim().toUpperCase().endsWith('CCJ');
+      } else {
+        const pNucleus = p.nucleus?.trim().toUpperCase() || '';
+        const uNucleus = user.nucleus?.trim().toUpperCase() || '';
+        return pNucleus === uNucleus || p.assignedToId === user.id;
       }
     });
 
+    // Group processes by normalized number (stripping formatting punctuation)
+    const numberGroups = new Map<string, Process[]>();
+    visible.forEach(p => {
+      const rawNum = p.number?.trim();
+      if (!rawNum) return;
+      const key = rawNum.replace(/[^\w]/g, '').toLowerCase();
+      if (!numberGroups.has(key)) {
+        numberGroups.set(key, []);
+      }
+      numberGroups.get(key)!.push(p);
+    });
+
     const duplicateNumbers: string[] = [];
-    countMap.forEach((count, num) => {
-      if (count > 1) {
-        duplicateNumbers.push(num);
+    numberGroups.forEach((procs) => {
+      const pendingCount = procs.filter(p => p.status?.trim().toLowerCase().startsWith('pendente')).length;
+      if (procs.length > 1 && pendingCount > 0) {
+        duplicateNumbers.push(procs[0].number);
       }
     });
 
@@ -140,6 +169,12 @@ export class Dashboard {
       numbers: duplicateNumbers
     };
   });
+
+  isDuplicatePending(number: string): boolean {
+    if (!number) return false;
+    const clean = number.replace(/[^\w]/g, '').toLowerCase();
+    return this.duplicatePendingInfo().numbers.some(n => n.replace(/[^\w]/g, '').toLowerCase() === clean);
+  }
 
   filterDuplicateProcesses() {
     const info = this.duplicatePendingInfo();

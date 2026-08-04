@@ -46,6 +46,10 @@ export class StoreService {
     this.processService.fetchLastEtlUpdate();
   }
 
+  async reloadProcesses() {
+    await this.processService.loadInitialProcesses();
+  }
+
   // Auth
   login(identifier: string, password?: string): boolean {
     return this.authService.login(identifier, password);

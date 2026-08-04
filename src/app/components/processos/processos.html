@@ -40,6 +40,12 @@
             <span class="text-[10px] text-red-600 font-bold uppercase">Formato CNJ obrigatório:
               0000000-00.0000.0.00.0000</span>
             }
+            @if (existingDuplicatePendingWarning()) {
+            <span class="text-[10px] text-amber-800 font-bold uppercase flex items-center gap-1 mt-1 bg-amber-50 p-2 rounded-lg border border-amber-200">
+              <span class="material-symbols-outlined text-xs">warning</span>
+              Atenção: Já existe um processo com este número com cumprimento pendente no sistema!
+            </span>
+            }
           </div>
 
           <div class="flex flex-col gap-2">
