@@ -51,6 +51,7 @@ export class Processos {
   isImporting = signal(false);
   importProgress = signal(0);
   successMessage = signal('');
+  errorMessage = signal('');
   importErrors = signal<string[]>([]);
 
   existingDuplicatePendingWarning = computed(() => {
