@@ -301,9 +301,11 @@ export class ProcessService {
       }
     }
 
-    if (options.statusFilter && options.statusFilter !== 'Todos') {
-      if (options.statusFilter === 'Devolvidos') query = (query as any).not('status', 'ilike', 'Pendente%');
-      else query = (query as any).ilike('status', options.statusFilter === 'Pendente' ? 'Pendente%' : `%${options.statusFilter}%`);
+    if (!options.onlyDuplicates) {
+      if (options.statusFilter && options.statusFilter !== 'Todos') {
+        if (options.statusFilter === 'Devolvidos') query = (query as any).not('status', 'ilike', 'Pendente%');
+        else query = (query as any).ilike('status', options.statusFilter === 'Pendente' ? 'Pendente%' : `%${options.statusFilter}%`);
+      }
     }
 
     if (options.searchTerm) {
@@ -316,9 +318,11 @@ export class ProcessService {
       query = (query as any).or(orClause);
     }
 
-    const dateField = options.statusFilter === 'Devolvidos' ? 'completion_date' : 'entry_date';
-    if (options.startDate) query = (query as any).gte(dateField, options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`);
-    if (options.endDate) query = (query as any).lte(dateField, options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`);
+    if (!options.onlyDuplicates) {
+      const dateField = options.statusFilter === 'Devolvidos' ? 'completion_date' : 'entry_date';
+      if (options.startDate) query = (query as any).gte(dateField, options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`);
+      if (options.endDate) query = (query as any).lte(dateField, options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`);
+    }
 
     if (options.statusFilter === 'Devolvidos') {
       query = (query as any).order('completion_date', { ascending: false, nullsFirst: false });

@@ -108,13 +108,17 @@ export class Dashboard {
     return res;
   });
 
+  onlyDuplicates = signal(false);
+
   canSeeDuplicateAlert = computed(() => {
     const user = this.currentUser();
-    return !!user;
+    if (!user) return false;
+    const allowedRoles = ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ', 'Chefe', 'Gerente'];
+    return allowedRoles.includes(user.role);
   });
 
   duplicatePendingInfo = computed(() => {
-    if (!this.canSeeDuplicateAlert()) return { count: 0, numbers: [] as string[] };
+    if (!this.canSeeDuplicateAlert()) return { count: 0, numbers: [] as string[], numberKeys: new Set<string>() };
 
     // Combine processes from store and server to ensure we check all available processes
     const storeProcs = this.store.processes();
@@ -127,26 +131,11 @@ export class Dashboard {
 
     const all = Array.from(allProcsMap.values());
     const user = this.currentUser();
-    if (!user) return { count: 0, numbers: [] as string[] };
+    if (!user) return { count: 0, numbers: [] as string[], numberKeys: new Set<string>() };
 
-    // Filter processes visible in current scope
-    const visible = all.filter(p => {
-      if (['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente'].includes(user.role)) {
-        return true;
-      } else if (user.role === 'Gestor CC') {
-        return p.nucleus?.trim().toUpperCase().endsWith('CC');
-      } else if (user.role === 'Gestor CCJ') {
-        return p.nucleus?.trim().toUpperCase().endsWith('CCJ');
-      } else {
-        const pNucleus = p.nucleus?.trim().toUpperCase() || '';
-        const uNucleus = user.nucleus?.trim().toUpperCase() || '';
-        return pNucleus === uNucleus || p.assignedToId === user.id;
-      }
-    });
-
-    // Group processes by normalized number (stripping formatting punctuation)
+    // Group ALL system processes by normalized number (stripping formatting punctuation)
     const numberGroups = new Map<string, Process[]>();
-    visible.forEach(p => {
+    all.forEach(p => {
       const rawNum = p.number?.trim();
       if (!rawNum) return;
       const key = rawNum.replace(/[^\w]/g, '').toLowerCase();
@@ -157,32 +146,64 @@ export class Dashboard {
     });
 
     const duplicateNumbers: string[] = [];
-    numberGroups.forEach((procs) => {
-      const pendingCount = procs.filter(p => p.status?.trim().toLowerCase().startsWith('pendente')).length;
-      if (procs.length > 1 && pendingCount > 0) {
-        duplicateNumbers.push(procs[0].number);
+    const duplicateKeys = new Set<string>();
+
+    numberGroups.forEach((procs, key) => {
+      const hasDuplicateCount = procs.length > 1;
+      // Os dois (ou todos) os processos devem ter status Pendente. Se algum tiver status diferente de Pendente, não é duplicado
+      const allArePending = procs.every(p => p.status?.trim().toLowerCase().startsWith('pendente'));
+
+      if (hasDuplicateCount && allArePending) {
+        // Scope check for current user:
+        // O gestor/chefe de um núcleo só visualiza a mensagem se pelo menos um dos duplicados estiver em seu escopo
+        let belongsToUserScope = false;
+        if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) {
+          belongsToUserScope = true;
+        } else if (user.role === 'Gestor CC') {
+          belongsToUserScope = procs.some(p => p.nucleus?.trim().toUpperCase().endsWith('CC'));
+        } else if (user.role === 'Gestor CCJ') {
+          belongsToUserScope = procs.some(p => p.nucleus?.trim().toUpperCase().endsWith('CCJ'));
+        } else {
+          const uNucleus = user.nucleus?.trim().toUpperCase() || '';
+          belongsToUserScope = procs.some(p => (p.nucleus?.trim().toUpperCase() || '') === uNucleus);
+        }
+
+        if (belongsToUserScope) {
+          duplicateNumbers.push(procs[0].number);
+          duplicateKeys.add(key);
+        }
       }
     });
 
     return {
       count: duplicateNumbers.length,
-      numbers: duplicateNumbers
+      numbers: duplicateNumbers,
+      numberKeys: duplicateKeys
     };
   });
 
   isDuplicatePending(number: string): boolean {
     if (!number) return false;
     const clean = number.replace(/[^\w]/g, '').toLowerCase();
-    return this.duplicatePendingInfo().numbers.some(n => n.replace(/[^\w]/g, '').toLowerCase() === clean);
+    return this.duplicatePendingInfo().numberKeys.has(clean);
   }
 
   filterDuplicateProcesses() {
     const info = this.duplicatePendingInfo();
-    if (info.numbers.length === 0) return;
+    if (info.numbers.length === 0 && !this.onlyDuplicates()) return;
     
-    this.isFilterVisible.set(true);
-    this.statusFilter.set('Pendente');
-    this.filterForm.patchValue({ searchTerm: info.numbers[0] });
+    const newOnlyDuplicates = !this.onlyDuplicates();
+    this.onlyDuplicates.set(newOnlyDuplicates);
+
+    if (newOnlyDuplicates) {
+      this.isFilterVisible.set(true);
+      this.statusFilter.set('Todos');
+      this.filterForm.patchValue({
+        searchTerm: '',
+        startDate: '',
+        endDate: ''
+      });
+    }
     this.applyFilters();
   }
 
@@ -217,7 +238,8 @@ export class Dashboard {
     unassignedOnly: false,
     externalAccountantsOnly: false,
     onlyReturns: false,
-    over30DaysOnly: false
+    over30DaysOnly: false,
+    onlyDuplicates: false
   });
 
   stats = computed(() => {
@@ -283,16 +305,37 @@ export class Dashboard {
     const endDate = filters.endDate;
     const onlyReturns = filters.onlyReturns;
     const over30DaysOnly = filters.over30DaysOnly;
+    const onlyDuplicates = this.onlyDuplicates();
+    const dupKeys = this.duplicatePendingInfo().numberKeys;
 
-    const filtered = this.visibleProcesses().filter(p => {
-      // 30+ Days Filter
-      if (over30DaysOnly && (p.tempoNaContadoria === null || (p.tempoNaContadoria || 0) < 30)) return false;
+    // Se estiver filtrando duplicados, buscar dos processos do store para abranger todas as cópias
+    const sourceProcesses = onlyDuplicates ? this.store.processes() : this.visibleProcesses();
 
-      // Returns Filter
-      if (onlyReturns && !p.isReturn) return false;
+    const filtered = sourceProcesses.filter(p => {
+      if (onlyDuplicates) {
+        const pKey = p.number?.trim().replace(/[^\w]/g, '').toLowerCase() || '';
+        if (!dupKeys.has(pKey)) return false;
+      } else {
+        // 30+ Days Filter
+        if (over30DaysOnly && (p.tempoNaContadoria === null || (p.tempoNaContadoria || 0) < 30)) return false;
 
-      // Status Filter
-      if (status === 'Pendente' && p.status !== 'Pendente') return false;
+        // Returns Filter
+        if (onlyReturns && !p.isReturn) return false;
+
+        // Status Filter
+        if (status === 'Pendente' && p.status !== 'Pendente') return false;
+
+        // Date Filter - Use entryDate for Pending/All, completionDate for Devolvidos
+        if (startDate || endDate) {
+          const processDate = status === 'Devolvidos' ? p.completionDate : p.entryDate;
+          const pDate = this.normalizeDateForComparison(processDate || '');
+          const sDate = startDate ? this.normalizeDateForComparison(startDate) : null;
+          const eDate = endDate ? this.normalizeDateForComparison(endDate) : null;
+
+          if (sDate && pDate < sDate) return false;
+          if (eDate && pDate > eDate) return false;
+        }
+      }
 
       // Nucleus Filter
       if (Array.isArray(nucleusFilter)) {
@@ -352,49 +395,37 @@ export class Dashboard {
         if (!assignedUser || normalizedTargets.includes(assignedUserNuc)) return false;
       }
 
-      // Date Filter - Use entryDate for Pending/All, completionDate for Devolvidos
-      if (startDate || endDate) {
-        const processDate = status === 'Devolvidos' ? p.completionDate : p.entryDate;
-        const pDate = this.normalizeDateForComparison(processDate || '');
-        const sDate = startDate ? this.normalizeDateForComparison(startDate) : null;
-        const eDate = endDate ? this.normalizeDateForComparison(endDate) : null;
-
-        if (sDate && pDate < sDate) return false;
-        if (eDate && pDate > eDate) return false;
+      if (term) {
+        const assignedUserName = p.assignedToId ? allUsers.find(u => u.id === p.assignedToId)?.name || '' : '';
+        return p.number.toLowerCase().includes(term) ||
+          p.court.toLowerCase().includes(term) ||
+          p.status.toLowerCase().includes(term) ||
+          p.nucleus.toLowerCase().includes(term) ||
+          assignedUserName.toLowerCase().includes(term);
       }
 
-      const assignedUserName = p.assignedToId ? allUsers.find(u => u.id === p.assignedToId)?.name || '' : '';
-
-      return p.number.toLowerCase().includes(term) ||
-        p.court.toLowerCase().includes(term) ||
-        p.status.toLowerCase().includes(term) ||
-        p.nucleus.toLowerCase().includes(term) ||
-        assignedUserName.toLowerCase().includes(term);
+      return true;
     });
 
-    // Robust sorting:
-    // 1. Priority Level (Super first)
-    // 2. Position (within nucleus)
-    // 3. Entry Date
     return filtered.sort((a, b) => {
+      // Ao exibir duplicados, agrupa os processos de mesmo número juntos
+      if (onlyDuplicates) {
+        const cleanA = a.number.replace(/[^\w]/g, '').toLowerCase();
+        const cleanB = b.number.replace(/[^\w]/g, '').toLowerCase();
+        if (cleanA !== cleanB) return cleanA.localeCompare(cleanB);
+      }
+
       if (status === 'Devolvidos') {
-        // Devolvidos: mais recente primeiro
         const cA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
         const cB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
         if (cA !== cB) return cB - cA;
         return a.position - b.position;
       }
 
-      // Ordem visual:
-      // 1. Super prioridade (level 1) → topo
-      // 2. Demais prioridades (level 2: Legal, Ordem Superior, etc.)
-      // 3. Sem prioridade (level 3) → final
-      // Dentro de cada grupo: entrada mais antiga primeiro
       const levelA = this.getPriorityLevel(a.priority);
       const levelB = this.getPriorityLevel(b.priority);
       if (levelA !== levelB) return levelA - levelB;
 
-      // Dentro do mesmo nível: mais antigo primeiro (Posição Geral crescente)
       const entryA = new Date(a.entryDate).getTime();
       const entryB = new Date(b.entryDate).getTime();
       return entryA - entryB;
@@ -565,6 +596,13 @@ export class Dashboard {
 
   // Override the computed to use server data if available, otherwise fallback to local
   paginatedProcesses = computed(() => {
+    if (this.onlyDuplicates()) {
+      const all = this.filteredProcesses();
+      const start = (this.currentPage() - 1) * this.pageSize;
+      const end = start + this.pageSize;
+      return all.slice(start, end);
+    }
+
     if (this.hasLoadedServerData()) {
       return this.serverProcesses();
     }
@@ -620,6 +658,7 @@ export class Dashboard {
   }
 
   clearFilters() {
+    this.onlyDuplicates.set(false);
     this.filterForm.patchValue({
       searchTerm: '',
       priorityFilter: 'Todos',
@@ -646,8 +685,8 @@ export class Dashboard {
 
     this.appliedFilters.set({
       searchTerm: searchTerm || '',
-      startDate: startDate || this.getDefaultStartDate(),
-      endDate: endDate || this.getDefaultEndDate(),
+      startDate: this.onlyDuplicates() ? '' : (startDate || this.getDefaultStartDate()),
+      endDate: this.onlyDuplicates() ? '' : (endDate || this.getDefaultEndDate()),
       status: this.statusFilter(),
       nucleus: this.selectedNuclei().length > 0 ? this.selectedNuclei() : 'Todos',
       priority: this.selectedPriorities().length > 0 ? this.selectedPriorities() : 'Todos',
@@ -656,7 +695,8 @@ export class Dashboard {
       unassignedOnly: this.unassignedOnly(),
       externalAccountantsOnly: this.externalAccountantsOnly(),
       onlyReturns: this.onlyReturns(),
-      over30DaysOnly: this.over30DaysOnly()
+      over30DaysOnly: this.over30DaysOnly(),
+      onlyDuplicates: this.onlyDuplicates()
     });
 
     this.currentPage.set(1);

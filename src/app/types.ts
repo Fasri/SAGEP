@@ -81,6 +81,7 @@ export interface PaginationOptions {
   externalAccountantIds?: string[];
   onlyReturns?: boolean;
   over30DaysOnly?: boolean;
+  onlyDuplicates?: boolean;
 }
 
 export interface ReportFilters {

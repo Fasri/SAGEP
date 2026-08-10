@@ -94,9 +94,14 @@
           </p>
         </div>
       </div>
-      <button type="button" (click)="filterDuplicateProcesses()" class="shrink-0 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-amber-200 flex items-center gap-2 cursor-pointer">
-        <span class="material-symbols-outlined text-sm">search</span>
-        Verificar Processos Duplicados
+      <button type="button" (click)="filterDuplicateProcesses()" 
+              [class.bg-amber-600]="!onlyDuplicates()"
+              [class.hover:bg-amber-700]="!onlyDuplicates()"
+              [class.bg-amber-800]="onlyDuplicates()"
+              [class.hover:bg-amber-900]="onlyDuplicates()"
+              class="shrink-0 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-amber-200 flex items-center gap-2 cursor-pointer">
+        <span class="material-symbols-outlined text-sm">{{ onlyDuplicates() ? 'filter_alt_off' : 'search' }}</span>
+        {{ onlyDuplicates() ? 'Limpar Filtro de Duplicados' : 'Verificar Processos Duplicados' }}
       </button>
     </div>
   }
@@ -302,6 +307,19 @@
               <span class="material-symbols-outlined text-sm">event_busy</span>
               Processos 30+
             </button>
+
+            @if (canSeeDuplicateAlert()) {
+              <button (click)="filterDuplicateProcesses()" 
+                      [class.bg-amber-600]="onlyDuplicates()"
+                      [class.text-white]="onlyDuplicates()"
+                      [class.bg-slate-100]="!onlyDuplicates()"
+                      [class.text-slate-600]="!onlyDuplicates()"
+                      class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                      title="Exibir todos os processos cadastrados em duplicidade">
+                <span class="material-symbols-outlined text-sm">warning</span>
+                Processos Duplicados {{ duplicatePendingInfo().count > 0 ? '(' + duplicatePendingInfo().count + ')' : '' }}
+              </button>
+            }
           }
         </div>
       </div>
@@ -310,6 +328,18 @@
 
   <!-- Table Section -->
   <div class="bg-white rounded-2xl border border-slate-200 shadow-sm relative min-h-[380px]">
+    @if (onlyDuplicates()) {
+      <div class="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2 text-amber-900 text-xs font-semibold rounded-t-2xl">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-amber-600 text-sm">warning</span>
+          <span>Exibindo processos cadastrados em duplicidade no seu escopo (ambas as cópias agrupadas lado a lado).</span>
+        </div>
+        <button (click)="filterDuplicateProcesses()" class="text-amber-800 hover:text-amber-950 font-bold underline cursor-pointer text-xs shrink-0">
+          Remover filtro de duplicados
+        </button>
+      </div>
+    }
+
     <!-- Infinite Loading Bar -->
     @if (isLoading()) {
       <div class="absolute top-0 left-0 right-0 h-1 bg-slate-100 overflow-hidden z-10">
