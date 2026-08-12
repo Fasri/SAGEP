@@ -149,29 +149,27 @@ export class Dashboard {
     const duplicateKeys = new Set<string>();
 
     numberGroups.forEach((procs, key) => {
-      const hasDuplicateCount = procs.length > 1;
-      // Os dois (ou todos) os processos devem ter status Pendente. Se algum tiver status diferente de Pendente, não é duplicado
-      const allArePending = procs.every(p => p.status?.trim().toLowerCase().startsWith('pendente'));
+      // Filtrar processos que estão com status Pendente E pertencem ao escopo do gestor/usuário atual
+      const pendingInUserScope = procs.filter(p => {
+        const isPending = p.status?.trim().toLowerCase().startsWith('pendente');
+        if (!isPending) return false;
 
-      if (hasDuplicateCount && allArePending) {
-        // Scope check for current user:
-        // O gestor/chefe de um núcleo só visualiza a mensagem se pelo menos um dos duplicados estiver em seu escopo
-        let belongsToUserScope = false;
         if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) {
-          belongsToUserScope = true;
+          return true;
         } else if (user.role === 'Gestor CC') {
-          belongsToUserScope = procs.some(p => p.nucleus?.trim().toUpperCase().endsWith('CC'));
+          return p.nucleus?.trim().toUpperCase().endsWith('CC');
         } else if (user.role === 'Gestor CCJ') {
-          belongsToUserScope = procs.some(p => p.nucleus?.trim().toUpperCase().endsWith('CCJ'));
+          return p.nucleus?.trim().toUpperCase().endsWith('CCJ');
         } else {
           const uNucleus = user.nucleus?.trim().toUpperCase() || '';
-          belongsToUserScope = procs.some(p => (p.nucleus?.trim().toUpperCase() || '') === uNucleus);
+          return (p.nucleus?.trim().toUpperCase() || '') === uNucleus;
         }
+      });
 
-        if (belongsToUserScope) {
-          duplicateNumbers.push(procs[0].number);
-          duplicateKeys.add(key);
-        }
+      // Só é considerado duplicado para o gestor se houver 2 ou mais processos pendentes no seu próprio escopo
+      if (pendingInUserScope.length > 1) {
+        duplicateNumbers.push(pendingInUserScope[0].number);
+        duplicateKeys.add(key);
       }
     });
 
@@ -308,8 +306,8 @@ export class Dashboard {
     const onlyDuplicates = this.onlyDuplicates();
     const dupKeys = this.duplicatePendingInfo().numberKeys;
 
-    // Se estiver filtrando duplicados, buscar dos processos do store para abranger todas as cópias
-    const sourceProcesses = onlyDuplicates ? this.store.processes() : this.visibleProcesses();
+    // Se estiver filtrando duplicados, buscar dos processos visíveis ao usuário no seu escopo
+    const sourceProcesses = this.visibleProcesses();
 
     const filtered = sourceProcesses.filter(p => {
       if (onlyDuplicates) {
