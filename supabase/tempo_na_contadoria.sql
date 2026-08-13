@@ -29,6 +29,7 @@ SELECT
   p.observacao,
   p.created_at,
   p.is_return,
+  p.pje,
   -- priority_level: usado para ordenação
   CASE
     WHEN TRIM(p.priority) ILIKE '%SUPER%'                               THEN 1

@@ -50,6 +50,7 @@ export interface Process {
   valorCustas?: number;
   observacao?: string;
   isReturn?: boolean;
+  pje?: boolean;
   tempoNaContadoria?: number | null;
   createdAt?: string;
 }
@@ -82,6 +83,7 @@ export interface PaginationOptions {
   onlyReturns?: boolean;
   over30DaysOnly?: boolean;
   onlyDuplicates?: boolean;
+  onlyPjeDivergent?: boolean;
 }
 
 export interface ReportFilters {

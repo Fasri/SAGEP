@@ -75,6 +75,57 @@
     </div>
   </div>
 
+  <!-- PJe Divergent Processes Alert Banner for Nucleus Manager -->
+  @if (pjeDivergentInfo().count > 0 && canSeePjeAlert() && !dismissPjeBanner()) {
+    <div class="mb-6 p-4 sm:p-5 rounded-2xl bg-orange-50 border border-orange-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-3">
+      <div class="flex items-start gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-orange-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-orange-200 mt-0.5">
+          <span class="material-symbols-outlined text-xl">sync_problem</span>
+        </div>
+        <div>
+          <h4 class="text-sm font-bold text-orange-950 flex flex-wrap items-center gap-2">
+            <span>Atenção: Processos Pendentes no SAGEP não encontrados no PJe!</span>
+            <span class="px-2.5 py-0.5 rounded-full bg-orange-200 text-orange-950 text-xs font-extrabold">
+              {{ pjeDivergentInfo().count }} {{ pjeDivergentInfo().count === 1 ? 'processo' : 'processos' }}
+            </span>
+          </h4>
+          <p class="text-xs text-orange-900 font-medium mt-1 leading-relaxed">
+            Identificamos processos pendentes no SAGEP que constam marcados como ausentes/não localizados no PJe (coluna <code class="bg-orange-100 text-orange-900 px-1 py-0.5 rounded font-mono font-bold">PJe = false</code>). Favor conferir os processos no PJe e regularizar o status no SAGEP.
+          </p>
+
+          <!-- Detalhamento por Núcleo para Administrador, Coordenador e Supervisor -->
+          @if (['Administrador', 'Coordenador', 'Supervisor'].includes(currentUser()?.role || '') && pjeDivergentInfo().byNucleus.length > 0) {
+            <div class="mt-3 flex flex-wrap items-center gap-1.5">
+              <span class="text-xs font-bold text-orange-950">Núcleos com divergência:</span>
+              @for (item of pjeDivergentInfo().byNucleus; track item.nucleus) {
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-orange-300 text-orange-950 text-xs font-bold shadow-xs">
+                  <span>{{ item.nucleus }}:</span>
+                  <span class="text-orange-700 font-extrabold">{{ item.count }} {{ item.count === 1 ? 'proc.' : 'procs.' }}</span>
+                </span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0 self-end md:self-auto">
+        <button type="button" (click)="filterPjeDivergentProcesses()" 
+                [class.bg-orange-600]="!onlyPjeDivergent()"
+                [class.hover:bg-orange-700]="!onlyPjeDivergent()"
+                [class.bg-orange-800]="onlyPjeDivergent()"
+                [class.hover:bg-orange-900]="onlyPjeDivergent()"
+                class="text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-orange-200 flex items-center gap-2 cursor-pointer">
+          <span class="material-symbols-outlined text-sm">{{ onlyPjeDivergent() ? 'filter_alt_off' : 'search' }}</span>
+          {{ onlyPjeDivergent() ? 'Limpar Filtro PJe' : 'Filtrar Processos PJe' }}
+        </button>
+        <button type="button" (click)="dismissPjeBanner.set(true)" 
+                title="Dispensar alerta"
+                class="p-2 rounded-xl text-orange-700 hover:bg-orange-100 transition-colors cursor-pointer">
+          <span class="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+    </div>
+  }
+
   <!-- Duplicate Pending Processes Alert Banner -->
   @if (duplicatePendingInfo().count > 0 && canSeeDuplicateAlert()) {
     <div class="mb-8 p-4 sm:p-5 rounded-2xl bg-amber-50 border border-amber-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-3">
@@ -308,6 +359,19 @@
               Processos 30+
             </button>
 
+            @if (canSeePjeAlert()) {
+              <button (click)="filterPjeDivergentProcesses()" 
+                      [class.bg-orange-600]="onlyPjeDivergent()"
+                      [class.text-white]="onlyPjeDivergent()"
+                      [class.bg-slate-100]="!onlyPjeDivergent()"
+                      [class.text-slate-600]="!onlyPjeDivergent()"
+                      class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                      title="Exibir processos pendentes no SAGEP não encontrados no PJe">
+                <span class="material-symbols-outlined text-sm">sync_problem</span>
+                Processos PJe {{ pjeDivergentInfo().count > 0 ? '(' + pjeDivergentInfo().count + ')' : '' }}
+              </button>
+            }
+
             @if (canSeeDuplicateAlert()) {
               <button (click)="filterDuplicateProcesses()" 
                       [class.bg-amber-600]="onlyDuplicates()"
@@ -328,6 +392,18 @@
 
   <!-- Table Section -->
   <div class="bg-white rounded-2xl border border-slate-200 shadow-sm relative min-h-[380px]">
+    @if (onlyPjeDivergent()) {
+      <div class="px-6 py-3 bg-orange-50 border-b border-orange-200 flex items-center justify-between gap-2 text-orange-950 text-xs font-semibold rounded-t-2xl">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-orange-600 text-sm">sync_problem</span>
+          <span>Exibindo processos pendentes no SAGEP que constam como ausentes/não encontrados no PJe (PJe = false).</span>
+        </div>
+        <button (click)="filterPjeDivergentProcesses()" class="text-orange-800 hover:text-orange-950 font-bold underline cursor-pointer text-xs shrink-0">
+          Remover filtro PJe
+        </button>
+      </div>
+    }
+
     @if (onlyDuplicates()) {
       <div class="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2 text-amber-900 text-xs font-semibold rounded-t-2xl">
         <div class="flex items-center gap-2">
@@ -391,6 +467,12 @@
                     <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px] uppercase tracking-wider border border-amber-300 shadow-xs flex items-center gap-0.5" title="Processo duplicado com status Pendente!">
                       <span class="material-symbols-outlined text-[10px]">warning</span>
                       Duplicado
+                    </span>
+                  }
+                  @if (!process.pje) {
+                    <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 font-bold text-[9px] uppercase tracking-wider border border-orange-300 shadow-xs flex items-center gap-0.5" title="Processo pendente no SAGEP não encontrado no PJe (PJe = false)!">
+                      <span class="material-symbols-outlined text-[10px]">sync_problem</span>
+                      PJe
                     </span>
                   }
                 </div>
@@ -540,7 +622,7 @@
     <!-- Pagination -->
     <div class="px-6 py-4 bg-slate-50/30 border-t border-slate-100 flex items-center justify-between">
       <div class="text-xs font-bold text-slate-400 uppercase tracking-widest">
-        Total: {{ totalFilteredCount() || filteredProcesses().length }} processos
+        Total: {{ (onlyDuplicates() || onlyPjeDivergent()) ? filteredProcesses().length : (totalFilteredCount() || filteredProcesses().length) }} processos
       </div>
       <div class="flex items-center gap-2">
         <button (click)="prevPage()" 

@@ -22,6 +22,7 @@ SELECT
   p.observacao,
   p.created_at,
   p.is_return,
+  p.pje,
   -- priority_level: agora apenas 2 níveis para ordenação visual
   -- Nível 1: Super Prioridade
   -- Nível 2: Todo o resto (Legal, Ordem, Sem Prioridade)

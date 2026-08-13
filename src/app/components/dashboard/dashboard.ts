@@ -82,10 +82,21 @@ export class Dashboard {
     initialValue: this.filterForm.value
   });
 
+  pjeDivergentServerProcesses = signal<Process[]>([]);
+
   // Processes visible to the current user based on their role
   visibleProcesses = computed(() => {
     const user = this.currentUser();
-    const all = this.processes();
+    const storeProcs = this.processes();
+    const serverProcs = this.serverProcesses();
+    const pjeProcs = this.pjeDivergentServerProcesses();
+    const allProcsMap = new Map<string, Process>();
+
+    [...storeProcs, ...serverProcs, ...pjeProcs].forEach(p => {
+      if (p && p.id) allProcsMap.set(p.id, p);
+    });
+
+    const all = Array.from(allProcsMap.values());
     if (!user) return [];
 
     const res = all.filter(p => {
@@ -120,12 +131,13 @@ export class Dashboard {
   duplicatePendingInfo = computed(() => {
     if (!this.canSeeDuplicateAlert()) return { count: 0, numbers: [] as string[], numberKeys: new Set<string>() };
 
-    // Combine processes from store and server to ensure we check all available processes
+    // Combine processes from store, server and pje server to ensure we check all available processes
     const storeProcs = this.store.processes();
     const serverProcs = this.serverProcesses();
+    const pjeProcs = this.pjeDivergentServerProcesses();
     const allProcsMap = new Map<string, Process>();
 
-    [...storeProcs, ...serverProcs].forEach(p => {
+    [...storeProcs, ...serverProcs, ...pjeProcs].forEach(p => {
       if (p && p.id) allProcsMap.set(p.id, p);
     });
 
@@ -180,6 +192,76 @@ export class Dashboard {
     };
   });
 
+  dismissPjeBanner = signal(false);
+  onlyPjeDivergent = signal(false);
+
+  canSeePjeAlert = computed(() => {
+    const user = this.currentUser();
+    if (!user) return false;
+    const allowedRoles = ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ', 'Chefe', 'Gerente'];
+    return allowedRoles.includes(user.role);
+  });
+
+  pjeDivergentInfo = computed(() => {
+    if (!this.canSeePjeAlert()) return { count: 0, processes: [] as Process[], byNucleus: [] as { nucleus: string, count: number }[] };
+
+    const storeProcs = this.store.processes();
+    const serverProcs = this.serverProcesses();
+    const pjeProcs = this.pjeDivergentServerProcesses();
+    const allProcsMap = new Map<string, Process>();
+
+    [...storeProcs, ...serverProcs, ...pjeProcs].forEach(p => {
+      if (p && p.id) allProcsMap.set(p.id, p);
+    });
+
+    const all = Array.from(allProcsMap.values());
+    const user = this.currentUser();
+    if (!user) return { count: 0, processes: [] as Process[], byNucleus: [] as { nucleus: string, count: number }[] };
+
+    const divergent = all.filter(p => {
+      const rawPje = p.pje ?? (p as unknown as Record<string, unknown>)['pje_flag'] ?? (p as unknown as Record<string, unknown>)['coluna_pje'];
+      const isPjeTrue = this.parseBool(rawPje);
+      const isPending = p.status?.trim().toLowerCase().startsWith('pendente');
+      if (isPjeTrue || !isPending) return false;
+
+      if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) {
+        return true;
+      } else if (user.role === 'Gestor CC') {
+        return p.nucleus?.trim().toUpperCase().endsWith('CC');
+      } else if (user.role === 'Gestor CCJ') {
+        return p.nucleus?.trim().toUpperCase().endsWith('CCJ');
+      } else {
+        const uNucleus = user.nucleus?.trim().toUpperCase() || '';
+        return (p.nucleus?.trim().toUpperCase() || '') === uNucleus;
+      }
+    });
+
+    const byNucleusMap = new Map<string, number>();
+    divergent.forEach(p => {
+      const nuc = p.nucleus?.trim().toUpperCase() || 'SEM NÚCLEO';
+      byNucleusMap.set(nuc, (byNucleusMap.get(nuc) || 0) + 1);
+    });
+
+    const byNucleus = Array.from(byNucleusMap.entries())
+      .map(([nucleus, count]) => ({ nucleus, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      count: divergent.length,
+      processes: divergent,
+      byNucleus
+    };
+  });
+
+  private parseBool(val: unknown): boolean {
+    if (val === true || val === 1) return true;
+    if (typeof val === 'string') {
+      const clean = val.trim().toLowerCase();
+      return clean === 'true' || clean === 't' || clean === '1' || clean === 'sim' || clean === 's' || clean === 'pje';
+    }
+    return false;
+  }
+
   isDuplicatePending(number: string): boolean {
     if (!number) return false;
     const clean = number.replace(/[^\w]/g, '').toLowerCase();
@@ -194,8 +276,29 @@ export class Dashboard {
     this.onlyDuplicates.set(newOnlyDuplicates);
 
     if (newOnlyDuplicates) {
+      this.onlyPjeDivergent.set(false);
       this.isFilterVisible.set(true);
       this.statusFilter.set('Todos');
+      this.filterForm.patchValue({
+        searchTerm: '',
+        startDate: '',
+        endDate: ''
+      });
+    }
+    this.applyFilters();
+  }
+
+  filterPjeDivergentProcesses() {
+    const info = this.pjeDivergentInfo();
+    if (info.count === 0 && !this.onlyPjeDivergent()) return;
+
+    const newOnlyPje = !this.onlyPjeDivergent();
+    this.onlyPjeDivergent.set(newOnlyPje);
+
+    if (newOnlyPje) {
+      this.onlyDuplicates.set(false);
+      this.isFilterVisible.set(true);
+      this.statusFilter.set('Pendente');
       this.filterForm.patchValue({
         searchTerm: '',
         startDate: '',
@@ -237,7 +340,8 @@ export class Dashboard {
     externalAccountantsOnly: false,
     onlyReturns: false,
     over30DaysOnly: false,
-    onlyDuplicates: false
+    onlyDuplicates: false,
+    onlyPjeDivergent: false
   });
 
   stats = computed(() => {
@@ -304,15 +408,21 @@ export class Dashboard {
     const onlyReturns = filters.onlyReturns;
     const over30DaysOnly = filters.over30DaysOnly;
     const onlyDuplicates = this.onlyDuplicates();
+    const onlyPjeDivergent = this.onlyPjeDivergent();
     const dupKeys = this.duplicatePendingInfo().numberKeys;
 
-    // Se estiver filtrando duplicados, buscar dos processos visíveis ao usuário no seu escopo
+    // Se estiver filtrando duplicados ou divergentes do PJe, buscar dos processos visiveis ao usuario no seu escopo
     const sourceProcesses = this.visibleProcesses();
 
     const filtered = sourceProcesses.filter(p => {
       if (onlyDuplicates) {
         const pKey = p.number?.trim().replace(/[^\w]/g, '').toLowerCase() || '';
         if (!dupKeys.has(pKey)) return false;
+      } else if (onlyPjeDivergent) {
+        const isPending = p.status?.trim().toLowerCase().startsWith('pendente');
+        const rawPje = p.pje ?? (p as unknown as Record<string, unknown>)['pje_flag'] ?? (p as unknown as Record<string, unknown>)['coluna_pje'];
+        const isPjeTrue = this.parseBool(rawPje);
+        if (isPjeTrue || !isPending) return false;
       } else {
         // 30+ Days Filter
         if (over30DaysOnly && (p.tempoNaContadoria === null || (p.tempoNaContadoria || 0) < 30)) return false;
@@ -524,8 +634,28 @@ export class Dashboard {
   constructor() {
     afterNextRender(() => {
       const user = this.currentUser();
-      if (user) this.applyFilters();
+      if (user) {
+        this.applyFilters();
+        this.loadPjeDivergentServerData();
+      }
     });
+  }
+
+  async loadPjeDivergentServerData() {
+    const user = this.currentUser();
+    if (!user || !this.canSeePjeAlert()) return;
+    try {
+      const procs = await this.store.fetchAllFilteredProcesses({
+        page: 1,
+        pageSize: 1000,
+        user: user,
+        onlyPjeDivergent: true,
+        statusFilter: 'Pendente'
+      });
+      this.pjeDivergentServerProcesses.set(procs);
+    } catch (e) {
+      console.error('Dashboard: Error loading PJe divergent server data:', e);
+    }
   }
 
   private currentRequestId = 0;
@@ -568,6 +698,7 @@ export class Dashboard {
         unassignedOnly: filters.unassignedOnly,
         onlyReturns: filters.onlyReturns,
         over30DaysOnly: filters.over30DaysOnly,
+        onlyPjeDivergent: this.onlyPjeDivergent(),
         externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
       });
 
@@ -594,7 +725,7 @@ export class Dashboard {
 
   // Override the computed to use server data if available, otherwise fallback to local
   paginatedProcesses = computed(() => {
-    if (this.onlyDuplicates()) {
+    if (this.onlyDuplicates() || this.onlyPjeDivergent()) {
       const all = this.filteredProcesses();
       const start = (this.currentPage() - 1) * this.pageSize;
       const end = start + this.pageSize;
@@ -613,7 +744,9 @@ export class Dashboard {
   });
 
   totalPages = computed(() => {
-    const total = Math.max(this.totalFilteredCount(), this.filteredProcesses().length);
+    const total = (this.onlyDuplicates() || this.onlyPjeDivergent())
+      ? this.filteredProcesses().length
+      : Math.max(this.totalFilteredCount(), this.filteredProcesses().length);
     return Math.max(1, Math.ceil(total / this.pageSize));
   });
 
@@ -694,7 +827,8 @@ export class Dashboard {
       externalAccountantsOnly: this.externalAccountantsOnly(),
       onlyReturns: this.onlyReturns(),
       over30DaysOnly: this.over30DaysOnly(),
-      onlyDuplicates: this.onlyDuplicates()
+      onlyDuplicates: this.onlyDuplicates(),
+      onlyPjeDivergent: this.onlyPjeDivergent()
     });
 
     this.currentPage.set(1);
@@ -781,7 +915,12 @@ export class Dashboard {
     }
 
     // Update local state first (Optimistic)
-    this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, status: newStatus } : p));
+    const isNotPending = newStatus !== 'Pendente';
+    this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? {
+      ...p,
+      status: newStatus,
+      ...(isNotPending ? { pje: false } : {})
+    } : p));
     this.openStatusDropdownId.set(null); // Fecha o dropdown imediatamente
 
     try {

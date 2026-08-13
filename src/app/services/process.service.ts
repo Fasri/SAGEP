@@ -42,6 +42,17 @@ export class ProcessService {
     });
   }
 
+  private parseBoolean(val: unknown): boolean {
+    if (val === false || val === 0) return false;
+    if (val === true || val === 1) return true;
+    if (typeof val === 'string') {
+      const clean = val.trim().toLowerCase();
+      if (clean === 'false' || clean === 'f' || clean === '0' || clean === 'não' || clean === 'nao' || clean === 'n' || clean === 'ausente') return false;
+      if (clean === 'true' || clean === 't' || clean === '1' || clean === 'sim' || clean === 's' || clean === 'pje') return true;
+    }
+    return val !== undefined && val !== null ? false : true;
+  }
+
   private mapProcess(p: Record<string, unknown>): Process {
     return {
       id: String(p['id'] || ''),
@@ -59,6 +70,7 @@ export class ProcessService {
       valorCustas: p['valor_custas'] ? Number(p['valor_custas']) : 0,
       observacao: p['observacao'] ? String(p['observacao']) : '',
       isReturn: !!p['is_return'],
+      pje: this.parseBoolean(p['pje'] ?? p['pje_flag'] ?? p['coluna_pje'] ?? p['pje_status']),
       tempoNaContadoria: (p['tempo_na_contadoria'] !== null && p['tempo_na_contadoria'] !== undefined)
         ? Number(p['tempo_na_contadoria'])
         : null
@@ -163,16 +175,28 @@ export class ProcessService {
 
     // Normalizar o status antes de salvar
     const normalizedStatus = this.metadataService.normalizeStatus(newStatus);
+    const isNotPending = normalizedStatus !== 'Pendente';
 
-    this.processes.update(prev => prev.map(p => p.id === processId ? { ...p, status: normalizedStatus, completionDate, assignmentDate } : p));
+    this.processes.update(prev => prev.map(p => p.id === processId ? {
+      ...p,
+      status: normalizedStatus,
+      completionDate,
+      assignmentDate,
+      ...(isNotPending ? { pje: false } : {})
+    } : p));
 
     if (client) {
       await this.metadataService.ensureStatusExists(normalizedStatus);
-      const { error } = await client.from('processes').update({
+      const updateData: Record<string, unknown> = {
         status: normalizedStatus,
         completion_date: completionDate,
         assignment_date: assignmentDate
-      }).eq('id', processId);
+      };
+      if (isNotPending) {
+        updateData['pje'] = false;
+      }
+
+      const { error } = await client.from('processes').update(updateData).eq('id', processId);
 
       if (error) {
         this.supabaseService.handleError(error, 'updateProcessStatus');
@@ -291,6 +315,9 @@ export class ProcessService {
     if (options.onlyReturns) query = (query as any).eq('is_return', true);
     if (options.over30DaysOnly) {
       query = (query as any).gte('tempo_na_contadoria', 30).ilike('status', 'Pendente%');
+    }
+    if (options.onlyPjeDivergent) {
+      query = (query as any).eq('pje', false).ilike('status', 'Pendente%');
     }
 
     if (options.externalAccountantIds) {
