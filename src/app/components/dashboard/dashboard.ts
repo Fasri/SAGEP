@@ -357,13 +357,23 @@ export class Dashboard {
     ];
   });
 
+  selectedAutoAssignNucleus = signal<string>('');
+
+  canChangeAutoAssignNucleus = computed(() => {
+    const user = this.currentUser();
+    if (!user) return false;
+    return ['Administrador', 'Coordenador', 'Supervisor'].includes(user.role);
+  });
+
   usersInNucleusForAutoAssign = computed(() => {
     const user = this.currentUser();
     if (!user) return [];
-    let nucleus = this.nucleusFilter();
+    const filterVal = this.nucleusFilter() as unknown;
+    const filterNuc = typeof filterVal === 'string' ? filterVal : (Array.isArray(filterVal) ? (filterVal[0] as string) : '');
+    let nucleus = this.selectedAutoAssignNucleus() || filterNuc;
     if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
       nucleus = user.nucleus;
-    } else if (nucleus === 'Todos') {
+    } else if (!nucleus || nucleus === 'Todos') {
       nucleus = user.nucleus;
     }
     return this.users()
@@ -1255,19 +1265,26 @@ export class Dashboard {
     const user = this.currentUser();
     if (!user) return;
 
-    let nucleus = this.nucleusFilter();
+    const availableNuclei = this.nucleos();
+    const filterVal = this.nucleusFilter() as unknown;
+    const filterNuc = typeof filterVal === 'string' ? filterVal : (Array.isArray(filterVal) ? (filterVal[0] as string) : '');
+    let nucleus = filterNuc;
 
     if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
       nucleus = user.nucleus;
-    } else if (nucleus === 'Todos') {
+    } else if (!nucleus || nucleus === 'Todos') {
       if (user.nucleus && user.nucleus !== 'Administração') {
         nucleus = user.nucleus;
+      } else if (availableNuclei.length > 0) {
+        nucleus = availableNuclei[0].nome;
       } else {
         this.autoAssignMessage.set('Por favor, selecione um núcleo específico no filtro antes de realizar a atribuição automática.');
         setTimeout(() => this.autoAssignMessage.set(null), 5000);
         return;
       }
     }
+
+    this.selectedAutoAssignNucleus.set(nucleus);
 
     // Initialize selected users with all active users in the nucleus
     const activeUsers = this.users().filter(u => u.nucleus === nucleus && u.active);
@@ -1283,15 +1300,24 @@ export class Dashboard {
     this.isConfirmingAutoAssign.set(true);
   }
 
+  async onAutoAssignNucleusChange(newNucleus: string) {
+    this.selectedAutoAssignNucleus.set(newNucleus);
+    const activeUsers = this.users().filter(u => u.nucleus === newNucleus && u.active);
+    this.selectedAutoAssignUserIds.set(activeUsers.map(u => u.id));
+    this.unassignedCount.set(await this.store.getUnassignedCount(newNucleus, this.isAutoinspecao()));
+  }
+
   async updateAutoAssignCount() {
-    let nucleus = this.nucleusFilter();
+    const filterVal = this.nucleusFilter() as unknown;
+    const filterNuc = typeof filterVal === 'string' ? filterVal : (Array.isArray(filterVal) ? (filterVal[0] as string) : '');
+    let nucleus = this.selectedAutoAssignNucleus() || filterNuc;
     const user = this.currentUser();
     if (user?.role === 'Gestor CC' || user?.role === 'Gestor CCJ') {
       nucleus = user.nucleus;
-    } else if (nucleus === 'Todos') {
+    } else if (!nucleus || nucleus === 'Todos') {
       if (user?.nucleus && user.nucleus !== 'Administração') nucleus = user.nucleus;
     }
-    if (nucleus !== 'Todos') {
+    if (nucleus && nucleus !== 'Todos') {
       this.unassignedCount.set(await this.store.getUnassignedCount(nucleus, this.isAutoinspecao()));
     }
   }
@@ -1310,11 +1336,19 @@ export class Dashboard {
     const user = this.currentUser();
     if (!user) return;
 
-    let nucleus = this.nucleusFilter();
+    const filterVal = this.nucleusFilter() as unknown;
+    const filterNuc = typeof filterVal === 'string' ? filterVal : (Array.isArray(filterVal) ? (filterVal[0] as string) : '');
+    let nucleus = this.selectedAutoAssignNucleus() || filterNuc;
     if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
       nucleus = user.nucleus;
-    } else if (nucleus === 'Todos') {
+    } else if (!nucleus || nucleus === 'Todos') {
       nucleus = user.nucleus;
+    }
+
+    if (!nucleus || nucleus === 'Todos') {
+      this.autoAssignMessage.set('Por favor, selecione um núcleo válido.');
+      setTimeout(() => this.autoAssignMessage.set(null), 3000);
+      return;
     }
 
     const selectedIds = this.selectedAutoAssignUserIds();

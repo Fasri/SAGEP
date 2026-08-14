@@ -675,6 +675,24 @@
         </div>
         
         <div class="p-6">
+          @if (canChangeAutoAssignNucleus()) {
+            <div class="mb-4">
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block ml-1">
+                Núcleo Alvo para Atribuição
+              </label>
+              <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-sm">apartment</span>
+                <select [value]="selectedAutoAssignNucleus()" 
+                        (change)="onAutoAssignNucleusChange($any($event.target).value)"
+                        class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all cursor-pointer">
+                  @for (n of nucleos(); track n.id) {
+                    <option [value]="n.nome">{{ n.nome }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+          }
+
           <div class="mb-4 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium text-emerald-800">Pendentes Sem Atribuição:</span>
