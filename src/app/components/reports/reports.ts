@@ -33,6 +33,8 @@ export class Reports implements AfterViewInit, OnInit {
         list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CC'));
       } else if (user.role === 'Gestor CCJ') {
         list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CCJ'));
+      } else if (user.role === 'Gestor 1_7') {
+        list = list.filter(n => ['1ª CCJ', '7ª CCJ'].includes(n.nome.trim()));
       }
     }
     return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }));
@@ -51,7 +53,7 @@ export class Reports implements AfterViewInit, OnInit {
 
   canFilterNucleus = computed(() => {
     const user = this.currentUser();
-    return ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ'].includes(user?.role || '');
+    return ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'].includes(user?.role || '');
   });
 
   constructor() {

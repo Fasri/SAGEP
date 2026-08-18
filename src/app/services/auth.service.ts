@@ -16,7 +16,8 @@ export class AuthService {
     { id: 'u7', matricula: '45678', name: 'Ana Costa', role: 'Contador Judicial', nucleus: '1ª CC', functionalEmail: 'ana.costa@tjpe.jus.br', gmail: 'anacosta@gmail.com', metaPercentage: 100, birthDate: '1992-11-25', active: true, password: '123456' },
     { id: 'u8', matricula: '56789', name: 'Ricardo Pereira', role: 'Chefe', nucleus: '6ª CC', functionalEmail: 'ricardo.p@tjpe.jus.br', gmail: 'ricardop@gmail.com', metaPercentage: 100, birthDate: '1975-03-30', active: true, password: '123456' },
     { id: 'u9', matricula: '90001', name: 'Gestor Custas', role: 'Gestor CC', nucleus: '1ª CC', functionalEmail: 'gestor.cc@tjpe.jus.br', gmail: 'gestor.cc@gmail.com', metaPercentage: 100, birthDate: '1980-01-01', active: true, password: '123456' },
-    { id: 'u10', matricula: '90002', name: 'Gestor Calculos', role: 'Gestor CCJ', nucleus: '1ª CCJ', functionalEmail: 'gestor.ccj@tjpe.jus.br', gmail: 'gestor.ccj@gmail.com', metaPercentage: 100, birthDate: '1980-01-01', active: true, password: '123456' }
+    { id: 'u10', matricula: '90002', name: 'Gestor Calculos', role: 'Gestor CCJ', nucleus: '1ª CCJ', functionalEmail: 'gestor.ccj@tjpe.jus.br', gmail: 'gestor.ccj@gmail.com', metaPercentage: 100, birthDate: '1980-01-01', active: true, password: '123456' },
+    { id: 'u11', matricula: '90003', name: 'Gestor 1 e 7 CCJ', role: 'Gestor 1_7', nucleus: '1ª CCJ', functionalEmail: 'gestor.1_7@tjpe.jus.br', gmail: 'gestor.1_7@gmail.com', metaPercentage: 100, birthDate: '1980-01-01', active: true, password: '123456' }
   ];
 
   users = signal<User[]>(this.mockUsers);

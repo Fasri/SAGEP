@@ -23,6 +23,8 @@ export class Processos {
         list = list.filter(u => u.nucleus?.trim().toUpperCase().endsWith('CC'));
       } else if (user.role === 'Gestor CCJ') {
         list = list.filter(u => u.nucleus?.trim().toUpperCase().endsWith('CCJ'));
+      } else if (user.role === 'Gestor 1_7') {
+        list = list.filter(u => ['1ª CCJ', '7ª CCJ'].includes(u.nucleus?.trim() || ''));
       } else if (!['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) {
         list = list.filter(u => u.nucleus === user.nucleus);
       }
@@ -39,6 +41,8 @@ export class Processos {
         list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CC'));
       } else if (user.role === 'Gestor CCJ') {
         list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CCJ'));
+      } else if (user.role === 'Gestor 1_7') {
+        list = list.filter(n => ['1ª CCJ', '7ª CCJ'].includes(n.nome.trim()));
       }
     }
     return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }));
@@ -77,7 +81,7 @@ export class Processos {
   constructor() {
     const user = this.currentUser();
     if (user) {
-      if (user.role === 'Gestor CCJ') {
+      if (user.role === 'Gestor CCJ' || user.role === 'Gestor 1_7') {
         this.processForm.patchValue({ nucleus: '1ª CCJ' });
       } else if (user.role === 'Gestor CC') {
         this.processForm.patchValue({ nucleus: '1ª CC' });

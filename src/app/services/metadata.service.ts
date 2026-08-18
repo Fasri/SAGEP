@@ -77,6 +77,7 @@ export class MetadataService {
       { nome: '8ª CC', descricao: '8ª Câmara Cível' },
       { nome: '1ª CCJ', descricao: '1ª Câmara Regional' },
       { nome: '2ª CCJ', descricao: '2ª Câmara Regional' },
+      { nome: '7ª CCJ', descricao: '7ª Câmara Regional' },
       { nome: 'CCJ', descricao: 'Câmara Regional' },
       { nome: 'GERAL', descricao: 'Núcleo Geral' }
     ];
@@ -201,6 +202,7 @@ export class MetadataService {
     
     if (fuzzy.includes('1CCJ')) return '1ª CCJ';
     if (fuzzy.includes('2CCJ')) return '2ª CCJ';
+    if (fuzzy.includes('7CCJ')) return '7ª CCJ';
     if (fuzzy === 'CCJ') return 'CCJ';
 
     return fixed;

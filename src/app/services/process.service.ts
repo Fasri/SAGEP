@@ -284,6 +284,9 @@ export class ProcessService {
     } else if (options.user.role === 'Gestor CCJ') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       query = (query as any).like('nucleus', '%CCJ');
+    } else if (options.user.role === 'Gestor 1_7') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).in('nucleus', ['1ª CCJ', '7ª CCJ']);
     } else if (!['Administrador', 'Coordenador', 'Supervisor'].includes(options.user.role)) {
       query = (query as any).or(`nucleus.eq."${options.user.nucleus}",assigned_to_id.eq.${options.user.id}`);
     }
@@ -768,6 +771,12 @@ export class ProcessService {
           batchQuery = batchQuery.eq('nucleus', filters.nucleus);
         } else {
           batchQuery = batchQuery.like('nucleus', '%CCJ');
+        }
+      } else if (filters.user.role === 'Gestor 1_7') {
+        if (filters.nucleus && filters.nucleus !== 'Todos') {
+          batchQuery = batchQuery.eq('nucleus', filters.nucleus);
+        } else {
+          batchQuery = batchQuery.in('nucleus', ['1ª CCJ', '7ª CCJ']);
         }
       } else if (filters.nucleus && filters.nucleus !== 'Todos') {
         batchQuery = batchQuery.eq('nucleus', filters.nucleus);

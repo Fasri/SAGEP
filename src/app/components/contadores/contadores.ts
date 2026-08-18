@@ -23,6 +23,8 @@ export class Contadores {
     let list = this.store.nucleos().filter(n => !excludedNuclei.includes(n.nome.trim().toUpperCase())).map(n => n.nome);
     if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
       list = [user.nucleus];
+    } else if (user.role === 'Gestor 1_7') {
+      list = ['1ª CCJ', '7ª CCJ'];
     }
     return list.sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
   });
@@ -45,6 +47,10 @@ export class Contadores {
       return this.allUsers().filter(u => u.nucleus === user.nucleus);
     }
 
+    if (user.role === 'Gestor 1_7') {
+      return this.allUsers().filter(u => ['1ª CCJ', '7ª CCJ'].includes(u.nucleus));
+    }
+
     // Chefes and Gerentes see only their nucleus
     if (['Chefe', 'Gerente'].includes(user.role)) {
       return this.allUsers().filter(u => u.nucleus === user.nucleus);
@@ -56,7 +62,7 @@ export class Contadores {
   // Check if current user can perform CRUD
   canManage = computed(() => {
     const user = this.currentUser();
-    return user ? ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ'].includes(user.role) : false;
+    return user ? ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'].includes(user.role) : false;
   });
 
   userForm = new FormGroup({

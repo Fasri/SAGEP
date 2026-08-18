@@ -64,6 +64,8 @@ export class Dashboard {
         list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CC'));
       } else if (user.role === 'Gestor CCJ') {
         list = list.filter(n => n.nome.trim().toUpperCase().endsWith('CCJ'));
+      } else if (user.role === 'Gestor 1_7') {
+        list = list.filter(n => ['1ª CCJ', '7ª CCJ'].includes(n.nome.trim()));
       }
     }
     return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }));
@@ -106,6 +108,8 @@ export class Dashboard {
         return p.nucleus?.trim().toUpperCase().endsWith('CC');
       } else if (user.role === 'Gestor CCJ') {
         return p.nucleus?.trim().toUpperCase().endsWith('CCJ');
+      } else if (user.role === 'Gestor 1_7') {
+        return ['1ª CCJ', '7ª CCJ'].includes(p.nucleus?.trim());
       } else if (user.role === 'Contador Judicial') {
         return p.assignedToId === user.id;
       } else {
@@ -124,7 +128,7 @@ export class Dashboard {
   canSeeDuplicateAlert = computed(() => {
     const user = this.currentUser();
     if (!user) return false;
-    const allowedRoles = ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ', 'Chefe', 'Gerente'];
+    const allowedRoles = ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7', 'Chefe', 'Gerente'];
     return allowedRoles.includes(user.role);
   });
 
@@ -172,6 +176,8 @@ export class Dashboard {
           return p.nucleus?.trim().toUpperCase().endsWith('CC');
         } else if (user.role === 'Gestor CCJ') {
           return p.nucleus?.trim().toUpperCase().endsWith('CCJ');
+        } else if (user.role === 'Gestor 1_7') {
+          return ['1ª CCJ', '7ª CCJ'].includes(p.nucleus?.trim());
         } else {
           const uNucleus = user.nucleus?.trim().toUpperCase() || '';
           return (p.nucleus?.trim().toUpperCase() || '') === uNucleus;
@@ -198,7 +204,7 @@ export class Dashboard {
   canSeePjeAlert = computed(() => {
     const user = this.currentUser();
     if (!user) return false;
-    const allowedRoles = ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ', 'Chefe', 'Gerente'];
+    const allowedRoles = ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7', 'Chefe', 'Gerente'];
     return allowedRoles.includes(user.role);
   });
 
@@ -230,6 +236,8 @@ export class Dashboard {
         return p.nucleus?.trim().toUpperCase().endsWith('CC');
       } else if (user.role === 'Gestor CCJ') {
         return p.nucleus?.trim().toUpperCase().endsWith('CCJ');
+      } else if (user.role === 'Gestor 1_7') {
+        return ['1ª CCJ', '7ª CCJ'].includes(p.nucleus?.trim());
       } else {
         const uNucleus = user.nucleus?.trim().toUpperCase() || '';
         return (p.nucleus?.trim().toUpperCase() || '') === uNucleus;
@@ -373,6 +381,8 @@ export class Dashboard {
     let nucleus = this.selectedAutoAssignNucleus() || filterNuc;
     if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
       nucleus = user.nucleus;
+    } else if (user.role === 'Gestor 1_7') {
+      if (!nucleus || nucleus === 'Todos') nucleus = user.nucleus;
     } else if (!nucleus || nucleus === 'Todos') {
       nucleus = user.nucleus;
     }
@@ -973,21 +983,21 @@ export class Dashboard {
   canEditPriority(): boolean {
     const user = this.currentUser();
     if (!user) return false;
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     return privilegedRoles.includes(user.role);
   }
 
   canDeleteProcess(): boolean {
     const user = this.currentUser();
     if (!user) return false;
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     return privilegedRoles.includes(user.role);
   }
 
   canEditCompletionDate(): boolean {
     const user = this.currentUser();
     if (!user) return false;
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     return privilegedRoles.includes(user.role);
   }
 
@@ -1216,12 +1226,14 @@ export class Dashboard {
 
     let assignable = [];
     // Supervisor, Coordenador, Chefe, Gerente and Admin can assign to anyone (except Admins)
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     if (privilegedRoles.includes(user.role)) {
       if (user.role === 'Gestor CC') {
         assignable = this.users().filter(u => u.role !== 'Administrador' && u.nucleus?.trim().toUpperCase().endsWith('CC'));
       } else if (user.role === 'Gestor CCJ') {
         assignable = this.users().filter(u => u.role !== 'Administrador' && u.nucleus?.trim().toUpperCase().endsWith('CCJ'));
+      } else if (user.role === 'Gestor 1_7') {
+        assignable = this.users().filter(u => u.role !== 'Administrador' && ['1ª CCJ', '7ª CCJ'].includes(u.nucleus?.trim() || ''));
       } else {
         assignable = this.users().filter(u => u.role !== 'Administrador');
       }
@@ -1238,7 +1250,7 @@ export class Dashboard {
     if (!user) return false;
 
     // Supervisor, Coordenador, Chefe, Gerente and Admin can assign any process
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     if (privilegedRoles.includes(user.role)) return true;
 
     return false;
@@ -1249,7 +1261,7 @@ export class Dashboard {
     if (!user) return false;
 
     // Admins, Coordinators, Supervisors and Managers can always change
-    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ'];
+    const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     if (privilegedRoles.includes(user.role)) return true;
 
     // Contadores can change if the process is assigned to them
@@ -1432,7 +1444,9 @@ export class Dashboard {
     let nucleus = this.nucleusFilter();
     if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
       nucleus = user.nucleus;
-    } else if (nucleus === 'Todos') {
+    } else if (user.role === 'Gestor 1_7') {
+      if (!nucleus || nucleus === 'Todos') nucleus = user.nucleus;
+    } else if (!nucleus || nucleus === 'Todos') {
       nucleus = user.nucleus;
     }
 
