@@ -469,7 +469,7 @@
                       Duplicado
                     </span>
                   }
-                  @if (!process.pje) {
+                  @if (!process.pje && process.status?.trim()?.toLowerCase()?.startsWith('pendente')) {
                     <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 font-bold text-[9px] uppercase tracking-wider border border-orange-300 shadow-xs flex items-center gap-0.5" title="Processo pendente no SAGEP não encontrado no PJe (PJe = false)!">
                       <span class="material-symbols-outlined text-[10px]">sync_problem</span>
                       PJe
@@ -666,7 +666,7 @@
             </div>
             <div>
               <h3 class="text-lg font-bold text-slate-900">Atribuição Automática</h3>
-              <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">Núcleo: {{ nucleusFilter() === 'Todos' ? currentUser()?.nucleus : nucleusFilter() }}</p>
+              <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">Núcleo: {{ selectedAutoAssignNucleus() || (nucleusFilter() === 'Todos' ? currentUser()?.nucleus : nucleusFilter()) }}</p>
             </div>
           </div>
           <button (click)="cancelAutoAssign()" class="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">

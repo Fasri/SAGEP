@@ -94,7 +94,7 @@ export class Dashboard {
     const pjeProcs = this.pjeDivergentServerProcesses();
     const allProcsMap = new Map<string, Process>();
 
-    [...storeProcs, ...serverProcs, ...pjeProcs].forEach(p => {
+    [...pjeProcs, ...storeProcs, ...serverProcs].forEach(p => {
       if (p && p.id) allProcsMap.set(p.id, p);
     });
 
@@ -141,7 +141,7 @@ export class Dashboard {
     const pjeProcs = this.pjeDivergentServerProcesses();
     const allProcsMap = new Map<string, Process>();
 
-    [...storeProcs, ...serverProcs, ...pjeProcs].forEach(p => {
+    [...pjeProcs, ...storeProcs, ...serverProcs].forEach(p => {
       if (p && p.id) allProcsMap.set(p.id, p);
     });
 
@@ -216,7 +216,7 @@ export class Dashboard {
     const pjeProcs = this.pjeDivergentServerProcesses();
     const allProcsMap = new Map<string, Process>();
 
-    [...storeProcs, ...serverProcs, ...pjeProcs].forEach(p => {
+    [...pjeProcs, ...storeProcs, ...serverProcs].forEach(p => {
       if (p && p.id) allProcsMap.set(p.id, p);
     });
 
@@ -370,7 +370,7 @@ export class Dashboard {
   canChangeAutoAssignNucleus = computed(() => {
     const user = this.currentUser();
     if (!user) return false;
-    return ['Administrador', 'Coordenador', 'Supervisor'].includes(user.role);
+    return ['Administrador', 'Coordenador', 'Supervisor', 'Gestor 1_7'].includes(user.role);
   });
 
   usersInNucleusForAutoAssign = computed(() => {
@@ -929,9 +929,14 @@ export class Dashboard {
 
   async updateStatus(process: Process, newStatus: string) {
     if (process.status === 'Pendente' && newStatus !== 'Pendente' && !process.assignedToId) {
-      this.triggerUnassignedWarning();
-      this.openStatusDropdownId.set(null);
-      return;
+      const user = this.currentUser();
+      if (user) {
+        this.assignProcess(process, user.id);
+      } else {
+        this.triggerUnassignedWarning();
+        this.openStatusDropdownId.set(null);
+        return;
+      }
     }
 
     // Update local state first (Optimistic)
@@ -941,15 +946,24 @@ export class Dashboard {
       status: newStatus,
       ...(isNotPending ? { pje: false } : {})
     } : p));
+    this.pjeDivergentServerProcesses.update(prev => prev.map(p => p.id === process.id ? {
+      ...p,
+      status: newStatus,
+      ...(isNotPending ? { pje: false } : {})
+    } : p));
     this.openStatusDropdownId.set(null); // Fecha o dropdown imediatamente
 
     try {
       await this.store.updateProcessStatus(process.id, newStatus as Process['status']);
       // Pequeno delay para garantir que o trigger do banco terminou o recalculo
-      setTimeout(() => this.loadServerData(), 500);
+      setTimeout(() => {
+        this.loadServerData();
+        this.loadPjeDivergentServerData();
+      }, 500);
     } catch (e) {
       console.error('Dashboard: Erro ao atualizar status:', e);
       this.loadServerData(); // Força recarga em caso de erro
+      this.loadPjeDivergentServerData();
     }
   }
 
