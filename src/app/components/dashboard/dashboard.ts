@@ -993,6 +993,12 @@ export class Dashboard {
   }
 
   async updateStatus(process: Process, newStatus: string) {
+    if (!this.canChangeStatus(process)) {
+      this.showError('Processos de outros núcleos são apenas para visualização e não podem ser alterados.');
+      this.openStatusDropdownId.set(null);
+      return;
+    }
+
     if (process.status === 'Pendente' && newStatus !== 'Pendente' && !process.assignedToId) {
       this.triggerUnassignedWarning();
       this.openStatusDropdownId.set(null);
@@ -1019,6 +1025,12 @@ export class Dashboard {
   }
 
   async updatePriority(process: Process, newPriority: string) {
+    if (!this.canEditPriority(process)) {
+      this.showError('Processos de outros núcleos são apenas para visualização.');
+      this.openPriorityDropdownId.set(null);
+      return;
+    }
+
     // Update local state first (Optimistic)
     this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, priority: newPriority } : p));
     this.openPriorityDropdownId.set(null); // Fecha o dropdown
@@ -1033,6 +1045,11 @@ export class Dashboard {
   }
 
   async assignProcess(process: Process, userId: string) {
+    if (!this.canAssign(process)) {
+      this.showError('Processos de outros núcleos são apenas para visualização.');
+      return;
+    }
+
     // Update local state first (Optimistic)
     this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, assignedToId: userId } : p));
 
@@ -1045,28 +1062,54 @@ export class Dashboard {
     }
   }
 
-  canEditPriority(): boolean {
+  isExternalProcess(process?: Process): boolean {
+    if (!process) return false;
     const user = this.currentUser();
     if (!user) return false;
+    return this.isExternalNucleus(process.nucleus, user);
+  }
+
+  canEditProcess(process?: Process): boolean {
+    const user = this.currentUser();
+    if (!user) return false;
+    // Administrador, Coordenador e Supervisor podem gerenciar qualquer processo
+    if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) return true;
+    // Processos externos para o gestor são estritamente somente leitura
+    if (process && this.isExternalProcess(process)) {
+      return false;
+    }
+    return true;
+  }
+
+  canEditPriority(process?: Process): boolean {
+    const user = this.currentUser();
+    if (!user) return false;
+    if (!this.canEditProcess(process)) return false;
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     return privilegedRoles.includes(user.role);
   }
 
-  canDeleteProcess(): boolean {
+  canDeleteProcess(process?: Process): boolean {
     const user = this.currentUser();
     if (!user) return false;
+    if (!this.canEditProcess(process)) return false;
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     return privilegedRoles.includes(user.role);
   }
 
-  canEditCompletionDate(): boolean {
+  canEditCompletionDate(process?: Process): boolean {
     const user = this.currentUser();
     if (!user) return false;
+    if (!this.canEditProcess(process)) return false;
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     return privilegedRoles.includes(user.role);
   }
 
   async deleteProcess(process: Process) {
+    if (!this.canDeleteProcess(process)) {
+      this.showError('Processos de outros núcleos não podem ser excluídos.');
+      return;
+    }
     this.confirmDeleteProcess.set(process);
   }
 
@@ -1087,6 +1130,11 @@ export class Dashboard {
   }
 
   async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'priority' | 'completionDate' | 'assignmentDate', event: Event) {
+    if (!this.canEditProcess(process)) {
+      this.showError('Processos de outros núcleos são apenas para visualização.');
+      return;
+    }
+
     const input = event.target as HTMLInputElement | HTMLSelectElement;
 
     if (field === 'valorCustas') {
@@ -1310,9 +1358,10 @@ export class Dashboard {
     return assignable.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }
 
-  canAssign(): boolean {
+  canAssign(process?: Process): boolean {
     const user = this.currentUser();
     if (!user) return false;
+    if (!this.canEditProcess(process)) return false;
 
     // Supervisor, Coordenador, Chefe, Gerente and Admin can assign any process
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
@@ -1324,6 +1373,15 @@ export class Dashboard {
   canChangeStatus(process: Process): boolean {
     const user = this.currentUser();
     if (!user) return false;
+
+    // Processos de outros núcleos são estritamente somente leitura para o gestor
+    if (!this.canEditProcess(process)) {
+      // Contadores podem mudar status do processo se for atribuído a eles
+      if (user.role === 'Contador Judicial' && process.assignedToId === user.id) {
+        return process.status === 'Pendente';
+      }
+      return false;
+    }
 
     // Admins, Coordinators, Supervisors and Managers can always change
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
