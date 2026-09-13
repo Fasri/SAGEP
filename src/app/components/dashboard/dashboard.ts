@@ -51,9 +51,49 @@ export class Dashboard {
   onlyAssignedToMe = signal(false);
   unassignedOnly = signal(false);
   externalAccountantsOnly = signal(false);
+  teamExternalProcessesOnly = signal(false);
   isFilterVisible = signal(false);
   currentPage = signal(1);
   pageSize = 20;
+
+  managedAccountants = computed(() => {
+    const user = this.currentUser();
+    if (!user) return [];
+    const allUsers = this.users();
+    if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) {
+      return allUsers.filter(u => ['Contador Judicial', 'Chefe', 'Gerente'].includes(u.role));
+    } else if (user.role === 'Gestor CC') {
+      return allUsers.filter(u => u.nucleus?.trim().toUpperCase().endsWith('CC'));
+    } else if (user.role === 'Gestor CCJ') {
+      return allUsers.filter(u => u.nucleus?.trim().toUpperCase().endsWith('CCJ'));
+    } else if (user.role === 'Gestor 1_7') {
+      return allUsers.filter(u => ['1ª CCJ', '7ª CCJ'].includes(u.nucleus?.trim()));
+    } else {
+      const uNuc = user.nucleus?.trim().toUpperCase() || '';
+      return allUsers.filter(u => (u.nucleus?.trim().toUpperCase() === uNuc) || u.id === user.id);
+    }
+  });
+
+  managedAccountantIds = computed(() => {
+    return this.managedAccountants().map(u => u.id);
+  });
+
+  private isExternalNucleus(nucleus: string | undefined, user: { role: string; nucleus?: string } | null): boolean {
+    if (!user || !nucleus) return true;
+    const pNuc = nucleus.trim().toUpperCase();
+    if (user.role === 'Gestor CC') {
+      return !pNuc.endsWith('CC');
+    } else if (user.role === 'Gestor CCJ') {
+      return !pNuc.endsWith('CCJ');
+    } else if (user.role === 'Gestor 1_7') {
+      return !['1ª CCJ', '7ª CCJ'].includes(nucleus.trim());
+    } else if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) {
+      return false;
+    } else {
+      const uNuc = user.nucleus?.trim().toUpperCase() || '';
+      return pNuc !== uNuc;
+    }
+  }
 
   nucleos = computed(() => {
     const user = this.currentUser();
@@ -101,22 +141,24 @@ export class Dashboard {
     const all = Array.from(allProcsMap.values());
     if (!user) return [];
 
+    const managedIds = new Set(this.managedAccountantIds());
+
     const res = all.filter(p => {
       if (user.role === 'Administrador' || user.role === 'Coordenador' || user.role === 'Supervisor') {
         return true;
       } else if (user.role === 'Gestor CC') {
-        return p.nucleus?.trim().toUpperCase().endsWith('CC');
+        return p.nucleus?.trim().toUpperCase().endsWith('CC') || (!!p.assignedToId && managedIds.has(p.assignedToId));
       } else if (user.role === 'Gestor CCJ') {
-        return p.nucleus?.trim().toUpperCase().endsWith('CCJ');
+        return p.nucleus?.trim().toUpperCase().endsWith('CCJ') || (!!p.assignedToId && managedIds.has(p.assignedToId));
       } else if (user.role === 'Gestor 1_7') {
-        return ['1ª CCJ', '7ª CCJ'].includes(p.nucleus?.trim());
+        return ['1ª CCJ', '7ª CCJ'].includes(p.nucleus?.trim()) || (!!p.assignedToId && managedIds.has(p.assignedToId));
       } else if (user.role === 'Contador Judicial') {
         return p.assignedToId === user.id;
       } else {
         // Use normalized comparison for nucleus to handle encoding issues
         const pNucleus = p.nucleus?.trim().toUpperCase() || '';
         const uNucleus = user.nucleus?.trim().toUpperCase() || '';
-        return pNucleus === uNucleus || p.assignedToId === user.id;
+        return pNucleus === uNucleus || p.assignedToId === user.id || (!!p.assignedToId && managedIds.has(p.assignedToId));
       }
     });
     console.log('Dashboard: visibleProcesses count:', res.length, 'Total processes:', all.length);
@@ -285,6 +327,7 @@ export class Dashboard {
 
     if (newOnlyDuplicates) {
       this.onlyPjeDivergent.set(false);
+      this.teamExternalProcessesOnly.set(false);
       this.isFilterVisible.set(true);
       this.statusFilter.set('Todos');
       this.filterForm.patchValue({
@@ -305,6 +348,7 @@ export class Dashboard {
 
     if (newOnlyPje) {
       this.onlyDuplicates.set(false);
+      this.teamExternalProcessesOnly.set(false);
       this.isFilterVisible.set(true);
       this.statusFilter.set('Pendente');
       this.filterForm.patchValue({
@@ -346,6 +390,7 @@ export class Dashboard {
     onlyAssignedToMe: false,
     unassignedOnly: false,
     externalAccountantsOnly: false,
+    teamExternalProcessesOnly: false,
     onlyReturns: false,
     over30DaysOnly: false,
     onlyDuplicates: false,
@@ -719,7 +764,9 @@ export class Dashboard {
         onlyReturns: filters.onlyReturns,
         over30DaysOnly: filters.over30DaysOnly,
         onlyPjeDivergent: this.onlyPjeDivergent(),
-        externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
+        externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined,
+        teamExternalProcessesOnly: filters.teamExternalProcessesOnly,
+        managedAccountantIds: filters.teamExternalProcessesOnly ? this.managedAccountantIds() : undefined
       });
 
       if (this.currentRequestId !== requestId) {
@@ -824,6 +871,7 @@ export class Dashboard {
     this.onlyAssignedToMe.set(false);
     this.unassignedOnly.set(false);
     this.externalAccountantsOnly.set(false);
+    this.teamExternalProcessesOnly.set(false);
     this.onlyReturns.set(false);
     this.over30DaysOnly.set(false);
     this.applyFilters();
@@ -845,6 +893,7 @@ export class Dashboard {
       onlyAssignedToMe: this.onlyAssignedToMe(),
       unassignedOnly: this.unassignedOnly(),
       externalAccountantsOnly: this.externalAccountantsOnly(),
+      teamExternalProcessesOnly: this.teamExternalProcessesOnly(),
       onlyReturns: this.onlyReturns(),
       over30DaysOnly: this.over30DaysOnly(),
       onlyDuplicates: this.onlyDuplicates(),
@@ -861,11 +910,25 @@ export class Dashboard {
     this.applyFilters();
   }
 
+  toggleTeamExternalProcesses() {
+    const newValue = !this.teamExternalProcessesOnly();
+    if (newValue) {
+      this.unassignedOnly.set(false);
+      this.onlyAssignedToMe.set(false);
+      this.externalAccountantsOnly.set(false);
+      this.onlyDuplicates.set(false);
+      this.onlyPjeDivergent.set(false);
+    }
+    this.teamExternalProcessesOnly.set(newValue);
+    this.applyFilters();
+  }
+
   toggleExternalAccountants() {
     const newValue = !this.externalAccountantsOnly();
     if (newValue) {
       this.unassignedOnly.set(false);
       this.onlyAssignedToMe.set(false);
+      this.teamExternalProcessesOnly.set(false);
     }
     this.externalAccountantsOnly.set(newValue);
     this.applyFilters();
@@ -876,6 +939,7 @@ export class Dashboard {
     if (newValue) {
       this.onlyAssignedToMe.set(false);
       this.externalAccountantsOnly.set(false);
+      this.teamExternalProcessesOnly.set(false);
     }
     this.unassignedOnly.set(newValue);
     this.applyFilters();
@@ -886,6 +950,7 @@ export class Dashboard {
     if (newValue) {
       this.unassignedOnly.set(false);
       this.externalAccountantsOnly.set(false);
+      this.teamExternalProcessesOnly.set(false);
     }
     this.onlyAssignedToMe.set(newValue);
     this.applyFilters();

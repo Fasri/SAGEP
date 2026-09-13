@@ -276,19 +276,39 @@ export class ProcessService {
   }
 
   private applyFiltersToQuery(query: any, options: PaginationOptions): any {
-    if (options.user.role === 'Contador Judicial') {
-      query = (query as any).eq('assigned_to_id', options.user.id);
-    } else if (options.user.role === 'Gestor CC') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).like('nucleus', '%CC');
-    } else if (options.user.role === 'Gestor CCJ') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).like('nucleus', '%CCJ');
-    } else if (options.user.role === 'Gestor 1_7') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).in('nucleus', ['1ª CCJ', '7ª CCJ']);
-    } else if (!['Administrador', 'Coordenador', 'Supervisor'].includes(options.user.role)) {
-      query = (query as any).or(`nucleus.eq."${options.user.nucleus}",assigned_to_id.eq.${options.user.id}`);
+    if (options.teamExternalProcessesOnly) {
+      // Filtrar processos atribuídos aos gerenciados da equipe
+      if (options.managedAccountantIds && options.managedAccountantIds.length > 0) {
+        query = (query as any).in('assigned_to_id', options.managedAccountantIds);
+      } else {
+        query = (query as any).eq('assigned_to_id', '00000000-0000-0000-0000-000000000000');
+      }
+
+      // Excluir processos cujo núcleo de origem é o próprio núcleo/escopo do gestor
+      if (options.user.role === 'Gestor CC') {
+        query = (query as any).not('nucleus', 'like', '%CC');
+      } else if (options.user.role === 'Gestor CCJ') {
+        query = (query as any).not('nucleus', 'like', '%CCJ');
+      } else if (options.user.role === 'Gestor 1_7') {
+        query = (query as any).not('nucleus', 'in', '("1ª CCJ","7ª CCJ")');
+      } else if (options.user.nucleus) {
+        query = (query as any).neq('nucleus', options.user.nucleus);
+      }
+    } else {
+      if (options.user.role === 'Contador Judicial') {
+        query = (query as any).eq('assigned_to_id', options.user.id);
+      } else if (options.user.role === 'Gestor CC') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        query = (query as any).like('nucleus', '%CC');
+      } else if (options.user.role === 'Gestor CCJ') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        query = (query as any).like('nucleus', '%CCJ');
+      } else if (options.user.role === 'Gestor 1_7') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        query = (query as any).in('nucleus', ['1ª CCJ', '7ª CCJ']);
+      } else if (!['Administrador', 'Coordenador', 'Supervisor'].includes(options.user.role)) {
+        query = (query as any).or(`nucleus.eq."${options.user.nucleus}",assigned_to_id.eq.${options.user.id}`);
+      }
     }
 
     if (options.nucleusFilter) {
