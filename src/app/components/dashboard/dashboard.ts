@@ -1074,7 +1074,9 @@ export class Dashboard {
     if (!user) return false;
     // Administrador, Coordenador e Supervisor podem gerenciar qualquer processo
     if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) return true;
-    // Processos externos para o gestor são estritamente somente leitura
+    // Se o processo estiver atribuído diretamente ao usuário logado (inclusive o gestor), ele pode editar normalmente
+    if (process && process.assignedToId === user.id) return true;
+    // Processos de outros núcleos atribuídos a terceiros são estritamente somente leitura
     if (process && this.isExternalProcess(process)) {
       return false;
     }
@@ -1374,12 +1376,13 @@ export class Dashboard {
     const user = this.currentUser();
     if (!user) return false;
 
-    // Processos de outros núcleos são estritamente somente leitura para o gestor
+    // Se o processo estiver atribuído diretamente ao usuário atual (gestor ou contador), ele pode alterar o status
+    if (process && process.assignedToId === user.id) {
+      return true;
+    }
+
+    // Processos de outros núcleos atribuídos a terceiros são estritamente somente leitura para o gestor
     if (!this.canEditProcess(process)) {
-      // Contadores podem mudar status do processo se for atribuído a eles
-      if (user.role === 'Contador Judicial' && process.assignedToId === user.id) {
-        return process.status === 'Pendente';
-      }
       return false;
     }
 
@@ -1387,12 +1390,6 @@ export class Dashboard {
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     if (privilegedRoles.includes(user.role)) return true;
 
-    // Contadores can change if the process is assigned to them
-    if (user.role === 'Contador Judicial' && process.assignedToId === user.id) {
-      return true;
-    }
-
-    // Contadores can only change if it's still Pendente
     return process.status === 'Pendente';
   }
 
