@@ -51,9 +51,49 @@ export class Dashboard {
   onlyAssignedToMe = signal(false);
   unassignedOnly = signal(false);
   externalAccountantsOnly = signal(false);
+  teamExternalProcessesOnly = signal(false);
   isFilterVisible = signal(false);
   currentPage = signal(1);
   pageSize = 20;
+
+  managedAccountants = computed(() => {
+    const user = this.currentUser();
+    if (!user) return [];
+    const allUsers = this.users();
+    if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) {
+      return allUsers.filter(u => ['Contador Judicial', 'Chefe', 'Gerente'].includes(u.role));
+    } else if (user.role === 'Gestor CC') {
+      return allUsers.filter(u => u.nucleus?.trim().toUpperCase().endsWith('CC'));
+    } else if (user.role === 'Gestor CCJ') {
+      return allUsers.filter(u => u.nucleus?.trim().toUpperCase().endsWith('CCJ'));
+    } else if (user.role === 'Gestor 1_7') {
+      return allUsers.filter(u => ['1ª CCJ', '7ª CCJ'].includes(u.nucleus?.trim()));
+    } else {
+      const uNuc = user.nucleus?.trim().toUpperCase() || '';
+      return allUsers.filter(u => (u.nucleus?.trim().toUpperCase() === uNuc) || u.id === user.id);
+    }
+  });
+
+  managedAccountantIds = computed(() => {
+    return this.managedAccountants().map(u => u.id);
+  });
+
+  private isExternalNucleus(nucleus: string | undefined, user: { role: string; nucleus?: string } | null): boolean {
+    if (!user || !nucleus) return true;
+    const pNuc = nucleus.trim().toUpperCase();
+    if (user.role === 'Gestor CC') {
+      return !pNuc.endsWith('CC');
+    } else if (user.role === 'Gestor CCJ') {
+      return !pNuc.endsWith('CCJ');
+    } else if (user.role === 'Gestor 1_7') {
+      return !['1ª CCJ', '7ª CCJ'].includes(nucleus.trim());
+    } else if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) {
+      return false;
+    } else {
+      const uNuc = user.nucleus?.trim().toUpperCase() || '';
+      return pNuc !== uNuc;
+    }
+  }
 
   nucleos = computed(() => {
     const user = this.currentUser();
@@ -101,22 +141,24 @@ export class Dashboard {
     const all = Array.from(allProcsMap.values());
     if (!user) return [];
 
+    const managedIds = new Set(this.managedAccountantIds());
+
     const res = all.filter(p => {
       if (user.role === 'Administrador' || user.role === 'Coordenador' || user.role === 'Supervisor') {
         return true;
       } else if (user.role === 'Gestor CC') {
-        return p.nucleus?.trim().toUpperCase().endsWith('CC');
+        return p.nucleus?.trim().toUpperCase().endsWith('CC') || (!!p.assignedToId && managedIds.has(p.assignedToId));
       } else if (user.role === 'Gestor CCJ') {
-        return p.nucleus?.trim().toUpperCase().endsWith('CCJ');
+        return p.nucleus?.trim().toUpperCase().endsWith('CCJ') || (!!p.assignedToId && managedIds.has(p.assignedToId));
       } else if (user.role === 'Gestor 1_7') {
-        return ['1ª CCJ', '7ª CCJ'].includes(p.nucleus?.trim());
+        return ['1ª CCJ', '7ª CCJ'].includes(p.nucleus?.trim()) || (!!p.assignedToId && managedIds.has(p.assignedToId));
       } else if (user.role === 'Contador Judicial') {
         return p.assignedToId === user.id;
       } else {
         // Use normalized comparison for nucleus to handle encoding issues
         const pNucleus = p.nucleus?.trim().toUpperCase() || '';
         const uNucleus = user.nucleus?.trim().toUpperCase() || '';
-        return pNucleus === uNucleus || p.assignedToId === user.id;
+        return pNucleus === uNucleus || p.assignedToId === user.id || (!!p.assignedToId && managedIds.has(p.assignedToId));
       }
     });
     console.log('Dashboard: visibleProcesses count:', res.length, 'Total processes:', all.length);
@@ -285,6 +327,7 @@ export class Dashboard {
 
     if (newOnlyDuplicates) {
       this.onlyPjeDivergent.set(false);
+      this.teamExternalProcessesOnly.set(false);
       this.isFilterVisible.set(true);
       this.statusFilter.set('Todos');
       this.filterForm.patchValue({
@@ -305,6 +348,7 @@ export class Dashboard {
 
     if (newOnlyPje) {
       this.onlyDuplicates.set(false);
+      this.teamExternalProcessesOnly.set(false);
       this.isFilterVisible.set(true);
       this.statusFilter.set('Pendente');
       this.filterForm.patchValue({
@@ -346,6 +390,7 @@ export class Dashboard {
     onlyAssignedToMe: false,
     unassignedOnly: false,
     externalAccountantsOnly: false,
+    teamExternalProcessesOnly: false,
     onlyReturns: false,
     over30DaysOnly: false,
     onlyDuplicates: false,
@@ -719,7 +764,9 @@ export class Dashboard {
         onlyReturns: filters.onlyReturns,
         over30DaysOnly: filters.over30DaysOnly,
         onlyPjeDivergent: this.onlyPjeDivergent(),
-        externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
+        externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined,
+        teamExternalProcessesOnly: filters.teamExternalProcessesOnly,
+        managedAccountantIds: filters.teamExternalProcessesOnly ? this.managedAccountantIds() : undefined
       });
 
       if (this.currentRequestId !== requestId) {
@@ -824,6 +871,7 @@ export class Dashboard {
     this.onlyAssignedToMe.set(false);
     this.unassignedOnly.set(false);
     this.externalAccountantsOnly.set(false);
+    this.teamExternalProcessesOnly.set(false);
     this.onlyReturns.set(false);
     this.over30DaysOnly.set(false);
     this.applyFilters();
@@ -845,6 +893,7 @@ export class Dashboard {
       onlyAssignedToMe: this.onlyAssignedToMe(),
       unassignedOnly: this.unassignedOnly(),
       externalAccountantsOnly: this.externalAccountantsOnly(),
+      teamExternalProcessesOnly: this.teamExternalProcessesOnly(),
       onlyReturns: this.onlyReturns(),
       over30DaysOnly: this.over30DaysOnly(),
       onlyDuplicates: this.onlyDuplicates(),
@@ -861,11 +910,25 @@ export class Dashboard {
     this.applyFilters();
   }
 
+  toggleTeamExternalProcesses() {
+    const newValue = !this.teamExternalProcessesOnly();
+    if (newValue) {
+      this.unassignedOnly.set(false);
+      this.onlyAssignedToMe.set(false);
+      this.externalAccountantsOnly.set(false);
+      this.onlyDuplicates.set(false);
+      this.onlyPjeDivergent.set(false);
+    }
+    this.teamExternalProcessesOnly.set(newValue);
+    this.applyFilters();
+  }
+
   toggleExternalAccountants() {
     const newValue = !this.externalAccountantsOnly();
     if (newValue) {
       this.unassignedOnly.set(false);
       this.onlyAssignedToMe.set(false);
+      this.teamExternalProcessesOnly.set(false);
     }
     this.externalAccountantsOnly.set(newValue);
     this.applyFilters();
@@ -876,6 +939,7 @@ export class Dashboard {
     if (newValue) {
       this.onlyAssignedToMe.set(false);
       this.externalAccountantsOnly.set(false);
+      this.teamExternalProcessesOnly.set(false);
     }
     this.unassignedOnly.set(newValue);
     this.applyFilters();
@@ -886,6 +950,7 @@ export class Dashboard {
     if (newValue) {
       this.unassignedOnly.set(false);
       this.externalAccountantsOnly.set(false);
+      this.teamExternalProcessesOnly.set(false);
     }
     this.onlyAssignedToMe.set(newValue);
     this.applyFilters();
@@ -928,6 +993,12 @@ export class Dashboard {
   }
 
   async updateStatus(process: Process, newStatus: string) {
+    if (!this.canChangeStatus(process)) {
+      this.showError('Processos de outros núcleos são apenas para visualização e não podem ser alterados.');
+      this.openStatusDropdownId.set(null);
+      return;
+    }
+
     if (process.status === 'Pendente' && newStatus !== 'Pendente' && !process.assignedToId) {
       const user = this.currentUser();
       if (user) {
@@ -968,6 +1039,12 @@ export class Dashboard {
   }
 
   async updatePriority(process: Process, newPriority: string) {
+    if (!this.canEditPriority(process)) {
+      this.showError('Processos de outros núcleos são apenas para visualização.');
+      this.openPriorityDropdownId.set(null);
+      return;
+    }
+
     // Update local state first (Optimistic)
     this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, priority: newPriority } : p));
     this.openPriorityDropdownId.set(null); // Fecha o dropdown
@@ -982,6 +1059,11 @@ export class Dashboard {
   }
 
   async assignProcess(process: Process, userId: string) {
+    if (!this.canAssign(process)) {
+      this.showError('Processos de outros núcleos são apenas para visualização.');
+      return;
+    }
+
     // Update local state first (Optimistic)
     this.serverProcesses.update(prev => prev.map(p => p.id === process.id ? { ...p, assignedToId: userId } : p));
 
@@ -994,28 +1076,56 @@ export class Dashboard {
     }
   }
 
-  canEditPriority(): boolean {
+  isExternalProcess(process?: Process): boolean {
+    if (!process) return false;
     const user = this.currentUser();
     if (!user) return false;
+    return this.isExternalNucleus(process.nucleus, user);
+  }
+
+  canEditProcess(process?: Process): boolean {
+    const user = this.currentUser();
+    if (!user) return false;
+    // Administrador, Coordenador e Supervisor podem gerenciar qualquer processo
+    if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) return true;
+    // Se o processo estiver atribuído diretamente ao usuário logado (inclusive o gestor), ele pode editar normalmente
+    if (process && process.assignedToId === user.id) return true;
+    // Processos de outros núcleos atribuídos a terceiros são estritamente somente leitura
+    if (process && this.isExternalProcess(process)) {
+      return false;
+    }
+    return true;
+  }
+
+  canEditPriority(process?: Process): boolean {
+    const user = this.currentUser();
+    if (!user) return false;
+    if (!this.canEditProcess(process)) return false;
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     return privilegedRoles.includes(user.role);
   }
 
-  canDeleteProcess(): boolean {
+  canDeleteProcess(process?: Process): boolean {
     const user = this.currentUser();
     if (!user) return false;
+    if (!this.canEditProcess(process)) return false;
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     return privilegedRoles.includes(user.role);
   }
 
-  canEditCompletionDate(): boolean {
+  canEditCompletionDate(process?: Process): boolean {
     const user = this.currentUser();
     if (!user) return false;
+    if (!this.canEditProcess(process)) return false;
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     return privilegedRoles.includes(user.role);
   }
 
   async deleteProcess(process: Process) {
+    if (!this.canDeleteProcess(process)) {
+      this.showError('Processos de outros núcleos não podem ser excluídos.');
+      return;
+    }
     this.confirmDeleteProcess.set(process);
   }
 
@@ -1036,6 +1146,11 @@ export class Dashboard {
   }
 
   async updateFields(process: Process, field: 'valorCustas' | 'observacao' | 'priority' | 'completionDate' | 'assignmentDate', event: Event) {
+    if (!this.canEditProcess(process)) {
+      this.showError('Processos de outros núcleos são apenas para visualização.');
+      return;
+    }
+
     const input = event.target as HTMLInputElement | HTMLSelectElement;
 
     if (field === 'valorCustas') {
@@ -1259,9 +1374,10 @@ export class Dashboard {
     return assignable.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }
 
-  canAssign(): boolean {
+  canAssign(process?: Process): boolean {
     const user = this.currentUser();
     if (!user) return false;
+    if (!this.canEditProcess(process)) return false;
 
     // Supervisor, Coordenador, Chefe, Gerente and Admin can assign any process
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
@@ -1274,16 +1390,20 @@ export class Dashboard {
     const user = this.currentUser();
     if (!user) return false;
 
+    // Se o processo estiver atribuído diretamente ao usuário atual (gestor ou contador), ele pode alterar o status
+    if (process && process.assignedToId === user.id) {
+      return true;
+    }
+
+    // Processos de outros núcleos atribuídos a terceiros são estritamente somente leitura para o gestor
+    if (!this.canEditProcess(process)) {
+      return false;
+    }
+
     // Admins, Coordinators, Supervisors and Managers can always change
     const privilegedRoles: Role[] = ['Administrador', 'Coordenador', 'Supervisor', 'Chefe', 'Gerente', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7'];
     if (privilegedRoles.includes(user.role)) return true;
 
-    // Contadores can change if the process is assigned to them
-    if (user.role === 'Contador Judicial' && process.assignedToId === user.id) {
-      return true;
-    }
-
-    // Contadores can only change if it's still Pendente
     return process.status === 'Pendente';
   }
 

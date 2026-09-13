@@ -339,6 +339,17 @@
               Contadores Externos
             </button>
 
+            <button (click)="toggleTeamExternalProcesses()" 
+                    [class.bg-indigo-600]="teamExternalProcessesOnly()"
+                    [class.text-white]="teamExternalProcessesOnly()"
+                    [class.bg-slate-100]="!teamExternalProcessesOnly()"
+                    [class.text-slate-600]="!teamExternalProcessesOnly()"
+                    class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm hover:opacity-90"
+                    title="Exibir processos de outros núcleos atribuídos a contadores da minha equipe">
+              <span class="material-symbols-outlined text-sm">move_to_inbox</span>
+              Processos Externos da Equipe
+            </button>
+
             <button (click)="toggleOnlyReturns()" 
                     [class.bg-orange-500]="onlyReturns()"
                     [class.text-white]="onlyReturns()"
@@ -457,7 +468,7 @@
                   <button (click)="copyProcessNumber(process.number)" title="Copiar Número do Processo" class="text-slate-400 hover:text-primary transition-colors cursor-pointer flex items-center justify-center">
                     <span class="material-symbols-outlined text-[14px]">content_copy</span>
                   </button>
-                  @if (canDeleteProcess()) {
+                  @if (canDeleteProcess(process)) {
                     <button (click)="deleteProcess(process)" title="Excluir Processo" class="text-rose-400 hover:text-rose-600 transition-colors cursor-pointer flex items-center justify-center">
                       <span class="material-symbols-outlined text-[14px]">delete</span>
                     </button>
@@ -484,9 +495,16 @@
                   {{ process.tempoNaContadoria !== null ? process.tempoNaContadoria + 'd' : '-' }}
                 </span>
               </td>
-              <td class="px-1 py-5 text-xs font-bold text-blue-600">{{ process.nucleus }}</td>
+              <td class="px-1 py-5 text-xs font-bold" [class.text-indigo-600]="isExternalProcess(process)" [class.text-blue-600]="!isExternalProcess(process)">
+                <div class="flex items-center gap-1">
+                  <span>{{ process.nucleus }}</span>
+                  @if (isExternalProcess(process)) {
+                    <span class="material-symbols-outlined text-[13px] text-indigo-500" title="Núcleo Externo (Apenas Visualização)">visibility</span>
+                  }
+                </div>
+              </td>
               <td class="px-1 py-5">
-                @if (canEditPriority()) {
+                @if (canEditPriority(process)) {
                   <div class="w-full min-w-[120px] relative">
                     <button (click)="togglePriorityDropdown(process.id, $event)"
                             class="w-full text-[10px] font-bold py-1 px-2 rounded-full border-none focus:ring-2 focus:ring-primary cursor-pointer transition-all text-center flex items-center justify-center gap-1"
@@ -515,7 +533,7 @@
                 }
               </td>
               <td class="px-1 py-5">
-                @if (canAssign()) {
+                @if (canAssign(process)) {
                   <div class="relative">
                     <span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">person</span>
                     <input type="text" [attr.list]="'assign-list-' + process.id"
@@ -543,28 +561,38 @@
                 </div>
               </td>
               <td class="px-1 py-5">
-                <div class="relative">
-                  <span class="absolute left-1 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">R$</span>
-                  <input type="text" 
-                         [value]="formatCurrency(process.valorCustas)"
-                         (input)="maskCurrency($event)"
-                         (change)="updateFields(process, 'valorCustas', $event)"
-                         class="w-24 bg-slate-50 border-none rounded-lg pl-6 py-1 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-primary outline-none">
-                </div>
+                @if (canEditProcess(process)) {
+                  <div class="relative">
+                    <span class="absolute left-1 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">R$</span>
+                    <input type="text" 
+                           [value]="formatCurrency(process.valorCustas)"
+                           (input)="maskCurrency($event)"
+                           (change)="updateFields(process, 'valorCustas', $event)"
+                           class="w-24 bg-slate-50 border-none rounded-lg pl-6 py-1 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-primary outline-none">
+                  </div>
+                } @else {
+                  <div class="text-xs font-medium text-slate-600 text-center">
+                    {{ process.valorCustas ? 'R$ ' + formatCurrency(process.valorCustas) : '-' }}
+                  </div>
+                }
               </td>
               <td class="px-1 py-5">
                 <div class="w-full min-w-[140px] relative">
                   <!-- Custom Dropdown Trigger -->
                   <button (click)="toggleStatusDropdown(process.id, $event)"
                           [disabled]="!canChangeStatus(process)"
-                          class="w-full text-[10px] font-bold py-1 px-3 rounded-full border-none focus:ring-2 focus:ring-primary cursor-pointer disabled:opacity-90 disabled:cursor-not-allowed transition-all text-center flex items-center justify-center gap-1"
+                          class="w-full text-[10px] font-bold py-1 px-3 rounded-full border-none focus:ring-2 focus:ring-primary transition-all text-center flex items-center justify-center gap-1"
+                          [class.cursor-pointer]="canChangeStatus(process)"
+                          [class.cursor-default]="!canChangeStatus(process)"
                           [ngClass]="getStatusClass(process.status)">
                     <span>{{ process.status }}</span>
-                    <mat-icon class="text-[14px] w-[14px] h-[14px]">expand_more</mat-icon>
+                    @if (canChangeStatus(process)) {
+                      <mat-icon class="text-[14px] w-[14px] h-[14px]">expand_more</mat-icon>
+                    }
                   </button>
  
                   <!-- Custom Dropdown List -->
-                  @if (openStatusDropdownId() === process.id) {
+                  @if (openStatusDropdownId() === process.id && canChangeStatus(process)) {
                     <div class="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
                       @for (status of statusTipos(); track status.id) {
                         <button (click)="updateStatus(process, status.nome)"
@@ -579,7 +607,7 @@
               </td>
               <td class="px-1 py-5">
                 <div class="text-[10px] text-slate-500 font-medium text-center">
-                  @if (canEditCompletionDate()) {
+                  @if (canEditCompletionDate(process)) {
                     <input type="date" 
                            [value]="process.completionDate"
                            (change)="updateFields(process, 'completionDate', $event)"
@@ -590,10 +618,16 @@
                 </div>
               </td>
               <td class="px-1 py-5">
-                <input type="text" [value]="process.observacao" 
-                       (change)="updateFields(process, 'observacao', $event)"
-                       placeholder="Nota..."
-                       class="w-32 bg-slate-50 border-none rounded-lg px-2 py-1 text-xs text-slate-600 focus:ring-2 focus:ring-primary outline-none italic">
+                @if (canEditProcess(process)) {
+                  <input type="text" [value]="process.observacao" 
+                         (change)="updateFields(process, 'observacao', $event)"
+                         placeholder="Nota..."
+                         class="w-32 bg-slate-50 border-none rounded-lg px-2 py-1 text-xs text-slate-600 focus:ring-2 focus:ring-primary outline-none italic">
+                } @else {
+                  <span class="text-xs text-slate-600 italic block truncate max-w-[130px]" [title]="process.observacao || ''">
+                    {{ process.observacao || '-' }}
+                  </span>
+                }
               </td>
             </tr>
           }

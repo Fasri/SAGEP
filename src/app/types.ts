@@ -84,6 +84,8 @@ export interface PaginationOptions {
   over30DaysOnly?: boolean;
   onlyDuplicates?: boolean;
   onlyPjeDivergent?: boolean;
+  teamExternalProcessesOnly?: boolean;
+  managedAccountantIds?: string[];
 }
 
 export interface ReportFilters {
