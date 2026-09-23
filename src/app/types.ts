@@ -53,6 +53,7 @@ export interface Process {
   pje?: boolean;
   tempoNaContadoria?: number | null;
   createdAt?: string;
+  inconsistenciaTempoReal?: boolean;
 }
 
 export interface AuditLog {
@@ -86,6 +87,7 @@ export interface PaginationOptions {
   onlyPjeDivergent?: boolean;
   teamExternalProcessesOnly?: boolean;
   managedAccountantIds?: string[];
+  onlyInconsistenciaTempoReal?: boolean;
 }
 
 export interface ReportFilters {
