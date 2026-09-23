@@ -73,7 +73,8 @@ export class ProcessService {
       pje: this.parseBoolean(p['pje'] ?? p['pje_flag'] ?? p['coluna_pje'] ?? p['pje_status']),
       tempoNaContadoria: (p['tempo_na_contadoria'] !== null && p['tempo_na_contadoria'] !== undefined)
         ? Number(p['tempo_na_contadoria'])
-        : null
+        : null,
+      inconsistenciaTempoReal: p['inconsistencia_tempo_real'] === true || p['inconsistencia_tempo_real'] === 'true'
     };
   }
 
@@ -276,7 +277,9 @@ export class ProcessService {
   }
 
   private applyFiltersToQuery(query: any, options: PaginationOptions): any {
-    if (options.teamExternalProcessesOnly) {
+    if (options.onlyAssignedToMe) {
+      query = (query as any).eq('assigned_to_id', options.user.id);
+    } else if (options.teamExternalProcessesOnly) {
       // Filtrar processos atribuídos aos gerenciados da equipe
       if (options.managedAccountantIds && options.managedAccountantIds.length > 0) {
         query = (query as any).in('assigned_to_id', options.managedAccountantIds);
@@ -295,19 +298,36 @@ export class ProcessService {
         query = (query as any).neq('nucleus', options.user.nucleus);
       }
     } else {
+      const managedIds = (options.managedAccountantIds || []).filter(id => !!id);
+      const scopeUserIds = Array.from(new Set([options.user.id, ...managedIds]));
+      const idListStr = scopeUserIds.join(',');
+
       if (options.user.role === 'Contador Judicial') {
         query = (query as any).eq('assigned_to_id', options.user.id);
       } else if (options.user.role === 'Gestor CC') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        query = (query as any).like('nucleus', '%CC');
+        if (!options.nucleusFilter || options.nucleusFilter === 'Todos') {
+          query = scopeUserIds.length > 0
+            ? (query as any).or(`nucleus.like.%CC,assigned_to_id.in.(${idListStr})`)
+            : (query as any).or(`nucleus.like.%CC,assigned_to_id.eq.${options.user.id}`);
+        }
       } else if (options.user.role === 'Gestor CCJ') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        query = (query as any).like('nucleus', '%CCJ');
+        if (!options.nucleusFilter || options.nucleusFilter === 'Todos') {
+          query = scopeUserIds.length > 0
+            ? (query as any).or(`nucleus.like.%CCJ,assigned_to_id.in.(${idListStr})`)
+            : (query as any).or(`nucleus.like.%CCJ,assigned_to_id.eq.${options.user.id}`);
+        }
       } else if (options.user.role === 'Gestor 1_7') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        query = (query as any).in('nucleus', ['1ª CCJ', '7ª CCJ']);
+        if (!options.nucleusFilter || options.nucleusFilter === 'Todos') {
+          query = scopeUserIds.length > 0
+            ? (query as any).or(`nucleus.in.("1ª CCJ","7ª CCJ"),assigned_to_id.in.(${idListStr})`)
+            : (query as any).or(`nucleus.in.("1ª CCJ","7ª CCJ"),assigned_to_id.eq.${options.user.id}`);
+        }
       } else if (!['Administrador', 'Coordenador', 'Supervisor'].includes(options.user.role)) {
-        query = (query as any).or(`nucleus.eq."${options.user.nucleus}",assigned_to_id.eq.${options.user.id}`);
+        if (!options.nucleusFilter || options.nucleusFilter === 'Todos') {
+          query = scopeUserIds.length > 0
+            ? (query as any).or(`nucleus.eq."${options.user.nucleus}",assigned_to_id.in.(${idListStr})`)
+            : (query as any).or(`nucleus.eq."${options.user.nucleus}",assigned_to_id.eq.${options.user.id}`);
+        }
       }
     }
 

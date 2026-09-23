@@ -147,11 +147,11 @@ export class Dashboard {
       if (user.role === 'Administrador' || user.role === 'Coordenador' || user.role === 'Supervisor') {
         return true;
       } else if (user.role === 'Gestor CC') {
-        return p.nucleus?.trim().toUpperCase().endsWith('CC') || (!!p.assignedToId && managedIds.has(p.assignedToId));
+        return p.nucleus?.trim().toUpperCase().endsWith('CC') || p.assignedToId === user.id || (!!p.assignedToId && managedIds.has(p.assignedToId));
       } else if (user.role === 'Gestor CCJ') {
-        return p.nucleus?.trim().toUpperCase().endsWith('CCJ') || (!!p.assignedToId && managedIds.has(p.assignedToId));
+        return p.nucleus?.trim().toUpperCase().endsWith('CCJ') || p.assignedToId === user.id || (!!p.assignedToId && managedIds.has(p.assignedToId));
       } else if (user.role === 'Gestor 1_7') {
-        return ['1ª CCJ', '7ª CCJ'].includes(p.nucleus?.trim()) || (!!p.assignedToId && managedIds.has(p.assignedToId));
+        return ['1ª CCJ', '7ª CCJ'].includes(p.nucleus?.trim()) || p.assignedToId === user.id || (!!p.assignedToId && managedIds.has(p.assignedToId));
       } else if (user.role === 'Contador Judicial') {
         return p.assignedToId === user.id;
       } else {
@@ -243,6 +243,9 @@ export class Dashboard {
   dismissPjeBanner = signal(false);
   onlyPjeDivergent = signal(false);
 
+  dismissInconsistenciaBanner = signal(false);
+  onlyInconsistenciaTempoReal = signal(false);
+
   canSeePjeAlert = computed(() => {
     const user = this.currentUser();
     if (!user) return false;
@@ -303,6 +306,63 @@ export class Dashboard {
     };
   });
 
+  canSeeInconsistenciaAlert = computed(() => {
+    const user = this.currentUser();
+    if (!user) return false;
+    const allowedRoles = ['Administrador', 'Coordenador', 'Supervisor', 'Gestor CC', 'Gestor CCJ', 'Gestor 1_7', 'Chefe', 'Gerente'];
+    return allowedRoles.includes(user.role);
+  });
+
+  inconsistenciaTempoRealInfo = computed(() => {
+    if (!this.canSeeInconsistenciaAlert()) return { count: 0, processes: [] as Process[], byNucleus: [] as { nucleus: string, count: number }[] };
+
+    const storeProcs = this.store.processes();
+    const serverProcs = this.serverProcesses();
+    const pjeProcs = this.pjeDivergentServerProcesses();
+    const allProcsMap = new Map<string, Process>();
+
+    [...storeProcs, ...serverProcs, ...pjeProcs].forEach(p => {
+      if (p && p.id) allProcsMap.set(p.id, p);
+    });
+
+    const all = Array.from(allProcsMap.values());
+    const user = this.currentUser();
+    if (!user) return { count: 0, processes: [] as Process[], byNucleus: [] as { nucleus: string, count: number }[] };
+
+    const inconsistentes = all.filter(p => {
+      if (!p.inconsistenciaTempoReal) return false;
+
+      if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) {
+        return true;
+      } else if (user.role === 'Gestor CC') {
+        return p.nucleus?.trim().toUpperCase().endsWith('CC');
+      } else if (user.role === 'Gestor CCJ') {
+        return p.nucleus?.trim().toUpperCase().endsWith('CCJ');
+      } else if (user.role === 'Gestor 1_7') {
+        return ['1ª CCJ', '7ª CCJ'].includes(p.nucleus?.trim());
+      } else {
+        const uNucleus = user.nucleus?.trim().toUpperCase() || '';
+        return (p.nucleus?.trim().toUpperCase() || '') === uNucleus;
+      }
+    });
+
+    const byNucleusMap = new Map<string, number>();
+    inconsistentes.forEach(p => {
+      const nuc = p.nucleus?.trim().toUpperCase() || 'SEM NÚCLEO';
+      byNucleusMap.set(nuc, (byNucleusMap.get(nuc) || 0) + 1);
+    });
+
+    const byNucleus = Array.from(byNucleusMap.entries())
+      .map(([nucleus, count]) => ({ nucleus, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      count: inconsistentes.length,
+      processes: inconsistentes,
+      byNucleus
+    };
+  });
+
   private parseBool(val: unknown): boolean {
     if (val === true || val === 1) return true;
     if (typeof val === 'string') {
@@ -349,8 +409,31 @@ export class Dashboard {
     if (newOnlyPje) {
       this.onlyDuplicates.set(false);
       this.teamExternalProcessesOnly.set(false);
+      this.onlyInconsistenciaTempoReal.set(false);
       this.isFilterVisible.set(true);
       this.statusFilter.set('Pendente');
+      this.filterForm.patchValue({
+        searchTerm: '',
+        startDate: '',
+        endDate: ''
+      });
+    }
+    this.applyFilters();
+  }
+
+  filterInconsistenciaTempoRealProcesses() {
+    const info = this.inconsistenciaTempoRealInfo();
+    if (info.count === 0 && !this.onlyInconsistenciaTempoReal()) return;
+
+    const newVal = !this.onlyInconsistenciaTempoReal();
+    this.onlyInconsistenciaTempoReal.set(newVal);
+
+    if (newVal) {
+      this.onlyDuplicates.set(false);
+      this.onlyPjeDivergent.set(false);
+      this.teamExternalProcessesOnly.set(false);
+      this.isFilterVisible.set(true);
+      this.statusFilter.set('Todos');
       this.filterForm.patchValue({
         searchTerm: '',
         startDate: '',
@@ -394,7 +477,8 @@ export class Dashboard {
     onlyReturns: false,
     over30DaysOnly: false,
     onlyDuplicates: false,
-    onlyPjeDivergent: false
+    onlyPjeDivergent: false,
+    onlyInconsistenciaTempoReal: false
   });
 
   stats = computed(() => {
@@ -474,6 +558,7 @@ export class Dashboard {
     const over30DaysOnly = filters.over30DaysOnly;
     const onlyDuplicates = this.onlyDuplicates();
     const onlyPjeDivergent = this.onlyPjeDivergent();
+    const onlyInconsistenciaTempoReal = this.onlyInconsistenciaTempoReal();
     const dupKeys = this.duplicatePendingInfo().numberKeys;
 
     // Se estiver filtrando duplicados ou divergentes do PJe, buscar dos processos visiveis ao usuario no seu escopo
@@ -488,6 +573,8 @@ export class Dashboard {
         const rawPje = p.pje ?? (p as unknown as Record<string, unknown>)['pje_flag'] ?? (p as unknown as Record<string, unknown>)['coluna_pje'];
         const isPjeTrue = this.parseBool(rawPje);
         if (isPjeTrue || !isPending) return false;
+      } else if (onlyInconsistenciaTempoReal) {
+        if (!p.inconsistenciaTempoReal) return false;
       } else {
         // 30+ Days Filter
         if (over30DaysOnly && (p.tempoNaContadoria === null || (p.tempoNaContadoria || 0) < 30)) return false;
@@ -766,7 +853,7 @@ export class Dashboard {
         onlyPjeDivergent: this.onlyPjeDivergent(),
         externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined,
         teamExternalProcessesOnly: filters.teamExternalProcessesOnly,
-        managedAccountantIds: filters.teamExternalProcessesOnly ? this.managedAccountantIds() : undefined
+        managedAccountantIds: this.managedAccountantIds()
       });
 
       if (this.currentRequestId !== requestId) {
@@ -897,7 +984,8 @@ export class Dashboard {
       onlyReturns: this.onlyReturns(),
       over30DaysOnly: this.over30DaysOnly(),
       onlyDuplicates: this.onlyDuplicates(),
-      onlyPjeDivergent: this.onlyPjeDivergent()
+      onlyPjeDivergent: this.onlyPjeDivergent(),
+      onlyInconsistenciaTempoReal: this.onlyInconsistenciaTempoReal()
     });
 
     this.currentPage.set(1);
@@ -1076,6 +1164,9 @@ export class Dashboard {
     if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) return true;
     // Se o processo estiver atribuído diretamente ao usuário logado (inclusive o gestor), ele pode editar normalmente
     if (process && process.assignedToId === user.id) return true;
+    // Se o processo estiver atribuído a um membro gerenciado pela equipe do gestor
+    const managedIds = new Set(this.managedAccountantIds());
+    if (process && process.assignedToId && managedIds.has(process.assignedToId)) return true;
     // Processos de outros núcleos atribuídos a terceiros são estritamente somente leitura
     if (process && this.isExternalProcess(process)) {
       return false;
