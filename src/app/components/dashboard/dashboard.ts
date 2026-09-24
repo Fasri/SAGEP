@@ -378,6 +378,11 @@ export class Dashboard {
     return this.duplicatePendingInfo().numberKeys.has(clean);
   }
 
+  isProcessPending(process?: Process): boolean {
+    if (!process || !process.status) return false;
+    return process.status.trim().toLowerCase().startsWith('pendente');
+  }
+
   filterDuplicateProcesses() {
     const info = this.duplicatePendingInfo();
     if (info.numbers.length === 0 && !this.onlyDuplicates()) return;
@@ -584,10 +589,11 @@ export class Dashboard {
 
         // Status Filter
         if (status === 'Pendente' && p.status !== 'Pendente') return false;
+        if (status === 'Devolvidos' && (p.status?.trim().toLowerCase().startsWith('pendente') || !p.status)) return false;
 
         // Date Filter - Use entryDate for Pending/All, completionDate for Devolvidos
         if (startDate || endDate) {
-          const processDate = status === 'Devolvidos' ? p.completionDate : p.entryDate;
+          const processDate = status === 'Devolvidos' ? (p.completionDate || p.entryDate) : p.entryDate;
           const pDate = this.normalizeDateForComparison(processDate || '');
           const sDate = startDate ? this.normalizeDateForComparison(startDate) : null;
           const eDate = endDate ? this.normalizeDateForComparison(endDate) : null;
@@ -1356,6 +1362,8 @@ export class Dashboard {
         .map(u => u.id);
 
       const processes = await this.store.fetchAllFilteredProcesses({
+        page: 1,
+        pageSize: 10000,
         searchTerm: filters.searchTerm,
         statusFilter: filters.status,
         priorityFilter: filters.priority,
@@ -1368,8 +1376,13 @@ export class Dashboard {
         unassignedOnly: filters.unassignedOnly,
         onlyReturns: filters.onlyReturns,
         over30DaysOnly: filters.over30DaysOnly,
-        externalAccountantIds: filters.externalAccountantsOnly ? externalIds : undefined
-      } as PaginationOptions);
+        onlyDuplicates: this.onlyDuplicates(),
+        onlyPjeDivergent: this.onlyPjeDivergent(),
+        onlyInconsistenciaTempoReal: this.onlyInconsistenciaTempoReal(),
+        externalAccountantsOnly: filters.externalAccountantsOnly ? externalIds : undefined,
+        teamExternalProcessesOnly: filters.teamExternalProcessesOnly,
+        managedAccountantIds: this.managedAccountantIds()
+      });
 
       const data = (processes || []).map((p: Process) => ({
         'Posição Geral': p.position,

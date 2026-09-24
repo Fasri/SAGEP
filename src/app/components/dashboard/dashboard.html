@@ -474,13 +474,13 @@
                     </button>
                   }
                   <span>{{ process.number }}</span>
-                  @if (isDuplicatePending(process.number)) {
+                  @if (isDuplicatePending(process.number) && isProcessPending(process)) {
                     <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px] uppercase tracking-wider border border-amber-300 shadow-xs flex items-center gap-0.5" title="Processo duplicado com status Pendente!">
                       <span class="material-symbols-outlined text-[10px]">warning</span>
                       Duplicado
                     </span>
                   }
-                  @if (!process.pje) {
+                  @if (!process.pje && isProcessPending(process)) {
                     <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 font-bold text-[9px] uppercase tracking-wider border border-orange-300 shadow-xs flex items-center gap-0.5" title="Processo pendente no SAGEP não encontrado no PJe (PJe = false)!">
                       <span class="material-symbols-outlined text-[10px]">sync_problem</span>
                       PJe

@@ -389,9 +389,20 @@ export class ProcessService {
     }
 
     if (!options.onlyDuplicates) {
-      const dateField = options.statusFilter === 'Devolvidos' ? 'completion_date' : 'entry_date';
-      if (options.startDate) query = (query as any).gte(dateField, options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`);
-      if (options.endDate) query = (query as any).lte(dateField, options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`);
+      if (options.statusFilter === 'Devolvidos') {
+        const sDate = options.startDate ? (options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`) : null;
+        const eDate = options.endDate ? (options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`) : null;
+        if (sDate && eDate) {
+          query = (query as any).or(`and(completion_date.gte."${sDate}",completion_date.lte."${eDate}"),and(completion_date.is.null,entry_date.gte."${sDate}",entry_date.lte."${eDate}")`);
+        } else if (sDate) {
+          query = (query as any).or(`completion_date.gte."${sDate}",and(completion_date.is.null,entry_date.gte."${sDate}")`);
+        } else if (eDate) {
+          query = (query as any).or(`completion_date.lte."${eDate}",and(completion_date.is.null,entry_date.lte."${eDate}")`);
+        }
+      } else {
+        if (options.startDate) query = (query as any).gte('entry_date', options.startDate.includes(' ') ? options.startDate : `${options.startDate} 00:00:00`);
+        if (options.endDate) query = (query as any).lte('entry_date', options.endDate.includes(' ') ? options.endDate : `${options.endDate} 23:59:59`);
+      }
     }
 
     if (options.statusFilter === 'Devolvidos') {
@@ -414,8 +425,10 @@ export class ProcessService {
     let query = client.from('vw_processes').select('*', { count: 'exact' });
     query = this.applyFiltersToQuery(query, options);
 
-    const from = (options.page - 1) * options.pageSize;
-    const to = from + options.pageSize - 1;
+    const page = options.page || 1;
+    const pageSize = options.pageSize || 20;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
     query = query.range(from, to);
 
     const { data, count, error } = await query;
@@ -870,8 +883,25 @@ export class ProcessService {
       const getCount = async (status: string | null) => {
         let q = client.from('processes').select('*', { count: 'planned', head: true }) as any;
         if (status) q = q.eq('status', status);
-        if (user.role === 'Chefe' || user.role === 'Gerente') q = q.eq('nucleus', user.nucleus);
-        else if (user.role === 'Contador Judicial') q = q.eq('assigned_to_id', user.id);
+        if (user.role === 'Chefe' || user.role === 'Gerente') {
+          const managedUsers = this.authService.users().filter(u => u.nucleus === user.nucleus);
+          const ids = Array.from(new Set([user.id, ...managedUsers.map(u => u.id)]));
+          q = q.or(`nucleus.eq."${user.nucleus}",assigned_to_id.in.(${ids.join(',')})`);
+        } else if (user.role === 'Gestor CC') {
+          const managedUsers = this.authService.users().filter(u => u.nucleus?.trim().toUpperCase().endsWith('CC'));
+          const ids = Array.from(new Set([user.id, ...managedUsers.map(u => u.id)]));
+          q = q.or(`nucleus.like.%CC,assigned_to_id.in.(${ids.join(',')})`);
+        } else if (user.role === 'Gestor CCJ') {
+          const managedUsers = this.authService.users().filter(u => u.nucleus?.trim().toUpperCase().endsWith('CCJ'));
+          const ids = Array.from(new Set([user.id, ...managedUsers.map(u => u.id)]));
+          q = q.or(`nucleus.like.%CCJ,assigned_to_id.in.(${ids.join(',')})`);
+        } else if (user.role === 'Gestor 1_7') {
+          const managedUsers = this.authService.users().filter(u => ['1ª CCJ', '7ª CCJ'].includes(u.nucleus?.trim() || ''));
+          const ids = Array.from(new Set([user.id, ...managedUsers.map(u => u.id)]));
+          q = q.or(`nucleus.in.("1ª CCJ","7ª CCJ"),assigned_to_id.in.(${ids.join(',')})`);
+        } else if (user.role === 'Contador Judicial') {
+          q = q.eq('assigned_to_id', user.id);
+        }
         const { count } = await q;
         return count || 0;
       };
