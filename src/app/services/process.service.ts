@@ -708,7 +708,7 @@ export class ProcessService {
     if (!client) return;
 
     let usersInNucleus = this.authService.users()
-      .filter(u => u.nucleus === nucleusName && u.active)
+      .filter(u => u.active && (u.nucleus === nucleusName || (u.atribuicaoNucleos && u.atribuicaoNucleos.includes(nucleusName))))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     if (selectedUserIds && selectedUserIds.length > 0) {

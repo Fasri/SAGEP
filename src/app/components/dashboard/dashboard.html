@@ -126,6 +126,57 @@
     </div>
   }
 
+  <!-- Inconsistência Tempo Real Alert Banner (SAGEP concluído / PJe pendente) -->
+  @if (inconsistenciaTempoRealInfo().count > 0 && canSeeInconsistenciaAlert() && !dismissInconsistenciaBanner()) {
+    <div class="mb-6 p-4 sm:p-5 rounded-2xl bg-rose-50 border border-rose-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-3">
+      <div class="flex items-start gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-200 mt-0.5">
+          <span class="material-symbols-outlined text-xl">running_with_errors</span>
+        </div>
+        <div>
+          <h4 class="text-sm font-bold text-rose-950 flex flex-wrap items-center gap-2">
+            <span>Atenção: Processo Concluído no SAGEP, mas ainda Pendente no PJe!</span>
+            <span class="px-2.5 py-0.5 rounded-full bg-rose-200 text-rose-950 text-xs font-extrabold">
+              {{ inconsistenciaTempoRealInfo().count }} {{ inconsistenciaTempoRealInfo().count === 1 ? 'processo' : 'processos' }}
+            </span>
+          </h4>
+          <p class="text-xs text-rose-900 font-medium mt-1 leading-relaxed">
+            Foram identificados processos marcados como concluídos no SAGEP que permanecem com status <strong>Pendente no PJe</strong>. Esta inconsistência requer atenção imediata para garantir a regularidade do fluxo processual.
+          </p>
+
+          <!-- Detalhamento por Núcleo para Administrador, Coordenador e Supervisor -->
+          @if (['Administrador', 'Coordenador', 'Supervisor'].includes(currentUser()?.role || '') && inconsistenciaTempoRealInfo().byNucleus.length > 0) {
+            <div class="mt-3 flex flex-wrap items-center gap-1.5">
+              <span class="text-xs font-bold text-rose-950">Núcleos afetados:</span>
+              @for (item of inconsistenciaTempoRealInfo().byNucleus; track item.nucleus) {
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-rose-300 text-rose-950 text-xs font-bold shadow-xs">
+                  <span>{{ item.nucleus }}:</span>
+                  <span class="text-rose-700 font-extrabold">{{ item.count }} {{ item.count === 1 ? 'proc.' : 'procs.' }}</span>
+                </span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0 self-end md:self-auto">
+        <button type="button" (click)="filterInconsistenciaTempoRealProcesses()"
+                [class.bg-rose-600]="!onlyInconsistenciaTempoReal()"
+                [class.hover:bg-rose-700]="!onlyInconsistenciaTempoReal()"
+                [class.bg-rose-800]="onlyInconsistenciaTempoReal()"
+                [class.hover:bg-rose-900]="onlyInconsistenciaTempoReal()"
+                class="text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-rose-200 flex items-center gap-2 cursor-pointer">
+          <span class="material-symbols-outlined text-sm">{{ onlyInconsistenciaTempoReal() ? 'filter_alt_off' : 'search' }}</span>
+          {{ onlyInconsistenciaTempoReal() ? 'Limpar Filtro' : 'Filtrar Processos' }}
+        </button>
+        <button type="button" (click)="dismissInconsistenciaBanner.set(true)"
+                title="Dispensar alerta"
+                class="p-2 rounded-xl text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer">
+          <span class="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+    </div>
+  }
+
   <!-- Duplicate Pending Processes Alert Banner -->
   @if (duplicatePendingInfo().count > 0 && canSeeDuplicateAlert()) {
     <div class="mb-8 p-4 sm:p-5 rounded-2xl bg-amber-50 border border-amber-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-3">
@@ -782,7 +833,15 @@
                   <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs font-bold uppercase">
                     {{ user.name.substring(0, 2) }}
                   </div>
-                  <span class="text-sm font-semibold text-slate-700 group-hover:text-primary transition-colors">{{ user.name }}</span>
+                  <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                    <span class="text-sm font-semibold text-slate-700 group-hover:text-primary transition-colors">{{ user.name }}</span>
+                    @if (isUserApoioInAutoAssign(user)) {
+                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold tracking-tight w-fit">
+                        <span class="material-symbols-outlined text-[11px]">handshake</span>
+                        Apoio ({{ user.nucleus }})
+                      </span>
+                    }
+                  </div>
                 </div>
                 <div class="w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all"
                      [class.bg-emerald-500]="selectedAutoAssignUserIds().includes(user.id)"

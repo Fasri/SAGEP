@@ -13,6 +13,7 @@ export interface User {
   active: boolean;
   lastSeen?: string;
   password?: string;
+  atribuicaoNucleos?: string[];
 }
 
 export interface Nucleo {

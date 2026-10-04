@@ -75,6 +75,36 @@
               <input id="active" formControlName="active" type="checkbox" class="w-4 h-4 text-primary border-slate-300 rounded focus:ring-primary" />
               <label for="active" class="text-sm font-semibold text-slate-700">Contador Ativo</label>
             </div>
+
+            <!-- Seção de Núcleos para Atribuição Automática -->
+            <div class="border-t border-slate-200 pt-3 mt-2">
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-800">
+                  <span class="material-symbols-outlined text-sm text-primary">hub</span>
+                  Atribuição Automática (Núcleos)
+                </label>
+                <span class="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">
+                  {{ selectedAtribuicaoNucleos().length }} selecionado(s)
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-500 mb-2.5 leading-relaxed">
+                Marque em quais núcleos este contador estará elegível para receber processos na atribuição automática:
+              </p>
+              <div class="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-xl custom-scrollbar shadow-inner">
+                @for (nuc of allAvailableNuclei(); track nuc) {
+                  <label class="flex items-center gap-2 p-2 rounded-lg hover:bg-white text-xs cursor-pointer select-none transition-all border border-transparent hover:border-slate-200 hover:shadow-xs"
+                         [class.bg-emerald-50]="isAtribuicaoNucleusSelected(nuc)"
+                         [class.border-emerald-200]="isAtribuicaoNucleusSelected(nuc)">
+                    <input type="checkbox"
+                           [checked]="isAtribuicaoNucleusSelected(nuc)"
+                           (change)="toggleAtribuicaoNucleus(nuc)"
+                           class="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer shrink-0" />
+                    <span class="truncate font-semibold text-slate-700" [title]="nuc">{{ nuc }}</span>
+                  </label>
+                }
+              </div>
+            </div>
+
             <div class="flex gap-2 pt-4">
               <button type="submit" [disabled]="userForm.invalid" class="flex-1 bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-lg transition-colors disabled:opacity-50 cursor-pointer">
                 {{ isEditing() ? 'Salvar Alterações' : 'Cadastrar Contador' }}
@@ -122,9 +152,23 @@
                     </div>
                   </td>
                   <td class="px-4 py-3">
-                    <div class="flex flex-col">
-                      <span class="text-sm font-semibold text-primary">{{ user.nucleus }}</span>
-                      <span class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">{{ user.role }}</span>
+                    <div class="flex flex-col gap-1">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-sm font-semibold text-primary">{{ user.nucleus }}</span>
+                        <span class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">({{ user.role }})</span>
+                      </div>
+                      @if (user.atribuicaoNucleos && user.atribuicaoNucleos.length > 0) {
+                        <div class="flex items-center gap-1 flex-wrap mt-0.5">
+                          <span class="text-[10px] text-slate-400 font-bold uppercase">Apoio:</span>
+                          @for (nuc of user.atribuicaoNucleos; track nuc) {
+                            @if (nuc !== user.nucleus) {
+                              <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold" [title]="'Atribuição em ' + nuc">
+                                {{ nuc }}
+                              </span>
+                            }
+                          }
+                        </div>
+                      }
                     </div>
                   </td>
                   <td class="px-4 py-3">

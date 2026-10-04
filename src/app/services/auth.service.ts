@@ -36,6 +36,18 @@ export class AuthService {
         this.supabaseService.isSupabaseConnected.set(false);
       } else if (users) {
         this.supabaseService.isSupabaseConnected.set(true);
+        const parseAtribuicaoNucleos = (val: unknown): string[] => {
+          if (Array.isArray(val)) {
+            return val.map(v => normalizeNucleus(String(v))).filter(Boolean);
+          }
+          if (typeof val === 'string' && val.trim()) {
+            const cleaned = val.replace(/^\{|\}$/g, '');
+            if (!cleaned.trim()) return [];
+            return cleaned.split(',').map(s => normalizeNucleus(s.replace(/^"|"$/g, '').trim())).filter(Boolean);
+          }
+          return [];
+        };
+
         this.users.set(users.map((u: Record<string, unknown>) => ({
           id: String(u['id']),
           matricula: String(u['matricula']),
@@ -48,7 +60,8 @@ export class AuthService {
           birthDate: String(u['birth_date']),
           active: Boolean(u['active']),
           lastSeen: u['last_seen'] ? String(u['last_seen']) : undefined,
-          password: String(u['password'] || '123456')
+          password: String(u['password'] || '123456'),
+          atribuicaoNucleos: parseAtribuicaoNucleos(u['atribuicao_nucleos'])
         })));
       }
     } catch (e) {
@@ -99,7 +112,8 @@ export class AuthService {
         meta_percentage: user.metaPercentage,
         birth_date: user.birthDate,
         active: user.active,
-        password: user.password || '123456'
+        password: user.password || '123456',
+        atribuicao_nucleos: user.atribuicaoNucleos || []
       }]).select();
 
       if (error) {
@@ -112,7 +126,8 @@ export class AuthService {
           id: data[0].id,
           functionalEmail: data[0].functional_email,
           metaPercentage: data[0].meta_percentage,
-          birthDate: data[0].birth_date
+          birthDate: data[0].birth_date,
+          atribuicaoNucleos: data[0].atribuicao_nucleos || user.atribuicaoNucleos || []
         };
         this.users.update(prev => [...prev, newUser]);
         auditLogFn(`Adicionou novo usuário ${user.name}`, { user });
@@ -141,7 +156,8 @@ export class AuthService {
         meta_percentage: updatedUser.metaPercentage,
         birth_date: updatedUser.birthDate,
         active: updatedUser.active,
-        password: updatedUser.password
+        password: updatedUser.password,
+        atribuicao_nucleos: updatedUser.atribuicaoNucleos || []
       }).eq('id', updatedUser.id);
 
       if (error) {

@@ -31,6 +31,10 @@ function asDefine(name, value) {
 
 loadDotEnv(envPath);
 
+if (!process.env.NG_ALLOWED_HOSTS) {
+  process.env.NG_ALLOWED_HOSTS = 'localhost,127.0.0.1,192.168.0.100,54.232.189.113';
+}
+
 const target = process.argv[2];
 const extraArgs = process.argv.slice(3);
 

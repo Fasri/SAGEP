@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormGroup, FormControl } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { StoreService } from '../../services/store';
-import { Process, Role, PaginationOptions } from '../../types';
+import { Process, Role, PaginationOptions, User } from '../../types';
 import * as XLSX from 'xlsx';
 
 @Component({
@@ -521,9 +521,16 @@ export class Dashboard {
       nucleus = user.nucleus;
     }
     return this.users()
-      .filter(u => u.nucleus === nucleus && u.active)
+      .filter(u => u.active && (u.nucleus === nucleus || (u.atribuicaoNucleos && u.atribuicaoNucleos.includes(nucleus))))
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   });
+
+  isUserApoioInAutoAssign(user: User): boolean {
+    const filterVal = this.nucleusFilter() as unknown;
+    const filterNuc = typeof filterVal === 'string' ? filterVal : (Array.isArray(filterVal) ? (filterVal[0] as string) : '');
+    const currentTargetNucleus = this.selectedAutoAssignNucleus() || filterNuc || this.currentUser()?.nucleus || '';
+    return Boolean(currentTargetNucleus && user.nucleus !== currentTargetNucleus);
+  }
 
   onlineUsers = computed(() => {
     const all = this.users();
