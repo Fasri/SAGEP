@@ -51,26 +51,22 @@ export class Contadores {
     const user = this.currentUser();
     if (!user) return [];
 
+    let list: User[] = [];
+
     // Admins, Coordinators, Supervisors see all
     if (['Administrador', 'Coordenador', 'Supervisor'].includes(user.role)) {
-      return this.allUsers();
+      list = this.allUsers();
+    } else if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
+      // Gestores de Área - vêem apenas contadores do próprio núcleo cadastrado
+      list = this.allUsers().filter(u => u.nucleus === user.nucleus);
+    } else if (user.role === 'Gestor 1_7') {
+      list = this.allUsers().filter(u => ['1ª CCJ', '7ª CCJ'].includes(u.nucleus));
+    } else if (['Chefe', 'Gerente'].includes(user.role)) {
+      // Chefes and Gerentes see only their nucleus
+      list = this.allUsers().filter(u => u.nucleus === user.nucleus);
     }
 
-    // Gestores de Área - vêem apenas contadores do próprio núcleo cadastrado
-    if (user.role === 'Gestor CC' || user.role === 'Gestor CCJ') {
-      return this.allUsers().filter(u => u.nucleus === user.nucleus);
-    }
-
-    if (user.role === 'Gestor 1_7') {
-      return this.allUsers().filter(u => ['1ª CCJ', '7ª CCJ'].includes(u.nucleus));
-    }
-
-    // Chefes and Gerentes see only their nucleus
-    if (['Chefe', 'Gerente'].includes(user.role)) {
-      return this.allUsers().filter(u => u.nucleus === user.nucleus);
-    }
-
-    return [];
+    return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
   });
 
   // Check if current user can perform CRUD
