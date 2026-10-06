@@ -532,6 +532,22 @@ export class Dashboard {
     return Boolean(currentTargetNucleus && user.nucleus !== currentTargetNucleus);
   }
 
+  isAutoAssignPrimeiraCC = computed(() => {
+    const user = this.currentUser();
+    const filterVal = this.nucleusFilter() as unknown;
+    const filterNuc = typeof filterVal === 'string' ? filterVal : (Array.isArray(filterVal) ? (filterVal[0] as string) : '');
+    let nucleus = this.selectedAutoAssignNucleus() || filterNuc;
+    if (user?.role === 'Gestor CC' || user?.role === 'Gestor CCJ') {
+      nucleus = user.nucleus;
+    } else if (user?.role === 'Gestor 1_7') {
+      if (!nucleus || nucleus === 'Todos') nucleus = user.nucleus;
+    } else if (!nucleus || nucleus === 'Todos') {
+      nucleus = user?.nucleus || '';
+    }
+    const clean = (nucleus || '').trim().toUpperCase();
+    return clean === '1ª CC' || clean === '1 CC' || clean === '1ªCC' || clean === '1CC';
+  });
+
   onlineUsers = computed(() => {
     const all = this.users();
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
@@ -1708,7 +1724,9 @@ export class Dashboard {
 
     try {
       const count = await this.store.unassignProcessesFromUsers(nucleus, selectedIds);
-      this.unassignMessage.set(`Atribuição de ${count} processos pendentes (não retorno) retirada com sucesso no núcleo ${nucleus}.`);
+      const is1CC = this.isAutoAssignPrimeiraCC();
+      const retornoInfo = is1CC ? '' : ' (não retorno)';
+      this.unassignMessage.set(`Atribuição de ${count} processos pendentes${retornoInfo} retirada com sucesso no núcleo ${nucleus}.`);
       this.loadServerData();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

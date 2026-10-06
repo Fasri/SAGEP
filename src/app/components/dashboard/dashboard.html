@@ -789,8 +789,16 @@
           <div class="mb-6 p-3 bg-orange-50 rounded-xl border border-orange-100 flex items-start gap-3">
             <span class="material-symbols-outlined text-orange-600 mt-0.5">info</span>
             <div>
-              <p class="text-[11px] font-bold text-orange-900 uppercase tracking-tight leading-tight">Atenção: Retornos e Super Prioridades</p>
-              <p class="text-[10px] text-orange-800 leading-tight mt-0.5">Processos de retorno e Super prioridades foram excluídos da distribuição automática e devem ser atribuídos manualmente.</p>
+              <p class="text-[11px] font-bold text-orange-900 uppercase tracking-tight leading-tight">
+                {{ isAutoAssignPrimeiraCC() ? 'Atenção: Super Prioridades' : 'Atenção: Retornos e Super Prioridades' }}
+              </p>
+              <p class="text-[10px] text-orange-800 leading-tight mt-0.5">
+                @if (isAutoAssignPrimeiraCC()) {
+                  Super prioridades foram excluídas da distribuição automática e devem ser atribuídas manualmente. Processos de retorno serão incluídos na distribuição da 1ª CC.
+                } @else {
+                  Processos de retorno e Super prioridades foram excluídos da distribuição automática e devem ser atribuídos manualmente.
+                }
+              </p>
             </div>
           </div>
 
@@ -903,7 +911,13 @@
             <span class="material-symbols-outlined text-amber-600 mt-0.5">warning</span>
             <div>
               <p class="text-[11px] font-bold text-amber-900 uppercase tracking-tight leading-tight">Regras da Operação</p>
-              <p class="text-[10px] text-amber-800 leading-tight mt-0.5">Apenas processos com status <strong>Pendente</strong> e que <strong>não sejam retornos</strong> terão sua atribuição retirada. Processos concluídos e retornos permanecerão inalterados.</p>
+              <p class="text-[10px] text-amber-800 leading-tight mt-0.5">
+                @if (isAutoAssignPrimeiraCC()) {
+                  Apenas processos com status <strong>Pendente</strong> terão sua atribuição retirada (incluindo processos de retorno). Processos concluídos permanecerão inalterados.
+                } @else {
+                  Apenas processos com status <strong>Pendente</strong> e que <strong>não sejam retornos</strong> terão sua atribuição retirada. Processos concluídos e retornos permanecerão inalterados.
+                }
+              </p>
             </div>
           </div>
 

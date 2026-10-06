@@ -680,16 +680,27 @@ export class ProcessService {
     return { success: importedCount.success, skipped: importedCount.skipped, inconsistencies };
   }
 
+  private is1CC(nucleusName: string): boolean {
+    if (!nucleusName) return false;
+    const clean = nucleusName.trim().toUpperCase();
+    return clean === '1ª CC' || clean === '1 CC' || clean === '1ªCC' || clean === '1CC' || (this.metadataService?.normalizeNucleus(nucleusName) === '1ª CC');
+  }
+
   async getUnassignedCount(nucleusName: string, isAutoinspecao: boolean = false): Promise<number> {
     const client = this.supabaseService.getClient();
     if (!client) return 0;
+
+    const isPrimeiraCC = this.is1CC(nucleusName);
 
     let query = client.from('vw_processes').select('*', { count: 'exact', head: true })
       .eq('nucleus', nucleusName)
       .eq('status', 'Pendente')
       .is('assigned_to_id', null)
-      .eq('is_return', false)
       .not('priority', 'ilike', '%SUPER%');
+
+    if (!isPrimeiraCC) {
+      query = query.eq('is_return', false);
+    }
 
     if (isAutoinspecao) {
       query = query.ilike('priority', '%Autoinspeção%');
@@ -717,11 +728,16 @@ export class ProcessService {
 
     if (usersInNucleus.length === 0) throw new Error(`Nenhum usuário ativo selecionado encontrado no núcleo "${nucleusName}".`);
 
+    const isPrimeiraCC = this.is1CC(nucleusName);
+
     let query = client
       .from('processes').select('id, number, position, priority')
       .eq('nucleus', nucleusName).eq('status', 'Pendente').is('assigned_to_id', null)
-      .eq('is_return', false)
       .not('priority', 'ilike', '%SUPER%');
+
+    if (!isPrimeiraCC) {
+      query = query.eq('is_return', false);
+    }
 
     if (isAutoinspecao) {
       query = query.ilike('priority', '%Autoinspeção%');
@@ -738,7 +754,10 @@ export class ProcessService {
     if (procError) throw new Error(`Erro ao buscar processos: ${procError.message}`);
 
     const total = unassignedProcessesData?.length || 0;
-    if (!unassignedProcessesData || total === 0) throw new Error(`Nenhum processo pendente não atribuído encontrado no núcleo "${nucleusName}".`);
+    if (!unassignedProcessesData || total === 0) {
+      const retornoMsg = isPrimeiraCC ? '' : ' (não retorno)';
+      throw new Error(`Nenhum processo pendente${retornoMsg} não atribuído encontrado no núcleo "${nucleusName}".`);
+    }
 
     const nucleus = this.metadataService.nucleos().find(n => n.nome === nucleusName);
     const lastUserId = nucleus?.lastAssignedUserId;
@@ -931,13 +950,20 @@ export class ProcessService {
     const client = this.supabaseService.getClient();
     if (!client || userIds.length === 0) return {};
 
-    const { data, error } = await client
+    const isPrimeiraCC = this.is1CC(nucleusName);
+
+    let query = client
       .from('processes')
       .select('assigned_to_id')
       .eq('nucleus', nucleusName)
       .eq('status', 'Pendente')
-      .eq('is_return', false)
       .in('assigned_to_id', userIds);
+
+    if (!isPrimeiraCC) {
+      query = query.eq('is_return', false);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('ProcessService: Error fetching assigned counts:', error);
@@ -963,19 +989,27 @@ export class ProcessService {
 
     if (selectedUserIds.length === 0) return 0;
 
-    const { data: processesToUnassign, error: fetchError } = await client
+    const isPrimeiraCC = this.is1CC(nucleusName);
+
+    let query = client
       .from('processes')
       .select('id, number')
       .eq('nucleus', nucleusName)
       .eq('status', 'Pendente')
-      .eq('is_return', false)
       .in('assigned_to_id', selectedUserIds);
+
+    if (!isPrimeiraCC) {
+      query = query.eq('is_return', false);
+    }
+
+    const { data: processesToUnassign, error: fetchError } = await query;
 
     if (fetchError) throw new Error(`Erro ao buscar processos para desatribuição: ${fetchError.message}`);
 
     const total = processesToUnassign?.length || 0;
     if (!processesToUnassign || total === 0) {
-      throw new Error(`Nenhum processo pendente (não retorno) atribuído aos contadores selecionados no núcleo "${nucleusName}".`);
+      const retornoMsg = isPrimeiraCC ? '' : ' (não retorno)';
+      throw new Error(`Nenhum processo pendente${retornoMsg} atribuído aos contadores selecionados no núcleo "${nucleusName}".`);
     }
 
     const processIds = processesToUnassign.map(p => p.id);
