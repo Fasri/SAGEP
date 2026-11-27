@@ -37,7 +37,7 @@ export class Dashboard {
 
   searchTerm = signal('');
   statusFilter = signal<'Pendente' | 'Todos' | 'Devolvidos'>('Pendente');
-  
+
   // Sinais de múltipla escolha e visibilidade de dropdowns
   selectedNuclei = signal<string[]>([]);
   selectedPriorities = signal<string[]>([]);
@@ -386,7 +386,7 @@ export class Dashboard {
   filterDuplicateProcesses() {
     const info = this.duplicatePendingInfo();
     if (info.numbers.length === 0 && !this.onlyDuplicates()) return;
-    
+
     const newOnlyDuplicates = !this.onlyDuplicates();
     this.onlyDuplicates.set(newOnlyDuplicates);
 
