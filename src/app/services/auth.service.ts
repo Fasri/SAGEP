@@ -2,6 +2,13 @@ import { Injectable, signal } from '@angular/core';
 import { User } from '../types';
 import { SupabaseService } from './supabase.service';
 
+export interface LoginResult {
+  success: boolean;
+  requiresMfa?: boolean;
+  factorId?: string;
+  error?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -22,6 +29,11 @@ export class AuthService {
 
   users = signal<User[]>(this.mockUsers);
   currentUser = signal<User | null>(null);
+  
+  // MFA (2FA) State
+  isMfaEnrolled = signal<boolean>(false);
+  pendingMfaFactorId = signal<string | null>(null);
+  pendingMfaUser: User | null = null;
 
   constructor(private supabaseService: SupabaseService) {}
 
@@ -110,6 +122,7 @@ export class AuthService {
 
         if (user) {
           this.currentUser.set(user);
+          await this.checkMfaStatus();
         }
       }
     } catch (e) {
@@ -117,9 +130,11 @@ export class AuthService {
     }
   }
 
-  async login(identifier: string, password?: string): Promise<boolean> {
+  async login(identifier: string, password?: string): Promise<LoginResult> {
     const client = this.supabaseService.getClient();
-    if (!password || !identifier?.trim()) return false;
+    if (!password || !identifier?.trim()) {
+      return { success: false, error: 'Preencha o usuário e a senha.' };
+    }
 
     const term = identifier.trim().toLowerCase();
 
@@ -133,7 +148,7 @@ export class AuthService {
     // Se não encontrou por Nome nem Email e o termo não é um email com @, bloqueia o login
     if (!user && !term.includes('@')) {
       console.warn('AuthService: Login recusado. O acesso é permitido apenas com Nome ou E-mail.');
-      return false;
+      return { success: false, error: 'O login por matrícula não é permitido. Digite seu nome ou e-mail.' };
     }
 
     let email = user?.gmail?.trim().toLowerCase() || term;
@@ -141,7 +156,7 @@ export class AuthService {
     // Se o identificador não tiver email válido, bloqueia
     if (!email.includes('@')) {
       console.warn('AuthService: Usuário sem email válido para login.');
-      return false;
+      return { success: false, error: 'Usuário sem e-mail cadastrado para autenticação.' };
     }
 
     if (client) {
@@ -153,7 +168,7 @@ export class AuthService {
 
         if (error || !data.user) {
           console.error('AuthService: Erro de autenticação Supabase:', error?.message);
-          return false;
+          return { success: false, error: 'Usuário ou senha incorretos.' };
         }
 
         if (!user) {
@@ -183,22 +198,166 @@ export class AuthService {
           }
         }
 
+        // Verifica se o usuário tem 2FA configurado
+        try {
+          const { data: factorsData } = await client.auth.mfa.listFactors();
+          const verifiedFactor = factorsData?.totp?.find(f => f.status === 'verified');
+          if (verifiedFactor) {
+            this.pendingMfaUser = user || null;
+            this.pendingMfaFactorId.set(verifiedFactor.id);
+            return {
+              success: false,
+              requiresMfa: true,
+              factorId: verifiedFactor.id
+            };
+          }
+        } catch (mfaErr) {
+          console.warn('AuthService: Falha ao verificar fatores MFA:', mfaErr);
+        }
+
         if (user) {
           this.currentUser.set(user);
+          await this.checkMfaStatus();
           await this.updateLastSeen();
-          return true;
+          return { success: true };
         }
-        return false;
-      } catch (err) {
+        return { success: false, error: 'Perfil de usuário não localizado no sistema.' };
+      } catch (err: any) {
         console.error('AuthService: Exceção no login:', err);
-        return false;
+        return { success: false, error: err?.message || 'Erro inesperado ao realizar login.' };
       }
     }
 
     // Modo offline / mock fallback
     if (user && user.password === password) {
       this.currentUser.set(user);
+      return { success: true };
+    }
+    return { success: false, error: 'Usuário ou senha inválidos.' };
+  }
+
+  async verifyMfaLogin(code: string): Promise<boolean> {
+    const client = this.supabaseService.getClient();
+    const factorId = this.pendingMfaFactorId();
+    const user = this.pendingMfaUser;
+
+    if (!client || !factorId || !user) {
+      return false;
+    }
+
+    try {
+      const { data, error } = await client.auth.mfa.challengeAndVerify({
+        factorId,
+        code: code.trim()
+      });
+
+      if (error) {
+        console.error('AuthService: Código 2FA inválido:', error.message);
+        return false;
+      }
+
+      this.currentUser.set(user);
+      this.pendingMfaFactorId.set(null);
+      this.pendingMfaUser = null;
+      this.isMfaEnrolled.set(true);
+      await this.updateLastSeen();
       return true;
+    } catch (e) {
+      console.error('AuthService: Erro ao verificar código 2FA:', e);
+      return false;
+    }
+  }
+
+  async checkMfaStatus(): Promise<boolean> {
+    const client = this.supabaseService.getClient();
+    if (!client) return false;
+    try {
+      const { data, error } = await client.auth.mfa.listFactors();
+      if (!error && data?.totp) {
+        const hasVerified = data.totp.some(f => f.status === 'verified');
+        this.isMfaEnrolled.set(hasVerified);
+        return hasVerified;
+      }
+    } catch (e) {
+      console.error('AuthService: Erro ao consultar status do MFA:', e);
+    }
+    return false;
+  }
+
+  async startMfaEnrollment(): Promise<{ factorId: string; qrCode: string; secret: string; uri: string } | null> {
+    const client = this.supabaseService.getClient();
+    const user = this.currentUser();
+    if (!client || !user) return null;
+
+    try {
+      // Limpa fatores não verificados anteriores
+      const { data: factors } = await client.auth.mfa.listFactors();
+      if (factors?.totp) {
+        for (const f of factors.totp) {
+          if ((f as any).status !== 'verified') {
+            await client.auth.mfa.unenroll({ factorId: f.id });
+          }
+        }
+      }
+
+      const { data, error } = await client.auth.mfa.enroll({
+        factorType: 'totp',
+        issuer: 'SAGEP - TJPE',
+        friendlyName: user.name || user.gmail || 'SAGEP'
+      });
+
+      if (error || !data) {
+        console.error('AuthService: Erro ao iniciar configuração de MFA:', error?.message);
+        return null;
+      }
+
+      return {
+        factorId: data.id,
+        qrCode: data.totp.qr_code,
+        secret: data.totp.secret,
+        uri: data.totp.uri
+      };
+    } catch (e) {
+      console.error('AuthService: Exceção no enrollment de MFA:', e);
+      return null;
+    }
+  }
+
+  async confirmMfaEnrollment(factorId: string, code: string): Promise<{ success: boolean; error?: string }> {
+    const client = this.supabaseService.getClient();
+    if (!client) return { success: false, error: 'Cliente Supabase indisponível' };
+
+    try {
+      const { data, error } = await client.auth.mfa.challengeAndVerify({
+        factorId,
+        code: code.trim()
+      });
+
+      if (error) {
+        return { success: false, error: 'Código inválido. Verifique o Google Authenticator e tente novamente.' };
+      }
+
+      this.isMfaEnrolled.set(true);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'Erro inesperado ao validar código' };
+    }
+  }
+
+  async unenrollMfa(): Promise<boolean> {
+    const client = this.supabaseService.getClient();
+    if (!client) return false;
+    try {
+      const { data: factors } = await client.auth.mfa.listFactors();
+      if (factors?.totp) {
+        for (const f of factors.totp) {
+          await client.auth.mfa.unenroll({ factorId: f.id });
+        }
+        this.isMfaEnrolled.set(false);
+        return true;
+      }
+    } catch (e) {
+      console.error('AuthService: Erro ao desativar MFA:', e);
     }
     return false;
   }
@@ -225,6 +384,9 @@ export class AuthService {
       }
     }
     this.currentUser.set(null);
+    this.isMfaEnrolled.set(false);
+    this.pendingMfaFactorId.set(null);
+    this.pendingMfaUser = null;
   }
 
   async changePassword(newPassword: string) {

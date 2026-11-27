@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
-import { AuthService } from './auth.service';
+import { AuthService, LoginResult } from './auth.service';
 import { MetadataService } from './metadata.service';
 import { ProcessService } from './process.service';
 import { AuditService } from './audit.service';
@@ -25,6 +25,8 @@ export class StoreService {
   
   get users() { return this.authService.users; }
   get currentUser() { return this.authService.currentUser; }
+  get isMfaEnrolled() { return this.authService.isMfaEnrolled; }
+  get pendingMfaFactorId() { return this.authService.pendingMfaFactorId; }
   
   get nucleos() { return this.metadataService.nucleos; }
   get prioridades() { return this.metadataService.prioridades; }
@@ -56,14 +58,40 @@ export class StoreService {
   }
 
   // Auth
-  async login(identifier: string, password?: string): Promise<boolean> {
-    const success = await this.authService.login(identifier, password);
+  async login(identifier: string, password?: string): Promise<LoginResult> {
+    const result = await this.authService.login(identifier, password);
+    if (result.success) {
+      await this.processService.loadInitialProcesses();
+      this.processService.updateGlobalStats();
+      this.processService.fetchLastEtlUpdate();
+    }
+    return result;
+  }
+
+  async verifyMfaLogin(code: string): Promise<boolean> {
+    const success = await this.authService.verifyMfaLogin(code);
     if (success) {
       await this.processService.loadInitialProcesses();
       this.processService.updateGlobalStats();
       this.processService.fetchLastEtlUpdate();
     }
     return success;
+  }
+
+  async checkMfaStatus(): Promise<boolean> {
+    return this.authService.checkMfaStatus();
+  }
+
+  async startMfaEnrollment() {
+    return this.authService.startMfaEnrollment();
+  }
+
+  async confirmMfaEnrollment(factorId: string, code: string) {
+    return this.authService.confirmMfaEnrollment(factorId, code);
+  }
+
+  async unenrollMfa() {
+    return this.authService.unenrollMfa();
   }
 
   async logout() {
