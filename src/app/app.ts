@@ -81,9 +81,17 @@ export class App {
   async login() {
     this.loginError.set(null);
     if (this.loginForm.valid) {
-      const success = await this.store.login(this.loginForm.value.userId!, this.loginForm.value.password!);
+      const input = (this.loginForm.value.userId || '').trim();
+      
+      // Bloqueia expressamente tentativa de login por matrícula numérica
+      if (/^\d+$/.test(input)) {
+        this.loginError.set('O login por matrícula não é permitido. Por favor, digite seu nome ou e-mail.');
+        return;
+      }
+
+      const success = await this.store.login(input, this.loginForm.value.password!);
       if (!success) {
-        this.loginError.set('Usuário ou senha inválidos.');
+        this.loginError.set('Usuário ou senha inválidos. Utilize seu nome ou e-mail.');
       } else {
         // Se a senha for provisória ou ainda não alterada, abre o modal de troca com urgência
         if (this.requiresPasswordChange()) {

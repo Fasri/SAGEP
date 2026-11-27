@@ -119,19 +119,29 @@ export class AuthService {
 
   async login(identifier: string, password?: string): Promise<boolean> {
     const client = this.supabaseService.getClient();
-    if (!password) return false;
+    if (!password || !identifier?.trim()) return false;
 
     const term = identifier.trim().toLowerCase();
-    let email = term;
+
+    // Permitir EXCLUSIVAMENTE Nome ou Email (Matrícula e IDs são estritamente rejeitados)
     let user = this.users().find(u => 
       u.name.toLowerCase() === term || 
       (u.gmail && u.gmail.toLowerCase() === term) ||
-      u.id === identifier ||
-      (u.matricula && u.matricula.toLowerCase() === term)
+      (u.functionalEmail && u.functionalEmail.toLowerCase() === term)
     );
 
-    if (user && user.gmail) {
-      email = user.gmail.trim().toLowerCase();
+    // Se não encontrou por Nome nem Email e o termo não é um email com @, bloqueia o login
+    if (!user && !term.includes('@')) {
+      console.warn('AuthService: Login recusado. O acesso é permitido apenas com Nome ou E-mail.');
+      return false;
+    }
+
+    let email = user?.gmail?.trim().toLowerCase() || term;
+
+    // Se o identificador não tiver email válido, bloqueia
+    if (!email.includes('@')) {
+      console.warn('AuthService: Usuário sem email válido para login.');
+      return false;
     }
 
     if (client) {
