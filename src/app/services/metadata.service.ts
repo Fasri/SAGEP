@@ -24,7 +24,12 @@ export class MetadataService {
       ]);
 
       const needsSeed = !nucleos?.length || !prioridades?.length || !statusTipos?.length;
-      if (needsSeed) await this.seedDatabase();
+      if (needsSeed) {
+        const { data: { session } } = await client.auth.getSession();
+        if (session) {
+          await this.seedDatabase();
+        }
+      }
 
       const finalNucleos = nucleos?.length ? nucleos : (await client.from('nucleos').select('*')).data;
       const finalPrioridades = prioridades?.length ? prioridades : (await client.from('prioridades').select('*')).data;

@@ -14,6 +14,8 @@ export interface User {
   lastSeen?: string;
   password?: string;
   atribuicaoNucleos?: string[];
+  authId?: string;
+  senhaAlterada?: boolean;
 }
 
 export interface Nucleo {

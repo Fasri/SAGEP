@@ -61,7 +61,11 @@ export class AuthService {
           active: Boolean(u['active']),
           lastSeen: u['last_seen'] ? String(u['last_seen']) : undefined,
           password: String(u['password'] || '123456'),
-          atribuicaoNucleos: parseAtribuicaoNucleos(u['atribuicao_nucleos'])
+          atribuicaoNucleos: parseAtribuicaoNucleos(u['atribuicao_nucleos']),
+          authId: u['auth_id'] ? String(u['auth_id']) : undefined,
+          senhaAlterada: u['senha_alterada'] !== undefined && u['senha_alterada'] !== null
+            ? Boolean(u['senha_alterada'])
+            : (u['password'] !== '123456' && Boolean(u['password']))
         })));
       }
     } catch (e) {
@@ -69,15 +73,121 @@ export class AuthService {
     }
   }
 
-  login(identifier: string, password?: string): boolean {
-    const user = this.users().find(u => 
-      u.id === identifier || 
-      u.matricula === identifier || 
-      u.name.toLowerCase() === identifier.toLowerCase()
+  async checkCurrentSession() {
+    const client = this.supabaseService.getClient();
+    if (!client) return;
+
+    try {
+      const { data: { session } } = await client.auth.getSession();
+      if (session?.user?.email) {
+        const email = session.user.email.toLowerCase();
+        let user = this.users().find(u => 
+          u.gmail?.toLowerCase() === email || (u.authId && u.authId === session.user.id)
+        );
+
+        if (!user) {
+          const { data: dbUser } = await client.from('users').select('*').eq('auth_id', session.user.id).maybeSingle();
+          if (dbUser) {
+            user = {
+              id: String(dbUser.id),
+              matricula: String(dbUser.matricula || ''),
+              name: String(dbUser.name),
+              role: dbUser.role as User['role'],
+              nucleus: String(dbUser.nucleus),
+              functionalEmail: String(dbUser.functional_email || ''),
+              gmail: String(dbUser.gmail || ''),
+              metaPercentage: Number(dbUser.meta_percentage || 100),
+              birthDate: String(dbUser.birth_date || ''),
+              active: Boolean(dbUser.active),
+              lastSeen: dbUser.last_seen ? String(dbUser.last_seen) : undefined,
+              authId: dbUser.auth_id ? String(dbUser.auth_id) : undefined,
+              senhaAlterada: dbUser.senha_alterada !== undefined && dbUser.senha_alterada !== null
+                ? Boolean(dbUser.senha_alterada)
+                : (dbUser.password !== '123456' && Boolean(dbUser.password))
+            };
+          }
+        }
+
+        if (user) {
+          this.currentUser.set(user);
+        }
+      }
+    } catch (e) {
+      console.error('AuthService: Erro ao verificar sessão do Supabase:', e);
+    }
+  }
+
+  async login(identifier: string, password?: string): Promise<boolean> {
+    const client = this.supabaseService.getClient();
+    if (!password) return false;
+
+    const term = identifier.trim().toLowerCase();
+    let email = term;
+    let user = this.users().find(u => 
+      u.name.toLowerCase() === term || 
+      (u.gmail && u.gmail.toLowerCase() === term) ||
+      u.id === identifier ||
+      (u.matricula && u.matricula.toLowerCase() === term)
     );
+
+    if (user && user.gmail) {
+      email = user.gmail.trim().toLowerCase();
+    }
+
+    if (client) {
+      try {
+        const { data, error } = await client.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (error || !data.user) {
+          console.error('AuthService: Erro de autenticação Supabase:', error?.message);
+          return false;
+        }
+
+        if (!user) {
+          user = this.users().find(u => u.gmail?.toLowerCase() === email || u.authId === data.user.id);
+        }
+
+        if (!user) {
+          const { data: dbUser } = await client.from('users').select('*').eq('auth_id', data.user.id).maybeSingle();
+          if (dbUser) {
+            user = {
+              id: String(dbUser.id),
+              matricula: String(dbUser.matricula || ''),
+              name: String(dbUser.name),
+              role: dbUser.role as User['role'],
+              nucleus: String(dbUser.nucleus),
+              functionalEmail: String(dbUser.functional_email || ''),
+              gmail: String(dbUser.gmail || ''),
+              metaPercentage: Number(dbUser.meta_percentage || 100),
+              birthDate: String(dbUser.birth_date || ''),
+              active: Boolean(dbUser.active),
+              lastSeen: dbUser.last_seen ? String(dbUser.last_seen) : undefined,
+              authId: dbUser.auth_id ? String(dbUser.auth_id) : undefined,
+              senhaAlterada: dbUser.senha_alterada !== undefined && dbUser.senha_alterada !== null
+                ? Boolean(dbUser.senha_alterada)
+                : (dbUser.password !== '123456' && Boolean(dbUser.password))
+            };
+          }
+        }
+
+        if (user) {
+          this.currentUser.set(user);
+          await this.updateLastSeen();
+          return true;
+        }
+        return false;
+      } catch (err) {
+        console.error('AuthService: Exceção no login:', err);
+        return false;
+      }
+    }
+
+    // Modo offline / mock fallback
     if (user && user.password === password) {
       this.currentUser.set(user);
-      this.updateLastSeen(); // Atualiza atividade ao logar
       return true;
     }
     return false;
@@ -95,8 +205,30 @@ export class AuthService {
     }
   }
 
-  logout() {
+  async logout() {
+    const client = this.supabaseService.getClient();
+    if (client) {
+      try {
+        await client.auth.signOut();
+      } catch (e) {
+        console.error('AuthService: Erro ao fazer logout:', e);
+      }
+    }
     this.currentUser.set(null);
+  }
+
+  async changePassword(newPassword: string) {
+    const client = this.supabaseService.getClient();
+    if (client) {
+      try {
+        const { error } = await client.auth.updateUser({ password: newPassword });
+        if (error) {
+          console.error('AuthService: Erro ao atualizar senha no Supabase Auth:', error.message);
+        }
+      } catch (e) {
+        console.error('AuthService: Erro ao atualizar senha:', e);
+      }
+    }
   }
 
   async addUser(user: Omit<User, 'id'>, auditLogFn: (action: string, details: Record<string, unknown>) => void) {
@@ -146,7 +278,7 @@ export class AuthService {
     const client = this.supabaseService.getClient();
     if (client) {
       if (updatedUser.id.startsWith('u')) return;
-      const { error } = await client.from('users').update({
+      const updateData: Record<string, unknown> = {
         matricula: updatedUser.matricula,
         name: updatedUser.name,
         role: updatedUser.role,
@@ -158,7 +290,12 @@ export class AuthService {
         active: updatedUser.active,
         password: updatedUser.password,
         atribuicao_nucleos: updatedUser.atribuicaoNucleos || []
-      }).eq('id', updatedUser.id);
+      };
+      if (updatedUser.senhaAlterada !== undefined) {
+        updateData['senha_alterada'] = updatedUser.senhaAlterada;
+      }
+
+      const { error } = await client.from('users').update(updateData).eq('id', updatedUser.id);
 
       if (error) {
         this.supabaseService.handleError(error, 'updateUser');

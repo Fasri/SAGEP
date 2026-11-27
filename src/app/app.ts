@@ -40,10 +40,13 @@ export class App {
     this.showLinksDropdown.set(false);
   }
 
-  isDefaultPassword = computed(() => {
+  requiresPasswordChange = computed(() => {
     const user = this.currentUser();
-    return user ? user.password === '123456' : false;
+    if (!user) return false;
+    return user.senhaAlterada === false || user.password === '123456';
   });
+
+  isDefaultPassword = this.requiresPasswordChange;
 
   loginForm = new FormGroup({
     userId: new FormControl('', Validators.required),
@@ -71,23 +74,27 @@ export class App {
 
     return allUsers.filter(u => 
       u.name.toLowerCase().includes(term) || 
-      u.matricula.toLowerCase().includes(term) ||
-      u.nucleus.toLowerCase().includes(term)
+      (u.nucleus && u.nucleus.toLowerCase().includes(term))
     ).slice(0, 10);
   });
 
-  login() {
+  async login() {
     this.loginError.set(null);
     if (this.loginForm.valid) {
-      const success = this.store.login(this.loginForm.value.userId!, this.loginForm.value.password!);
+      const success = await this.store.login(this.loginForm.value.userId!, this.loginForm.value.password!);
       if (!success) {
         this.loginError.set('Usuário ou senha inválidos.');
+      } else {
+        // Se a senha for provisória ou ainda não alterada, abre o modal de troca com urgência
+        if (this.requiresPasswordChange()) {
+          setTimeout(() => this.openChangePasswordModal(), 350);
+        }
       }
     }
   }
 
-  logout() {
-    this.store.logout();
+  async logout() {
+    await this.store.logout();
     this.loginForm.reset();
   }
 
@@ -96,7 +103,7 @@ export class App {
   }
 
   selectUser(user: User) {
-    this.loginForm.patchValue({ userId: user.matricula });
+    this.loginForm.patchValue({ userId: user.name });
     this.showDropdown.set(false);
   }
 
@@ -149,8 +156,13 @@ export class App {
       return;
     }
 
-    const updatedUser = { ...user, password: newPassword! };
+    const updatedUser: User = { 
+      ...user, 
+      password: newPassword!,
+      senhaAlterada: true 
+    };
     await this.store.updateUser(updatedUser);
+    await this.store.changePassword(newPassword!);
     
     this.changePasswordSuccess.set(true);
     setTimeout(() => {

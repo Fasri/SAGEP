@@ -41,9 +41,14 @@ export class StoreService {
   async loadData() {
     await this.metadataService.loadMetadata();
     await this.authService.loadUsers((n: string) => this.metadataService.normalizeNucleus(n));
-    await this.processService.loadInitialProcesses();
-    this.processService.updateGlobalStats();
-    this.processService.fetchLastEtlUpdate();
+    await this.authService.checkCurrentSession();
+    
+    // Carrega os processos apenas se houver usuário autenticado (ou após login bem-sucedido)
+    if (this.currentUser()) {
+      await this.processService.loadInitialProcesses();
+      this.processService.updateGlobalStats();
+      this.processService.fetchLastEtlUpdate();
+    }
   }
 
   async reloadProcesses() {
@@ -51,12 +56,23 @@ export class StoreService {
   }
 
   // Auth
-  login(identifier: string, password?: string): boolean {
-    return this.authService.login(identifier, password);
+  async login(identifier: string, password?: string): Promise<boolean> {
+    const success = await this.authService.login(identifier, password);
+    if (success) {
+      await this.processService.loadInitialProcesses();
+      this.processService.updateGlobalStats();
+      this.processService.fetchLastEtlUpdate();
+    }
+    return success;
   }
 
-  logout() {
-    this.authService.logout();
+  async logout() {
+    await this.authService.logout();
+    this.processService.processes.set([]);
+  }
+
+  async changePassword(newPassword: string) {
+    await this.authService.changePassword(newPassword);
   }
 
   async addUser(user: Omit<User, 'id'>) {
